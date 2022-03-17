@@ -16,7 +16,7 @@ use crate::config::VOTER_WEIGHT_SEED_VERSION;
 pub enum VoterWeightAddinInstruction {
     /// Sets up VoterWeightRecord owned by the program
     ///
-    /// 0. `[]` Governance Program Id
+    /// 0. `[]` Governance Program Id     // <<< why we need this address here?
     /// 1. `[]` Realm account
     /// 2. `[]` Governing Token mint
     /// 3. `[]` Governing token owner

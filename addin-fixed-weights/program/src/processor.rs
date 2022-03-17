@@ -60,6 +60,10 @@ pub fn process_setup_voter_weight_record(
     let payer_info = next_account_info(account_info_iter)?; // 4
     let system_info = next_account_info(account_info_iter)?; // 5
 
+    /// Check:
+    /// 1. realm_info.key
+    /// 2. governing_token_mint_info.key
+
     let voter_weight: u64 = get_voter_weight_fixed(governing_token_owner_info.key)?;
 
     let voter_weight_record_data = VoterWeightRecord {
@@ -104,6 +108,10 @@ pub fn process_setup_max_voter_weight_record(
     let system_info = next_account_info(account_info_iter)?; // 4
 
     let max_voter_weight: u64 = get_max_voter_weight_fixed();
+
+    /// Check:
+    /// 1. realm_info.key
+    /// 2. governing_token_mint_info.key
 
     let max_voter_weight_record_data = MaxVoterWeightRecord {
         account_discriminator: MaxVoterWeightRecord::ACCOUNT_DISCRIMINATOR,

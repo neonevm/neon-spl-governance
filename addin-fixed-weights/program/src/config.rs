@@ -23,6 +23,7 @@ cfg_if! {
         /// Governing Community Mint
         pub const GOVERNING_MINT: &'static str = "3vxj94fSd3jrhaGAwaEKGDPEwn5Yqs81Ay5j1BcdMqSZ";
 
+        // <<< Why we need declare this id here?
         solana_program::declare_id!("56cFVhzLFKuvRXQW68ACLpcbJonZeUBNDdLdZoo5fGnB");
 
         voter_weight_array!(
@@ -112,4 +113,4 @@ cfg_if! {
 }
 
 /// Voter Weight Addin Fixed Version
-pub const VOTER_WEIGHT_SEED_VERSION: u8 = 1;
+pub const VOTER_WEIGHT_SEED_VERSION: u8 = 1;    // <<< It is unneeded
