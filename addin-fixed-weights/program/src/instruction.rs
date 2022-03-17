@@ -7,8 +7,6 @@ use solana_program::{
     system_program,
 };
 
-use crate::config::VOTER_WEIGHT_SEED_VERSION;
-
 /// Instructions supported by the VoterWeight addin program
 /// This program is a mock program used by spl-governance for testing and not real addin
 #[derive(Clone, Debug, PartialEq, BorshDeserialize, BorshSerialize, BorshSchema)]
@@ -16,10 +14,10 @@ use crate::config::VOTER_WEIGHT_SEED_VERSION;
 pub enum VoterWeightAddinInstruction {
     /// Sets up VoterWeightRecord owned by the program
     ///
-    /// 0. `[]` Governance Program Id
-    /// 1. `[]` Realm account
-    /// 2. `[]` Governing Token mint
-    /// 3. `[]` Governing token owner
+    /// 0. `[]` Realm account
+    /// 1. `[]` Governing Token mint
+    /// 2. `[]` Governing token owner
+    /// 3. `[writable]` VoterWeightRecord
     /// 4. `[signer]` Payer
     /// 5. `[]` System
     SetupVoterWeightRecord { },
@@ -27,21 +25,22 @@ pub enum VoterWeightAddinInstruction {
     ///
     /// 0. `[]` Realm account
     /// 1. `[]` Governing Token mint
-    /// 2. `[signer]` Payer
-    /// 3. `[]` System
+    /// 2. `[writable]` MaxVoterWeightRecord
+    /// 3. `[signer]` Payer
+    /// 4. `[]` System
     SetupMaxVoterWeightRecord { },
 }
 
 
 /// Get VoterVeightRecord account address and bump seed
 pub fn get_voter_weight_address(program_id: &Pubkey, realm: &Pubkey, governing_token_mint: &Pubkey, governing_token_owner: &Pubkey) -> (Pubkey, u8) {
-    let seeds: &[&[u8]] = &[b"voter_weight", &[VOTER_WEIGHT_SEED_VERSION], &realm.to_bytes(), &governing_token_mint.to_bytes(), &governing_token_owner.to_bytes()];
+    let seeds: &[&[u8]] = &[b"voter_weight", &realm.to_bytes(), &governing_token_mint.to_bytes(), &governing_token_owner.to_bytes()];
     Pubkey::find_program_address(seeds, program_id)
 }
 
 /// Get MaxVoterVeightRecord account address and bump seed
 pub fn get_max_voter_weight_address(program_id: &Pubkey, realm: &Pubkey, governing_token_mint: &Pubkey) -> (Pubkey, u8) {
-    let seeds: &[&[u8]] = &[b"max_voter_weight", &[VOTER_WEIGHT_SEED_VERSION], &realm.to_bytes(), &governing_token_mint.to_bytes()];
+    let seeds: &[&[u8]] = &[b"max_voter_weight", &realm.to_bytes(), &governing_token_mint.to_bytes()];
     Pubkey::find_program_address(seeds, program_id)
 }
 
