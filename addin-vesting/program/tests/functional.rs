@@ -10,16 +10,29 @@ use solana_program::{
 use solana_program_test::{processor, ProgramTest};
 use solana_sdk::{
     account::Account,
-    signature::Keypair,
-    signature::Signer,
+    signature::{Keypair, Signer},
     system_instruction,
     transaction::Transaction,
 };
-use token_vesting::{entrypoint::process_instruction, state::VestingSchedule, state::VestingRecord};
-use token_vesting::instruction::{deposit, withdraw, change_owner};
+use token_vesting::{
+    entrypoint::process_instruction,
+    state::{VestingSchedule, VestingRecord},
+    instruction::{deposit, withdraw, change_owner, deposit_with_realm, withdraw_with_realm, change_owner_with_realm},
+};
 use spl_token::{self, instruction::{initialize_mint, initialize_account, mint_to}};
+use spl_governance::{
+    instruction::create_realm,
+    state::{
+        enums::MintMaxVoteWeightSource,
+        realm::get_realm_address,
+    },
+};
+use token_vesting::state::{get_voter_weight_record_address, get_max_voter_weight_record_address};
+use spl_governance_addin_api::voter_weight::VoterWeightRecord;
+use spl_governance_addin_api::max_voter_weight::MaxVoterWeightRecord;
 
 #[tokio::test]
+#[ignore]
 async fn test_token_vesting() {
 
     // Create program and test environment
@@ -58,9 +71,6 @@ async fn test_token_vesting() {
 
     // Start and process transactions on the test network
     let (mut banks_client, payer, recent_blockhash) = program_test.start().await;
-    //let mut context = program_test.start_with_context().await;
-    //let payer = &context.payer;
-    //let recent_blockhash = context.last_blockhash;
 
     // Initialize the token accounts
     banks_client.process_transaction(mint_init_transaction(
@@ -174,6 +184,254 @@ async fn test_token_vesting() {
         let acc_record: VestingRecord = try_from_slice_unchecked(&a.data).unwrap();
         println!("         {:?}", acc_record);
     }
+}
+
+#[tokio::test]
+async fn test_token_vesting_with_realm() {
+
+    // Create program and test environment
+    let program_id = Pubkey::from_str("VestingbGKPFXCWuBvfkegQfZyiNwAJb9Ss623VQ5DA").unwrap();
+    let governance_id = Pubkey::from_str("5ZYgDTqLbYJ2UAtF7rbUboSt9Q6bunCQgGEwxDFrQrXb").unwrap();
+    let mint_authority = Keypair::new();
+    let mint = Keypair::new();
+
+    let source_account = Keypair::new();
+    let source_token_account = Keypair::new();
+
+    let destination_account = Keypair::new();
+    let destination_token_account = Keypair::new();
+
+    let new_destination_account = Keypair::new();
+    let new_destination_token_account = Keypair::new();
+
+    let mut seeds = [42u8; 32];
+    let (vesting_account_key, bump) = Pubkey::find_program_address(&[&seeds[..31]], &program_id);
+    seeds[31] = bump;
+    let vesting_token_account = Keypair::new();
+
+    let mut seeds2 = [40u8; 32];
+    let (vesting_account_key2, bump2) = Pubkey::find_program_address(&[&seeds2[..31]], &program_id);
+    seeds2[31] = bump2;
+    let vesting_token_account2 = Keypair::new();
+    
+    let mut program_test = ProgramTest::new(
+        "token_vesting",
+        program_id,
+        processor!(process_instruction),
+    );
+
+    // Add accounts         
+    program_test.add_account(
+        source_account.pubkey(),
+        Account {
+            lamports: 5000000,
+            ..Account::default()
+        },
+    );
+
+    program_test.add_program(
+        "spl_governance",
+        governance_id,
+        None,
+    );
+
+    // Start and process transactions on the test network
+    let (mut banks_client, payer, recent_blockhash) = program_test.start().await;
+
+    // Initialize the token accounts
+    banks_client.process_transaction(mint_init_transaction(
+        &payer,
+        &mint,
+        &mint_authority,
+        recent_blockhash
+    )).await.unwrap();
+
+    banks_client.process_transaction(
+        create_token_account(&payer, &mint, recent_blockhash, &source_token_account, &source_account.pubkey())
+    ).await.unwrap();
+    banks_client.process_transaction(
+        create_token_account(&payer, &mint, recent_blockhash, &vesting_token_account, &vesting_account_key)
+    ).await.unwrap();
+    banks_client.process_transaction(
+        create_token_account(&payer, &mint, recent_blockhash, &destination_token_account, &destination_account.pubkey())
+    ).await.unwrap();
+    banks_client.process_transaction(
+        create_token_account(&payer, &mint, recent_blockhash, &new_destination_token_account, &new_destination_account.pubkey())
+    ).await.unwrap();
+    banks_client.process_transaction(
+        create_token_account(&payer, &mint, recent_blockhash, &vesting_token_account2, &vesting_account_key2)
+    ).await.unwrap();
+
+
+    // Create and process the vesting transactions
+    let setup_instructions = [
+        mint_to(
+            &spl_token::id(), 
+            &mint.pubkey(), 
+            &source_token_account.pubkey(), 
+            &mint_authority.pubkey(), 
+            &[], 
+            120
+        ).unwrap()
+    ];
+    
+    // Process transaction on test network
+    let mut setup_transaction = Transaction::new_with_payer(
+        &setup_instructions,
+        Some(&payer.pubkey()),
+    );
+    setup_transaction.partial_sign(&[&payer, &mint_authority], recent_blockhash);
+    banks_client.process_transaction(setup_transaction).await.unwrap();
+
+    // Create realm
+    let realm_name = "testing realm".to_string();
+    let realm_address = get_realm_address(&governance_id, &realm_name);
+    let create_realm_instructions = [
+        create_realm(
+            &governance_id,
+            &mint_authority.pubkey(),
+            &mint.pubkey(),
+            &payer.pubkey(),
+            None, None, None,
+            realm_name,
+            1,
+            MintMaxVoteWeightSource::SupplyFraction(10_000_000_000)
+        ),
+    ];
+    let mut create_realm_transaction = Transaction::new_with_payer(
+        &create_realm_instructions,
+        Some(&payer.pubkey()),
+    );
+    create_realm_transaction.partial_sign(&[&payer], recent_blockhash);
+    banks_client.process_transaction(create_realm_transaction).await.unwrap();
+
+    // Create vesting account
+    let schedules = vec![
+        VestingSchedule {amount: 20, release_time: 0},
+        VestingSchedule {amount: 20, release_time: 2},
+        VestingSchedule {amount: 20, release_time: 5}
+    ];
+
+    let deposit_instructions = [
+        deposit_with_realm(
+            &program_id,
+            &spl_token::id(),
+            seeds.clone(),
+            &vesting_token_account.pubkey(),
+            &source_account.pubkey(),
+            &source_token_account.pubkey(),
+            &destination_account.pubkey(),
+            &payer.pubkey(),
+            schedules.clone(),
+            &governance_id,
+            &realm_address,
+            &mint.pubkey(),
+        ).unwrap(),
+    ];
+    let mut deposit_transaction = Transaction::new_with_payer(
+        &deposit_instructions,
+        Some(&payer.pubkey()),
+    );
+    deposit_transaction.partial_sign(&[&payer, &source_account], recent_blockhash);
+    banks_client.process_transaction(deposit_transaction).await.unwrap();
+
+    let deposit_instructions2 = [
+        deposit_with_realm(
+            &program_id,
+            &spl_token::id(),
+            seeds2.clone(),
+            &vesting_token_account2.pubkey(),
+            &source_account.pubkey(),
+            &source_token_account.pubkey(),
+            &new_destination_account.pubkey(),
+            &payer.pubkey(),
+            schedules.clone(),
+            &governance_id,
+            &realm_address,
+            &mint.pubkey(),
+        ).unwrap(),
+    ];
+    let mut deposit_transaction2 = Transaction::new_with_payer(
+        &deposit_instructions2,
+        Some(&payer.pubkey()),
+    );
+    deposit_transaction2.partial_sign(&[&payer, &source_account], recent_blockhash);
+    banks_client.process_transaction(deposit_transaction2).await.unwrap();
+
+
+    let change_owner_instructions = [
+        change_owner_with_realm(
+            &program_id,
+            seeds.clone(),
+            &destination_account.pubkey(),
+            &new_destination_account.pubkey(),
+            &governance_id,
+            &realm_address,
+            &mint.pubkey(),
+        ).unwrap(),
+    ];
+    let mut change_owner_transaction = Transaction::new_with_payer(
+        &change_owner_instructions,
+        Some(&payer.pubkey()),
+    );
+    change_owner_transaction.partial_sign(&[&payer, &destination_account], recent_blockhash);
+    banks_client.process_transaction(change_owner_transaction).await.unwrap();
+
+
+    let withdraw_instrictions = [
+        withdraw_with_realm(
+            &program_id,
+            &spl_token::id(),
+            seeds.clone(),
+            &vesting_token_account.pubkey(),
+            &destination_token_account.pubkey(),
+            &new_destination_account.pubkey(),
+            &governance_id,
+            &realm_address,
+            &mint.pubkey(),
+        ).unwrap(),
+    ];
+
+    let mut withdraw_transaction = Transaction::new_with_payer(
+        &withdraw_instrictions,
+        Some(&payer.pubkey()),
+    );
+    withdraw_transaction.partial_sign(&[&payer, &new_destination_account], recent_blockhash);
+    banks_client.process_transaction(withdraw_transaction).await.unwrap();
+
+
+    let vesting_record_account = banks_client.get_account(vesting_account_key).await.unwrap().unwrap();
+    let vesting_record: VestingRecord = try_from_slice_unchecked(&vesting_record_account.data).unwrap();
+    println!("VestingRecord: {:?}", vesting_record);
+
+    let voter_weight_record_address = get_voter_weight_record_address(
+        &program_id,
+        &realm_address,
+        &mint.pubkey(),
+        &destination_account.pubkey()
+    );
+    let voter_weight_record_account = banks_client.get_account(voter_weight_record_address).await.unwrap().unwrap();
+    let voter_weight_record: VoterWeightRecord = try_from_slice_unchecked(&voter_weight_record_account.data).unwrap();
+    println!("VoterWeightRecord: {:?}", voter_weight_record);
+
+    let voter_weight_record_address2 = get_voter_weight_record_address(
+        &program_id,
+        &realm_address,
+        &mint.pubkey(),
+        &new_destination_account.pubkey()
+    );
+    let voter_weight_record_account2 = banks_client.get_account(voter_weight_record_address2).await.unwrap().unwrap();
+    let voter_weight_record2: VoterWeightRecord = try_from_slice_unchecked(&voter_weight_record_account2.data).unwrap();
+    println!("VoterWeightRecord: {:?}", voter_weight_record2);
+
+    let max_voter_weight_record_address = get_max_voter_weight_record_address(
+        &program_id,
+        &realm_address,
+        &mint.pubkey(),
+    );
+    let max_voter_weight_record_account = banks_client.get_account(max_voter_weight_record_address).await.unwrap().unwrap();
+    let max_voter_weight_record: MaxVoterWeightRecord = try_from_slice_unchecked(&max_voter_weight_record_account.data).unwrap();
+    println!("MaxVoterWeightRecord: {:?}", max_voter_weight_record);
 }
 
 fn mint_init_transaction(

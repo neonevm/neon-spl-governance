@@ -1,4 +1,8 @@
-use crate::state::VestingSchedule;
+use crate::state::{
+    VestingSchedule,
+    get_voter_weight_record_address,
+    get_max_voter_weight_record_address,
+};
 
 use solana_program::{
     instruction::{AccountMeta, Instruction},
@@ -9,6 +13,7 @@ use solana_program::{
 };
 
 use borsh::{BorshDeserialize, BorshSchema, BorshSerialize};
+use spl_governance::state::token_owner_record::get_token_owner_record_address;
 
 #[cfg(feature = "fuzz")]
 use arbitrary::Arbitrary;
@@ -169,6 +174,51 @@ pub fn deposit(
     })
 }
 
+/// Creates a `Deposit` instruction to create and initialize the vesting token account
+/// inside the Realm
+pub fn deposit_with_realm(
+    program_id: &Pubkey,
+    token_program_id: &Pubkey,
+    seeds: [u8; 32],
+    vesting_token_account: &Pubkey,
+    source_token_owner: &Pubkey,
+    source_token_account: &Pubkey,
+    vesting_owner: &Pubkey,
+    payer: &Pubkey,
+    schedules: Vec<VestingSchedule>,
+    governance_id: &Pubkey,
+    realm: &Pubkey,
+    mint: &Pubkey,
+) -> Result<Instruction, ProgramError> {
+    let vesting_account = Pubkey::create_program_address(&[&seeds], program_id)?;
+    let voting_weight_record_account = get_voter_weight_record_address(program_id, realm, mint, vesting_owner);
+    let max_voting_weight_record_account = get_max_voter_weight_record_address(program_id, realm, mint);
+    let accounts = vec![
+        AccountMeta::new_readonly(system_program::id(), false),
+        AccountMeta::new_readonly(*token_program_id, false),
+        AccountMeta::new(vesting_account, false),
+        AccountMeta::new(*vesting_token_account, false),
+        AccountMeta::new_readonly(*source_token_owner, true),
+        AccountMeta::new(*source_token_account, false),
+        AccountMeta::new_readonly(*vesting_owner, false),
+        AccountMeta::new_readonly(*payer, true),
+        AccountMeta::new_readonly(sysvar::rent::id(), false),
+
+        AccountMeta::new_readonly(*governance_id, false),
+        AccountMeta::new_readonly(*realm, false),
+        AccountMeta::new(voting_weight_record_account, false),
+        AccountMeta::new(max_voting_weight_record_account, false),
+    ];
+
+    let instruction = VestingInstruction::Deposit { seeds, schedules };
+
+    Ok(Instruction {
+        program_id: *program_id,
+        accounts,
+        data: instruction.try_to_vec().unwrap(),
+    })
+}
+
 /// Creates a `Withdraw` instruction
 pub fn withdraw(
     program_id: &Pubkey,
@@ -197,6 +247,46 @@ pub fn withdraw(
     })
 }
 
+/// Creates a `Withdraw` instruction with realm
+pub fn withdraw_with_realm(
+    program_id: &Pubkey,
+    token_program_id: &Pubkey,
+    seeds: [u8; 32],
+    vesting_token_account: &Pubkey,
+    destination_token_account: &Pubkey,
+    vesting_owner: &Pubkey,
+    governance_id: &Pubkey,
+    realm: &Pubkey,
+    mint: &Pubkey,
+) -> Result<Instruction, ProgramError> {
+    let vesting_account = Pubkey::create_program_address(&[&seeds], program_id)?;
+    let owner_record_account = get_token_owner_record_address(governance_id, realm, mint, vesting_owner);
+    let voting_weight_record_account = get_voter_weight_record_address(program_id, realm, mint, vesting_owner);
+    let max_voting_weight_record_account = get_max_voter_weight_record_address(program_id, realm, mint);
+    let accounts = vec![
+        AccountMeta::new_readonly(*token_program_id, false),
+        AccountMeta::new_readonly(sysvar::clock::id(), false),
+        AccountMeta::new(vesting_account, false),
+        AccountMeta::new(*vesting_token_account, false),
+        AccountMeta::new(*destination_token_account, false),
+        AccountMeta::new_readonly(*vesting_owner, true),
+
+        AccountMeta::new_readonly(*governance_id, false),
+        AccountMeta::new_readonly(*realm, false),
+        AccountMeta::new_readonly(owner_record_account, false),
+        AccountMeta::new(voting_weight_record_account, false),
+        AccountMeta::new(max_voting_weight_record_account, false),
+    ];
+
+    let instruction = VestingInstruction::Withdraw { seeds };
+
+    Ok(Instruction {
+        program_id: *program_id,
+        accounts,
+        data: instruction.try_to_vec().unwrap(),
+    })
+}
+
 /// Creates a `Withdraw` instruction
 pub fn change_owner(
     program_id: &Pubkey,
@@ -209,6 +299,41 @@ pub fn change_owner(
         AccountMeta::new(vesting_account, false),
         AccountMeta::new(*vesting_owner, true),
         AccountMeta::new(*new_vesting_owner, false),
+    ];
+
+    let instruction = VestingInstruction::ChangeOwner { seeds };
+
+    Ok(Instruction {
+        program_id: *program_id,
+        accounts,
+        data: instruction.try_to_vec().unwrap(),
+    })
+}
+
+/// Creates a `Withdraw` instruction
+pub fn change_owner_with_realm(
+    program_id: &Pubkey,
+    seeds: [u8; 32],
+    vesting_owner: &Pubkey,
+    new_vesting_owner: &Pubkey,
+    governance_id: &Pubkey,
+    realm: &Pubkey,
+    mint: &Pubkey,
+) -> Result<Instruction, ProgramError> {
+    let vesting_account = Pubkey::create_program_address(&[&seeds], program_id)?;
+    let current_owner_record_account = get_token_owner_record_address(governance_id, realm, mint, vesting_owner);
+    let current_voting_weight_record_account = get_voter_weight_record_address(program_id, realm, mint, vesting_owner);
+    let new_voting_weight_record_account = get_voter_weight_record_address(program_id, realm, mint, new_vesting_owner);
+    let accounts = vec![
+        AccountMeta::new(vesting_account, false),
+        AccountMeta::new(*vesting_owner, true),
+        AccountMeta::new(*new_vesting_owner, false),
+
+        AccountMeta::new_readonly(*governance_id, false),
+        AccountMeta::new_readonly(*realm, false),
+        AccountMeta::new_readonly(current_owner_record_account, false),
+        AccountMeta::new(current_voting_weight_record_account, false),
+        AccountMeta::new(new_voting_weight_record_account, false),
     ];
 
     let instruction = VestingInstruction::ChangeOwner { seeds };
