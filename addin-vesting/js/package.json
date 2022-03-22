@@ -1,0 +1,44 @@
+{
+  "name": "@bonfida/token-vesting",
+  "version": "0.0.8",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bonfida/token-vesting"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "prepublish": "tsc",
+    "dev": "tsc && node dist/dev.js",
+    "build": "tsc",
+    "lint": "npm run pretty && eslint .",
+    "lint:fix": "npm run pretty:fix && eslint . --fix",
+    "pretty": "prettier --check 'src/*.[jt]s'",
+    "pretty:fix": "prettier --write 'src/*.[jt]s'"
+  },
+  "devDependencies": {
+    "@tsconfig/recommended": "^1.0.1",
+    "@types/node": "^14.14.20",
+    "babel-eslint": "^10.1.0",
+    "eslint": "^7.17.0",
+    "eslint-plugin-import": "^2.22.1",
+    "nodemon": "^2.0.7",
+    "prettier": "^2.2.1",
+    "ts-node": "^9.1.1",
+    "tslib": "^2.1.0",
+    "typescript": "^4.1.3"
+  },
+  "dependencies": {
+    "@solana/spl-token": "0.0.13",
+    "@solana/web3.js": "^1.31.0",
+    "bip32": "^2.0.6",
+    "bn.js": "^5.1.3",
+    "bs58": "^4.0.1",
+    "buffer-layout": "^1.2.0",
+    "tweetnacl": "^1.0.3"
+  }
+}
