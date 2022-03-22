@@ -1,16 +1,22 @@
 #![cfg(feature = "test-bpf")]
 use std::str::FromStr;
 
-use solana_program::{hash::Hash,
+use solana_program::{
+    borsh::try_from_slice_unchecked,
+    hash::Hash,
     pubkey::Pubkey,
     rent::Rent,
-    sysvar,
-    system_program
 };
 use solana_program_test::{processor, ProgramTest};
-use solana_sdk::{account::Account, keyed_account, signature::Keypair, signature::Signer, system_instruction, transaction::Transaction};
-use token_vesting::{entrypoint::process_instruction, instruction::Schedule};
-use token_vesting::instruction::{init, unlock, change_destination, create};
+use solana_sdk::{
+    account::Account,
+    signature::Keypair,
+    signature::Signer,
+    system_instruction,
+    transaction::Transaction,
+};
+use token_vesting::{entrypoint::process_instruction, state::VestingSchedule, state::VestingRecord};
+use token_vesting::instruction::{deposit, withdraw, change_owner};
 use spl_token::{self, instruction::{initialize_mint, initialize_account, mint_to}};
 
 #[tokio::test]
@@ -52,28 +58,9 @@ async fn test_token_vesting() {
 
     // Start and process transactions on the test network
     let (mut banks_client, payer, recent_blockhash) = program_test.start().await;
-
-    // Initialize the vesting program account
-    let init_instruction = [init(
-        &system_program::id(),
-        &sysvar::rent::id(),
-        &program_id,
-        &payer.pubkey(),
-        &vesting_account_key,
-        seeds,
-        3
-    ).unwrap()
-    ];
-    let mut init_transaction = Transaction::new_with_payer(
-        &init_instruction,
-        Some(&payer.pubkey()),
-    );
-    init_transaction.partial_sign(
-        &[&payer],
-        recent_blockhash
-    );
-    banks_client.process_transaction(init_transaction).await.unwrap();
-
+    //let mut context = program_test.start_with_context().await;
+    //let payer = &context.payer;
+    //let recent_blockhash = context.last_blockhash;
 
     // Initialize the token accounts
     banks_client.process_transaction(mint_init_transaction(
@@ -105,48 +92,7 @@ async fn test_token_vesting() {
             &source_token_account.pubkey(), 
             &mint_authority.pubkey(), 
             &[], 
-            100
-        ).unwrap()
-    ];
-
-    let schedules = vec![
-        Schedule {amount: 20, release_time: 0},
-        Schedule {amount: 20, release_time: 2},
-        Schedule {amount: 20, release_time: 5}
-    ];
-
-    let test_instructions = [
-        create(
-            &program_id,
-            &spl_token::id(),
-            &vesting_account_key,
-            &vesting_token_account.pubkey(),
-            &source_account.pubkey(),
-            &source_token_account.pubkey(),
-            &destination_token_account.pubkey(),
-            &mint.pubkey(),
-            schedules,
-            seeds.clone()
-        ).unwrap(),
-        unlock(
-            &program_id,
-            &spl_token::id(),
-            &sysvar::clock::id(),
-            &vesting_account_key,
-            &vesting_token_account.pubkey(),
-            &destination_token_account.pubkey(),
-            seeds.clone()
-        ).unwrap()
-    ];
-
-    let change_destination_instructions = [
-        change_destination(
-            &program_id,
-            &vesting_account_key,
-            &destination_account.pubkey(),
-            &destination_token_account.pubkey(),
-            &new_destination_token_account.pubkey(),
-            seeds.clone()
+            60
         ).unwrap()
     ];
     
@@ -155,46 +101,79 @@ async fn test_token_vesting() {
         &setup_instructions,
         Some(&payer.pubkey()),
     );
-    setup_transaction.partial_sign(
-        &[
-            &payer,
-            &mint_authority
-            ], 
-        recent_blockhash
-    );
-    
+    setup_transaction.partial_sign(&[&payer, &mint_authority], recent_blockhash);
     banks_client.process_transaction(setup_transaction).await.unwrap();
 
+    let schedules = vec![
+        VestingSchedule {amount: 20, release_time: 0},
+        VestingSchedule {amount: 20, release_time: 2},
+        VestingSchedule {amount: 20, release_time: 5}
+    ];
+
+    let deposit_instructions = [
+        deposit(
+            &program_id,
+            &spl_token::id(),
+            seeds.clone(),
+            &vesting_token_account.pubkey(),
+            &source_account.pubkey(),
+            &source_token_account.pubkey(),
+            &destination_account.pubkey(),
+            &payer.pubkey(),
+            schedules,
+        ).unwrap(),
+    ];
     // Process transaction on test network
-    let mut test_transaction = Transaction::new_with_payer(
-        &test_instructions,
+    let mut deposit_transaction = Transaction::new_with_payer(
+        &deposit_instructions,
         Some(&payer.pubkey()),
     );
-    test_transaction.partial_sign(
-        &[
-            &payer,
-            &source_account
-            ], 
-        recent_blockhash
-    );
-    
-    banks_client.process_transaction(test_transaction).await.unwrap();
-    
-    let mut change_destination_transaction = Transaction::new_with_payer(
-        &change_destination_instructions, 
-        Some(&payer.pubkey())
-    );
+    deposit_transaction.partial_sign(&[&payer, &source_account], recent_blockhash);
+    banks_client.process_transaction(deposit_transaction).await.unwrap();
 
-    change_destination_transaction.partial_sign(
-        &[
-            &payer,
-            &destination_account
-        ], 
-        recent_blockhash
-    );
 
-    banks_client.process_transaction(change_destination_transaction).await.unwrap();
-    
+    let change_owner_instructions = [
+        change_owner(
+            &program_id,
+            seeds.clone(),
+            &destination_account.pubkey(),
+            &new_destination_account.pubkey(),
+        ).unwrap(),
+    ];
+    let mut change_owner_transaction = Transaction::new_with_payer(
+        &change_owner_instructions,
+        Some(&payer.pubkey()),
+    );
+    change_owner_transaction.partial_sign(&[&payer, &destination_account], recent_blockhash);
+    banks_client.process_transaction(change_owner_transaction).await.unwrap();
+
+
+    let withdraw_instrictions = [
+        withdraw(
+            &program_id,
+            &spl_token::id(),
+            seeds.clone(),
+            &vesting_token_account.pubkey(),
+            &destination_token_account.pubkey(),
+            &new_destination_account.pubkey(),
+        ).unwrap(),
+    ];
+
+    let mut withdraw_transaction = Transaction::new_with_payer(
+        &withdraw_instrictions,
+        Some(&payer.pubkey()),
+    );
+    withdraw_transaction.partial_sign(&[&payer, &new_destination_account], recent_blockhash);
+    banks_client.process_transaction(withdraw_transaction).await.unwrap();
+
+
+    let acc = banks_client.get_account(vesting_account_key).await.unwrap();
+    println!("Vesting: {:?}", acc);
+
+    if let Some(a) = acc {
+        let acc_record: VestingRecord = try_from_slice_unchecked(&a.data).unwrap();
+        println!("         {:?}", acc_record);
+    }
 }
 
 fn mint_init_transaction(
