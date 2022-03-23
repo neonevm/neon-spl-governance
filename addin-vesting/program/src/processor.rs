@@ -5,7 +5,6 @@ use solana_program::{
     entrypoint::ProgramResult,
     msg,
     program::{invoke, invoke_signed},
-    program_error::PrintProgramError,
     program_error::ProgramError,
     program_pack::Pack,
     pubkey::Pubkey,
@@ -20,17 +19,27 @@ use spl_governance_tools::account::{
     get_account_data,
     create_and_serialize_account_signed,
 };
-use spl_governance_addin_api::{
-    voter_weight::VoterWeightRecord,
-    max_voter_weight::MaxVoterWeightRecord,
+use spl_governance::state::{
+    realm::{get_realm_address_seeds, get_realm_data},
+    token_owner_record::{
+        get_token_owner_record_address_seeds,
+        get_token_owner_record_data_for_seeds,
+    },
 };
 
 use crate::{
     error::VestingError,
     instruction::VestingInstruction,
-    state::{
-        VestingAccountType, VestingRecord, VestingSchedule,
-        get_voter_weight_record_seeds, get_max_voter_weight_record_seeds,
+    state::{VestingAccountType, VestingRecord, VestingSchedule},
+    voter_weight::{
+        VoterWeightRecord,
+        create_voter_weight_record,
+        get_voter_weight_record_data_checked,
+    },
+    max_voter_weight::{
+        MaxVoterWeightRecord,
+        create_max_voter_weight_record,
+        get_max_voter_weight_record_data_checked,
     },
 };
 
@@ -147,55 +156,46 @@ impl Processor {
 
         if let Some((_governance, realm_account, voter_weight_record_account, max_voter_weight_record_account)) = realm_info {
             if voter_weight_record_account.data_is_empty() {
-                let voter_weight_record = VoterWeightRecord {
-                    account_discriminator: VoterWeightRecord::ACCOUNT_DISCRIMINATOR,
-                    realm: *realm_account.key,
-                    governing_token_mint: vesting_token_account_data.mint,
-                    governing_token_owner: *vesting_owner_account.key,
-                    voter_weight: total_amount,
-                    voter_weight_expiry: None,
-                    weight_action: None,
-                    weight_action_target: None,
-                    reserved: [0u8; 8],
-                };
-                create_and_serialize_account_signed::<VoterWeightRecord>(
+                create_voter_weight_record(
+                    program_id,
+                    realm_account.key,
+                    &vesting_token_account_data.mint,
+                    vesting_owner_account.key,
                     payer_account,
                     voter_weight_record_account,
-                    &voter_weight_record,
-                    &get_voter_weight_record_seeds(realm_account.key, &vesting_token_account_data.mint, vesting_owner_account.key),
-                    program_id,
                     system_program_account,
-                    rent
+                    |record| {Ok(record.voter_weight = total_amount)},
                 )?;
             } else {
-                let mut voter_weight_record = get_account_data::<VoterWeightRecord>(&program_id, voter_weight_record_account)?;
-                // TODO check realm & voter_weight_record
+                let mut voter_weight_record = get_voter_weight_record_data_checked(
+                        &program_id,
+                        voter_weight_record_account,
+                        realm_account.key,
+                        &vesting_token_account_data.mint,
+                        vesting_owner_account.key)?;
+
                 let voter_weight = &mut voter_weight_record.voter_weight;
                 *voter_weight = voter_weight.checked_add(total_amount).ok_or_else(|| ProgramError::InvalidInstructionData)?;
                 voter_weight_record.serialize(&mut *voter_weight_record_account.data.borrow_mut())?;
             }
 
             if max_voter_weight_record_account.data_is_empty() {
-                let max_voter_weight_record = MaxVoterWeightRecord {
-                    account_discriminator: MaxVoterWeightRecord::ACCOUNT_DISCRIMINATOR,
-                    realm: *realm_account.key,
-                    governing_token_mint: vesting_token_account_data.mint,
-                    max_voter_weight: total_amount,
-                    max_voter_weight_expiry: None,
-                    reserved: [0u8; 8],
-                };
-                create_and_serialize_account_signed::<MaxVoterWeightRecord>(
+                create_max_voter_weight_record(
+                    program_id,
+                    realm_account.key,
+                    &vesting_token_account_data.mint,
                     payer_account,
                     max_voter_weight_record_account,
-                    &max_voter_weight_record,
-                    &get_max_voter_weight_record_seeds(realm_account.key, &vesting_token_account_data.mint),
-                    program_id,
                     system_program_account,
-                    rent
+                    |record| Ok(record.max_voter_weight = total_amount)
                 )?;
             } else {
-                let mut max_voter_weight_record = get_account_data::<MaxVoterWeightRecord>(&program_id, max_voter_weight_record_account)?;
-                // TODO check realm & max_voter_weight_record
+                let mut max_voter_weight_record = get_max_voter_weight_record_data_checked(
+                        &program_id,
+                        max_voter_weight_record_account,
+                        realm_account.key,
+                        &vesting_token_account_data.mint)?;
+
                 let max_voter_weight = &mut max_voter_weight_record.max_voter_weight;
                 *max_voter_weight = max_voter_weight.checked_add(total_amount).ok_or_else(|| ProgramError::InvalidInstructionData)?;
                 max_voter_weight_record.serialize(&mut *max_voter_weight_record_account.data.borrow_mut())?;
@@ -259,7 +259,7 @@ impl Processor {
         }
 
         // Unlock the schedules that have reached maturity
-        let clock = Clock::from_account_info(&clock_sysvar_account)?;
+        let clock = Clock::get()?;
         let mut total_amount_to_transfer = 0;
         for s in vesting_record.schedule.iter_mut() {
             if clock.unix_timestamp as u64 >= s.release_time {
@@ -296,19 +296,47 @@ impl Processor {
         vesting_record.serialize(&mut *vesting_account.data.borrow_mut())?;
 
         if let Some(expected_realm_account) = vesting_record.realm {
-            let (governance, realm, owner_record, voter_weight_record_account, max_voter_weight_record_account) = realm_info.ok_or_else(|| {
-                msg!("Vesting contract expects realm accounts");
-                ProgramError::InvalidArgument
-            })?;
-            // TODO check realm, owner_record, voter_weight and max_voter_weight correct
-            // TODO check that owner can withdraw tokens
+            let (governance_account,
+                 realm_account,
+                 owner_record_account,
+                 voter_weight_record_account,
+                 max_voter_weight_record_account) = realm_info.ok_or_else(|| {VestingError::MissingRealmAccounts})?;
 
-            let mut voter_weight_record = get_account_data::<VoterWeightRecord>(&program_id, voter_weight_record_account)?;
+            if *realm_account.key != expected_realm_account {
+                return Err(VestingError::InvalidRealmAccount.into())
+            };
+
+            let realm_data = get_realm_data(governance_account.key, realm_account)?;
+            realm_data.assert_is_valid_governing_token_mint(&vesting_record.mint)?;
+
+            let owner_record_data = get_token_owner_record_data_for_seeds(
+                governance_account.key,
+                owner_record_account,
+                &get_token_owner_record_address_seeds(
+                    realm_account.key,
+                    &vesting_record.mint,
+                    vesting_owner_account.key,
+                ),
+            )?;
+            owner_record_data.assert_can_withdraw_governing_tokens()?;
+
+            let mut voter_weight_record = get_voter_weight_record_data_checked(
+                    &program_id,
+                    voter_weight_record_account,
+                    realm_account.key,
+                    &vesting_record.mint,
+                    vesting_owner_account.key)?;
+
             let voter_weight = &mut voter_weight_record.voter_weight;
             *voter_weight = voter_weight.checked_sub(total_amount_to_transfer).ok_or_else(|| ProgramError::InvalidInstructionData)?;
             voter_weight_record.serialize(&mut *voter_weight_record_account.data.borrow_mut())?;
 
-            let mut max_voter_weight_record = get_account_data::<MaxVoterWeightRecord>(&program_id, max_voter_weight_record_account)?;
+            let mut max_voter_weight_record = get_max_voter_weight_record_data_checked(
+                    &program_id,
+                    max_voter_weight_record_account,
+                    realm_account.key,
+                    &vesting_record.mint)?;
+
             let max_voter_weight = &mut max_voter_weight_record.max_voter_weight;
             *max_voter_weight = max_voter_weight.checked_sub(total_amount_to_transfer).ok_or_else(|| ProgramError::InvalidInstructionData)?;
             max_voter_weight_record.serialize(&mut *max_voter_weight_record_account.data.borrow_mut())?;
@@ -366,20 +394,48 @@ impl Processor {
         vesting_record.serialize(&mut *vesting_account.data.borrow_mut())?;
 
         if let Some(expected_realm_account) = vesting_record.realm {
-            let (governance, realm, current_owner_record, current_voter_weight_record_account, new_voter_weight_record_account) = realm_info.ok_or_else(|| {
-                msg!("Vesting contract expects realm accounts");
-                ProgramError::InvalidArgument
-            })?;
-            // TODO check realm, owner_record, current_voter_weight and new_voter_weight correct
-            // TODO check that owner can withdraw tokens
+            let (governance_account,
+                 realm_account,
+                 owner_record_account,
+                 voter_weight_record_account,
+                 new_voter_weight_record_account) = realm_info.ok_or_else(|| {VestingError::MissingRealmAccounts})?;
 
-            let mut current_voter_weight_record = get_account_data::<VoterWeightRecord>(&program_id, current_voter_weight_record_account)?;
-            let current_voter_weight = &mut current_voter_weight_record.voter_weight;
-            *current_voter_weight = current_voter_weight.checked_sub(total_amount).ok_or_else(|| ProgramError::InvalidInstructionData)?;
-            current_voter_weight_record.serialize(&mut *current_voter_weight_record_account.data.borrow_mut())?;
+            if *realm_account.key != expected_realm_account {
+                return Err(VestingError::InvalidRealmAccount.into())
+            };
+
+            let realm_data = get_realm_data(governance_account.key, realm_account)?;
+            realm_data.assert_is_valid_governing_token_mint(&vesting_record.mint)?;
+
+            let owner_record_data = get_token_owner_record_data_for_seeds(
+                governance_account.key,
+                owner_record_account,
+                &get_token_owner_record_address_seeds(
+                    realm_account.key,
+                    &vesting_record.mint,
+                    vesting_owner_account.key,
+                ),
+            )?;
+            owner_record_data.assert_can_withdraw_governing_tokens()?;
+
+            let mut voter_weight_record = get_voter_weight_record_data_checked(
+                    &program_id,
+                    voter_weight_record_account,
+                    realm_account.key,
+                    &vesting_record.mint,
+                    vesting_owner_account.key)?;
+            let voter_weight = &mut voter_weight_record.voter_weight;
+            *voter_weight = voter_weight.checked_sub(total_amount).ok_or_else(|| ProgramError::InvalidInstructionData)?;
+            voter_weight_record.serialize(&mut *voter_weight_record_account.data.borrow_mut())?;
 
             // TODO create new_voter_weight_record if missing
-            let mut new_voter_weight_record = get_account_data::<VoterWeightRecord>(&program_id, new_voter_weight_record_account)?;
+            let mut new_voter_weight_record = get_voter_weight_record_data_checked(
+                    &program_id,
+                    new_voter_weight_record_account,
+                    realm_account.key,
+                    &vesting_record.mint,
+                    new_vesting_owner_account.key)?;
+
             let new_voter_weight = &mut new_voter_weight_record.voter_weight;
             *new_voter_weight = new_voter_weight.checked_add(total_amount).ok_or_else(|| ProgramError::InvalidInstructionData)?;
             new_voter_weight_record.serialize(&mut *new_voter_weight_record_account.data.borrow_mut())?;
@@ -409,17 +465,6 @@ impl Processor {
             VestingInstruction::ChangeOwner {seeds} => {
                 Self::process_change_owner(program_id, accounts, seeds)
             }
-        }
-    }
-}
-
-impl PrintProgramError for VestingError {
-    fn print<E>(&self)
-    where
-        E: 'static + std::error::Error + DecodeError<E> + PrintProgramError + FromPrimitive,
-    {
-        match self {
-            VestingError::InvalidInstruction => msg!("Error: Invalid instruction!"),
         }
     }
 }

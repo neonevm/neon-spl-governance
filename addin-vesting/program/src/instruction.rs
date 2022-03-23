@@ -1,7 +1,7 @@
-use crate::state::{
-    VestingSchedule,
-    get_voter_weight_record_address,
-    get_max_voter_weight_record_address,
+use crate::{
+    state::VestingSchedule,
+    voter_weight::get_voter_weight_record_address,
+    max_voter_weight::get_max_voter_weight_record_address,
 };
 
 use solana_program::{
@@ -90,7 +90,6 @@ pub enum VestingInstruction {
         #[allow(dead_code)]
         schedules: Vec<VestingSchedule>,
     },
-
 
 
     /// Unlocks a simple vesting contract (SVC) - can only be invoked by the program itself

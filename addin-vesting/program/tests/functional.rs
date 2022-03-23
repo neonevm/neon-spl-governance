@@ -21,15 +21,16 @@ use token_vesting::{
 };
 use spl_token::{self, instruction::{initialize_mint, initialize_account, mint_to}};
 use spl_governance::{
-    instruction::create_realm,
+    instruction::{create_realm, create_token_owner_record},
     state::{
         enums::MintMaxVoteWeightSource,
         realm::get_realm_address,
     },
 };
-use token_vesting::state::{get_voter_weight_record_address, get_max_voter_weight_record_address};
-use spl_governance_addin_api::voter_weight::VoterWeightRecord;
-use spl_governance_addin_api::max_voter_weight::MaxVoterWeightRecord;
+use token_vesting::{
+    voter_weight::{VoterWeightRecord, get_voter_weight_record_address},
+    max_voter_weight::{MaxVoterWeightRecord, get_max_voter_weight_record_address},
+};
 
 #[tokio::test]
 #[ignore]
@@ -296,6 +297,20 @@ async fn test_token_vesting_with_realm() {
             realm_name,
             1,
             MintMaxVoteWeightSource::SupplyFraction(10_000_000_000)
+        ),
+        create_token_owner_record(
+            &governance_id,
+            &realm_address,
+            &destination_account.pubkey(),
+            &mint.pubkey(),
+            &payer.pubkey(),
+        ),
+        create_token_owner_record(
+            &governance_id,
+            &realm_address,
+            &new_destination_account.pubkey(),
+            &mint.pubkey(),
+            &payer.pubkey(),
         ),
     ];
     let mut create_realm_transaction = Transaction::new_with_payer(

@@ -1,36 +1,11 @@
 use solana_program::{
     program_pack::IsInitialized,
     pubkey::Pubkey,
+    program_error::ProgramError,
 };
 use borsh::{BorshDeserialize, BorshSchema, BorshSerialize};
 use spl_governance_tools::account::AccountMaxSize;
-
-/// Returns VoterWeightRecord PDA seeds
-pub fn get_voter_weight_record_seeds<'a>(
-    realm: &'a Pubkey,
-    mint: &'a Pubkey,
-    owner: &'a Pubkey,
-) -> [&'a [u8]; 4] {
-    [b"voter_weight", realm.as_ref(), mint.as_ref(), owner.as_ref()]
-}
-
-/// Returns VoterWeightRecord PDA address
-pub fn get_voter_weight_record_address(program_id: &Pubkey, realm: &Pubkey, mint: &Pubkey, owner: &Pubkey) -> Pubkey {
-    Pubkey::find_program_address(&get_voter_weight_record_seeds(realm, mint, owner), program_id).0
-}
-
-/// Returns MaxVoterWeightRecord PDA seeds
-pub fn get_max_voter_weight_record_seeds<'a>(
-    realm: &'a Pubkey,
-    mint: &'a Pubkey,
-) -> [&'a [u8]; 3] {
-    [b"max_voter_weight", realm.as_ref(), mint.as_ref()]
-}
-
-/// Returns MaxVoterWeightRecord PDA address
-pub fn get_max_voter_weight_record_address(program_id: &Pubkey, realm: &Pubkey, mint: &Pubkey) -> Pubkey {
-    Pubkey::find_program_address(&get_max_voter_weight_record_seeds(realm, mint), program_id).0
-}
+use crate::error::VestingError;
 
 
 #[repr(C)]
