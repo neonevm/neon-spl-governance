@@ -1,7 +1,6 @@
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     borsh::try_from_slice_unchecked,
-    decode_error::DecodeError,
     entrypoint::ProgramResult,
     msg,
     program::{invoke, invoke_signed},
@@ -12,7 +11,6 @@ use solana_program::{
     sysvar::{clock::Clock, Sysvar},
 };
 
-use num_traits::FromPrimitive;
 use borsh::BorshSerialize;
 use spl_token::{instruction::transfer, state::Account};
 use spl_governance_tools::account::{
@@ -20,7 +18,7 @@ use spl_governance_tools::account::{
     create_and_serialize_account_signed,
 };
 use spl_governance::state::{
-    realm::{get_realm_address_seeds, get_realm_data},
+    realm::get_realm_data,
     token_owner_record::{
         get_token_owner_record_address_seeds,
         get_token_owner_record_data_for_seeds,
@@ -32,12 +30,10 @@ use crate::{
     instruction::VestingInstruction,
     state::{VestingAccountType, VestingRecord, VestingSchedule},
     voter_weight::{
-        VoterWeightRecord,
         create_voter_weight_record,
         get_voter_weight_record_data_checked,
     },
     max_voter_weight::{
-        MaxVoterWeightRecord,
         create_max_voter_weight_record,
         get_max_voter_weight_record_data_checked,
     },
@@ -63,7 +59,6 @@ impl Processor {
         let source_token_account = next_account_info(accounts_iter)?;
         let vesting_owner_account = next_account_info(accounts_iter)?;
         let payer_account = next_account_info(accounts_iter)?;
-        let rent_sysvar_info = next_account_info(accounts_iter)?;
 
         let realm_info = if let Some(governance) = accounts_iter.next() {
             let realm = next_account_info(accounts_iter)?;
@@ -112,7 +107,6 @@ impl Processor {
             total_amount = total_amount.checked_add(s.amount).ok_or_else(|| ProgramError::InvalidInstructionData)?;
         }
         
-        let rent = &Rent::from_account_info(rent_sysvar_info)?;
         let vesting_record = VestingRecord {
             account_type: VestingAccountType::VestingRecord,
             owner: *vesting_owner_account.key,
@@ -127,7 +121,7 @@ impl Processor {
             &[&seeds[..31]],
             program_id,
             system_program_account,
-            rent
+            &Rent::get()?,
         )?;
 
         if Account::unpack(&source_token_account.data.borrow())?.amount < total_amount {
@@ -213,7 +207,6 @@ impl Processor {
         let accounts_iter = &mut _accounts.iter();
 
         let spl_token_account = next_account_info(accounts_iter)?;
-        let clock_sysvar_account = next_account_info(accounts_iter)?;
         let vesting_account = next_account_info(accounts_iter)?;
         let vesting_token_account = next_account_info(accounts_iter)?;
         let destination_token_account = next_account_info(accounts_iter)?;

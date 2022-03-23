@@ -7,10 +7,7 @@ use solana_program::{
     sysvar::Sysvar,
 };
 use spl_governance::addins::max_voter_weight::get_max_voter_weight_record_data;
-use spl_governance_tools::account::{
-    get_account_data,
-    create_and_serialize_account_signed,
-};
+use spl_governance_tools::account::create_and_serialize_account_signed;
 
 pub use spl_governance_addin_api::max_voter_weight::MaxVoterWeightRecord;
 

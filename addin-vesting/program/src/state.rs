@@ -1,12 +1,9 @@
 use solana_program::{
     program_pack::IsInitialized,
     pubkey::Pubkey,
-    program_error::ProgramError,
 };
 use borsh::{BorshDeserialize, BorshSchema, BorshSerialize};
 use spl_governance_tools::account::AccountMaxSize;
-use crate::error::VestingError;
-
 
 #[repr(C)]
 #[derive(Clone, Debug, PartialEq, BorshDeserialize, BorshSerialize, BorshSchema)]

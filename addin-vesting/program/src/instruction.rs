@@ -9,7 +9,6 @@ use solana_program::{
     program_error::ProgramError,
     pubkey::Pubkey,
     system_program,
-    sysvar,
 };
 
 use borsh::{BorshDeserialize, BorshSchema, BorshSerialize};
@@ -76,7 +75,6 @@ pub enum VestingInstruction {
     ///   5. `[writable]` The source spl-token account       (from account)
     ///   6. `[]` The Vesting Owner account
     ///   7. `[signer]` Payer
-    ///   8. `[]` Rent sysvar
     ///
     ///  Optional part (vesting for Realm)
     ///   8. `[]` The Governance program account
@@ -97,18 +95,17 @@ pub enum VestingInstruction {
     ///
     ///   * Single owner
     ///   0. `[]` The spl-token program account
-    ///   1. `[]` The clock sysvar account
-    ///   2. `[writable]` The vesting account               (vesting owner account: PDA [seeds])
-    ///   3. `[writable]` The vesting spl-token account     (vesting balance account)
-    ///   4. `[writable]` The destination spl-token account
-    ///   5. `[signer]` The Vesting Owner account
+    ///   1. `[writable]` The vesting account               (vesting owner account: PDA [seeds])
+    ///   2. `[writable]` The vesting spl-token account     (vesting balance account)
+    ///   3. `[writable]` The destination spl-token account
+    ///   4. `[signer]` The Vesting Owner account
     ///
     ///  Optional part (vesting for Realm)
-    ///   6. `[]` The Governance program account
-    ///   7. `[]` The Realm account
-    ///   8. `[]` Governing Owner Record. PDA seeds (governance program): ['governance', realm, token_mint, vesting_owner]
-    ///   9. `[writable]` The VoterWeightRecord. PDA seeds: ['voter_weight', realm, token_mint, vesting_owner]
-    ///  10. `[writable]` The MaxVoterWeightRecord. PDA seeds: ['max_voter_weight', realm, token_mint]
+    ///   5. `[]` The Governance program account
+    ///   6. `[]` The Realm account
+    ///   7. `[]` Governing Owner Record. PDA seeds (governance program): ['governance', realm, token_mint, vesting_owner]
+    ///   8. `[writable]` The VoterWeightRecord. PDA seeds: ['voter_weight', realm, token_mint, vesting_owner]
+    ///   9. `[writable]` The MaxVoterWeightRecord. PDA seeds: ['max_voter_weight', realm, token_mint]
     ///
     Withdraw {
         #[allow(dead_code)]
@@ -161,7 +158,6 @@ pub fn deposit(
         AccountMeta::new(*source_token_account, false),
         AccountMeta::new_readonly(*vesting_owner, false),
         AccountMeta::new_readonly(*payer, true),
-        AccountMeta::new_readonly(sysvar::rent::id(), false),
     ];
 
     let instruction = VestingInstruction::Deposit { seeds, schedules };
@@ -201,7 +197,6 @@ pub fn deposit_with_realm(
         AccountMeta::new(*source_token_account, false),
         AccountMeta::new_readonly(*vesting_owner, false),
         AccountMeta::new_readonly(*payer, true),
-        AccountMeta::new_readonly(sysvar::rent::id(), false),
 
         AccountMeta::new_readonly(*governance_id, false),
         AccountMeta::new_readonly(*realm, false),
@@ -230,7 +225,6 @@ pub fn withdraw(
     let vesting_account = Pubkey::create_program_address(&[&seeds], program_id)?;
     let accounts = vec![
         AccountMeta::new_readonly(*token_program_id, false),
-        AccountMeta::new_readonly(sysvar::clock::id(), false),
         AccountMeta::new(vesting_account, false),
         AccountMeta::new(*vesting_token_account, false),
         AccountMeta::new(*destination_token_account, false),
@@ -264,7 +258,6 @@ pub fn withdraw_with_realm(
     let max_voting_weight_record_account = get_max_voter_weight_record_address(program_id, realm, mint);
     let accounts = vec![
         AccountMeta::new_readonly(*token_program_id, false),
-        AccountMeta::new_readonly(sysvar::clock::id(), false),
         AccountMeta::new(vesting_account, false),
         AccountMeta::new(*vesting_token_account, false),
         AccountMeta::new(*destination_token_account, false),
