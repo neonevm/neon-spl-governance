@@ -9,8 +9,32 @@ use thiserror::Error;
 /// Errors that may be returned by the Token vesting program.
 #[derive(Clone, Debug, Eq, Error, FromPrimitive, PartialEq)]
 pub enum VestingError {
-    #[error("Invalid Instruction")]
-    InvalidInstruction,
+    #[error("Invalid Vesting account")]
+    InvalidVestingAccount,
+
+    #[error("Vesting account already exists")]
+    VestingAccountAlreadyExists,
+
+    #[error("Missing required signer")]
+    MissingRequiredSigner,
+
+    #[error("Invalid Vesting token account")]
+    InvalidVestingTokenAccount,
+
+    #[error("InvalidOwnerForVestingAccount")]
+    InvalidOwnerForVestingAccount,
+
+    #[error("NotReachedReleaseTime")]
+    NotReachedReleaseTime,
+
+    #[error("OverflowAmount")]
+    OverflowAmount,
+
+    #[error("UnderflowAmount")]
+    UnderflowAmount,
+
+    #[error("Insufficient funds on source token account")]
+    InsufficientFunds,
 
     #[error("Missing realm accounts")]
     MissingRealmAccounts,

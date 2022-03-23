@@ -17,7 +17,15 @@ use solana_sdk::{
 use token_vesting::{
     entrypoint::process_instruction,
     state::{VestingSchedule, VestingRecord},
-    instruction::{deposit, withdraw, change_owner, deposit_with_realm, withdraw_with_realm, change_owner_with_realm},
+    instruction::{
+        deposit,
+        withdraw,
+        change_owner,
+        deposit_with_realm,
+        withdraw_with_realm,
+        change_owner_with_realm,
+        create_voter_weight_record,
+    },
 };
 use spl_token::{self, instruction::{initialize_mint, initialize_account, mint_to}};
 use spl_governance::{
@@ -33,7 +41,6 @@ use token_vesting::{
 };
 
 #[tokio::test]
-#[ignore]
 async fn test_token_vesting() {
 
     // Create program and test environment
@@ -350,28 +357,23 @@ async fn test_token_vesting_with_realm() {
     deposit_transaction.partial_sign(&[&payer, &source_account], recent_blockhash);
     banks_client.process_transaction(deposit_transaction).await.unwrap();
 
-    let deposit_instructions2 = [
-        deposit_with_realm(
+
+    let init_new_destination_instructions = [
+        create_voter_weight_record(
             &program_id,
-            &spl_token::id(),
-            seeds2.clone(),
-            &vesting_token_account2.pubkey(),
-            &source_account.pubkey(),
-            &source_token_account.pubkey(),
             &new_destination_account.pubkey(),
             &payer.pubkey(),
-            schedules.clone(),
             &governance_id,
             &realm_address,
             &mint.pubkey(),
         ).unwrap(),
     ];
-    let mut deposit_transaction2 = Transaction::new_with_payer(
-        &deposit_instructions2,
+    let mut init_new_destination_transaction = Transaction::new_with_payer(
+        &init_new_destination_instructions,
         Some(&payer.pubkey()),
     );
-    deposit_transaction2.partial_sign(&[&payer, &source_account], recent_blockhash);
-    banks_client.process_transaction(deposit_transaction2).await.unwrap();
+    init_new_destination_transaction.partial_sign(&[&payer], recent_blockhash);
+    banks_client.process_transaction(init_new_destination_transaction).await.unwrap();
 
 
     let change_owner_instructions = [

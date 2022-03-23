@@ -60,6 +60,7 @@ pub fn get_voter_weight_record_data_checked(
 }
 
 /// Create Voter Weight Record
+#[allow(clippy::too_many_arguments)]
 pub fn create_voter_weight_record<'a, I>(
     program_id: &Pubkey,
     realm: &Pubkey,
