@@ -134,9 +134,24 @@ pub enum VestingInstruction {
         #[allow(dead_code)]
         seeds: [u8; 32],
     },
+
+    /// Create VoterWeightRecord for account
+    ///
+    /// Accounts expected by this instruction:
+    ///
+    ///   * Single owner
+    ///   0. `[]` The system program account
+    ///   1. `[]` The Record Owner account
+    ///   2. `[signer]` Payer
+    ///   3. `[]` The Governance program account
+    ///   4. `[]` The Realm account
+    ///   5. `[]` The Mint account
+    ///   6. `[writable]` The VoterWeightRecord. PDA seeds: ['voter_weight', realm, token_mint, token_owner]
+    CreateVoterWeightRecord,
 }
 
 /// Creates a `Deposit` instruction to create and initialize the vesting token account
+#[allow(clippy::too_many_arguments)]
 pub fn deposit(
     program_id: &Pubkey,
     token_program_id: &Pubkey,
@@ -171,6 +186,7 @@ pub fn deposit(
 
 /// Creates a `Deposit` instruction to create and initialize the vesting token account
 /// inside the Realm
+#[allow(clippy::too_many_arguments)]
 pub fn deposit_with_realm(
     program_id: &Pubkey,
     token_program_id: &Pubkey,
@@ -241,6 +257,7 @@ pub fn withdraw(
 }
 
 /// Creates a `Withdraw` instruction with realm
+#[allow(clippy::too_many_arguments)]
 pub fn withdraw_with_realm(
     program_id: &Pubkey,
     token_program_id: &Pubkey,
@@ -337,6 +354,36 @@ pub fn change_owner_with_realm(
     })
 }
 
+/// Creates a `CreateVoterWeightRecord` instruction to create and initialize the VoterWeightRecord
+#[allow(clippy::too_many_arguments)]
+pub fn create_voter_weight_record(
+    program_id: &Pubkey,
+    record_owner: &Pubkey,
+    payer: &Pubkey,
+    governance_id: &Pubkey,
+    realm: &Pubkey,
+    mint: &Pubkey,
+) -> Result<Instruction, ProgramError> {
+    let voting_weight_record_account = get_voter_weight_record_address(program_id, realm, mint, record_owner);
+    let accounts = vec![
+        AccountMeta::new_readonly(system_program::id(), false),
+        AccountMeta::new_readonly(*record_owner, false),
+        AccountMeta::new_readonly(*payer, true),
+
+        AccountMeta::new_readonly(*governance_id, false),
+        AccountMeta::new_readonly(*realm, false),
+        AccountMeta::new_readonly(*mint, false),
+        AccountMeta::new(voting_weight_record_account, false),
+    ];
+
+    let instruction = VestingInstruction::CreateVoterWeightRecord;
+
+    Ok(Instruction {
+        program_id: *program_id,
+        accounts,
+        data: instruction.try_to_vec().unwrap(),
+    })
+}
 #[cfg(test)]
 mod test {
     use super::*;
