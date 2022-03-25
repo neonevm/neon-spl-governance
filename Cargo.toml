@@ -2,7 +2,6 @@
 members = [
     "addin-fixed-weights/program",
     "addin-vesting/program",
-#    "addin-vesting/program/fuzz",
     "governance-test-scripts",
 ]
 exclude = [

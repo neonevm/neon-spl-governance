@@ -14,50 +14,6 @@ use solana_program::{
 use borsh::{BorshDeserialize, BorshSchema, BorshSerialize};
 use spl_governance::state::token_owner_record::get_token_owner_record_address;
 
-#[cfg(feature = "fuzz")]
-use arbitrary::Arbitrary;
-
-#[cfg(feature = "fuzz")]
-impl Arbitrary for VestingInstruction {
-    fn arbitrary(u: &mut arbitrary::Unstructured<'_>) -> arbitrary::Result<Self> {
-        let seeds: [u8; 32] = u.arbitrary()?;
-        let choice = u.choose(&[0, 1, 2, 3])?;
-        match choice {
-            0 => {
-                let number_of_schedules = u.arbitrary()?;
-                return Ok(Self::Init {
-                    seeds,
-                    number_of_schedules,
-                });
-            }
-            1 => {
-                let schedules: [Schedule; 10] = u.arbitrary()?;
-                let key_bytes: [u8; 32] = u.arbitrary()?;
-                let mint_address: Pubkey = Pubkey::new(&key_bytes);
-                let key_bytes: [u8; 32] = u.arbitrary()?;
-                let destination_token_address: Pubkey = Pubkey::new(&key_bytes);
-                return Ok(Self::Create {
-                    seeds,
-                    mint_address,
-                    destination_token_address,
-                    schedules: schedules.to_vec(),
-                });
-            }
-            2 => return Ok(Self::Unlock { seeds }),
-            _ => return Ok(Self::ChangeDestination { seeds }),
-        }
-    }
-}
-
-#[cfg_attr(feature = "fuzz", derive(Arbitrary))]
-#[repr(C)]
-#[derive(Clone, Debug, PartialEq, BorshDeserialize, BorshSerialize, BorshSchema)]
-pub struct Schedule {
-    // Schedule release time in unix timestamp
-    pub release_time: u64,
-    pub amount: u64,
-}
-
 #[repr(C)]
 #[derive(Clone, Debug, PartialEq, BorshDeserialize, BorshSerialize, BorshSchema)]
 pub enum VestingInstruction {
