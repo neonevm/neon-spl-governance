@@ -1,0 +1,18 @@
+[package]
+name = "governance-test-scripts"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+solana-sdk = "1.9"
+solana-client = "1.9"
+borsh = "0.9.1"
+spl-token = { version = "3.3", path = "../solana-program-library/token/program", features = [ "no-entrypoint" ] }
+spl-associated-token-account = "1"
+spl-governance = { version = "2.2", path = "../solana-program-library/governance/program" }
+spl-governance-addin-api= { version = "0.1.1", path = "../solana-program-library/governance/addin-api"}
+spl-governance-addin-mock = { version = "0.1", path = "../solana-program-library/governance/addin-mock/program" }
+
+spl-governance-addin-fixed-weights = { version = "0.1", path = "../addin-fixed-weights/program" }
