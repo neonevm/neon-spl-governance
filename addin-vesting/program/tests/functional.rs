@@ -14,9 +14,11 @@ use solana_sdk::{
     system_instruction,
     transaction::Transaction,
 };
-use token_vesting::{
+use spl_governance_addin_vesting::{
     entrypoint::process_instruction,
     state::{VestingSchedule, VestingRecord},
+    voter_weight::{VoterWeightRecord, get_voter_weight_record_address},
+    max_voter_weight::{MaxVoterWeightRecord, get_max_voter_weight_record_address},
     instruction::{
         deposit,
         withdraw,
@@ -34,10 +36,6 @@ use spl_governance::{
         enums::MintMaxVoteWeightSource,
         realm::get_realm_address,
     },
-};
-use token_vesting::{
-    voter_weight::{VoterWeightRecord, get_voter_weight_record_address},
-    max_voter_weight::{MaxVoterWeightRecord, get_max_voter_weight_record_address},
 };
 
 #[tokio::test]
