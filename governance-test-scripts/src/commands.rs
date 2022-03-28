@@ -159,7 +159,7 @@ impl SplGovernanceInteractor {
         MaxVoterWeightRecord::deserialize(&mut dt).unwrap()
     }
 
-    pub fn create_realm(&self, realm_authority: Keypair, community_mint_pubkey: &Pubkey, addin_opt: Option<Pubkey>, realm_name: &str) -> Result<Realm,ClientError> {
+    pub fn create_realm<'a>(&self, realm_authority: &'a Keypair, community_mint_pubkey: &Pubkey, addin_opt: Option<Pubkey>, realm_name: &str) -> Result<Realm<'a>,ClientError> {
         let realm_pubkey: Pubkey = self.get_realm_address(realm_name);
 
         if self.account_exists(&realm_pubkey) {
@@ -197,7 +197,7 @@ impl SplGovernanceInteractor {
                     ],
                     Some(&realm_authority_pubkey),
                     &[
-                        &realm_authority,
+                        realm_authority,
                     ],
                     self.solana_client.get_latest_blockhash().unwrap(),
                 );
@@ -216,7 +216,7 @@ impl SplGovernanceInteractor {
         }
     }
 
-    pub fn create_token_owner_record(&self, realm: &Realm, token_owner_keypair: Keypair) -> Result<TokenOwner,()> {
+    pub fn create_token_owner_record<'a>(&self, realm: &Realm, token_owner_keypair: &'a Keypair) -> Result<TokenOwner<'a>,()> {
         let token_owner_pubkey: Pubkey = token_owner_keypair.pubkey();
         let token_owner_record_pubkey: Pubkey = self.get_token_owner_record_address(&token_owner_pubkey, &realm.data.community_mint, &realm.data.name);
 
@@ -250,7 +250,7 @@ impl SplGovernanceInteractor {
                     ],
                     Some(&realm_authority_pubkey),
                     &[
-                        &realm.authority,
+                        realm.authority,
                     ],
                     self.solana_client.get_latest_blockhash().unwrap(),
                 );
@@ -333,7 +333,7 @@ impl SplGovernanceInteractor {
                     ],
                     Some(&realm_authority_pubkey),
                     &[
-                        &realm.authority,
+                        realm.authority,
                         // voter_weight_addin_autority,
                         // &max_voter_weight_record_keypair,
                     ],
@@ -345,7 +345,7 @@ impl SplGovernanceInteractor {
         }
     }
 
-    pub fn _setup_voter_weight_record_mock(&self, realm: &Realm, token_owner: TokenOwner, voter_weight_record_keypair: Keypair, voter_weight: u64) -> Result<TokenOwner,()> {
+/*    pub fn _setup_voter_weight_record_mock<'a>(&self, realm: &Realm, token_owner: &'a mut TokenOwner, voter_weight_record_keypair: Keypair, voter_weight: u64) -> Result<TokenOwner<'a>,()> {
         let voter_weight_record_pubkey: Pubkey = voter_weight_record_keypair.pubkey();
 
         if self.account_exists(&voter_weight_record_pubkey) {
@@ -402,9 +402,9 @@ impl SplGovernanceInteractor {
                 )
                 .map_err(|_|())
         }
-    }
+    }*/
 
-    pub fn setup_voter_weight_record_fixed(&self, realm: &Realm, token_owner: TokenOwner) -> Result<TokenOwner,()> {
+    pub fn setup_voter_weight_record_fixed<'a>(&self, realm: &Realm, token_owner: TokenOwner<'a>) -> Result<TokenOwner<'a>,()> {
         let token_owner_pubkey: Pubkey = token_owner.authority.pubkey();
         let (voter_weight_record_pubkey,_): (Pubkey,u8) = spl_governance_addin_fixed_weights::instruction::get_voter_weight_address(&self.spl_governance_voter_weight_addin_address, &realm.address, &realm.data.community_mint, &token_owner_pubkey);
 
@@ -438,7 +438,7 @@ impl SplGovernanceInteractor {
                     ],
                     Some(&realm_authority_pubkey),
                     &[
-                        &realm.authority,
+                        realm.authority,
                         // &voter_weight_record_keypair,
                     ],
                     self.solana_client.get_latest_blockhash().unwrap(),
@@ -492,7 +492,7 @@ impl SplGovernanceInteractor {
                     ],
                     Some(&realm_authority_pubkey),
                     &[
-                        &realm.authority,
+                        realm.authority,
                     ],
                     self.solana_client.get_latest_blockhash().unwrap(),
                 );
@@ -547,7 +547,7 @@ impl SplGovernanceInteractor {
                     ],
                     Some(&realm_authority_pubkey),
                     &[
-                        &realm.authority,
+                        realm.authority,
                     ],
                     self.solana_client.get_latest_blockhash().unwrap(),
                 );
@@ -583,7 +583,7 @@ impl SplGovernanceInteractor {
                 ],
                 Some(&realm_authority_pubkey),
                 &[
-                    &realm.authority,
+                    realm.authority,
                 ],
                 self.solana_client.get_latest_blockhash().unwrap(),
             );
@@ -618,7 +618,7 @@ impl SplGovernanceInteractor {
                 ],
                 Some(&realm_authority_pubkey),
                 &[
-                    &realm.authority,
+                    realm.authority,
                 ],
                 self.solana_client.get_latest_blockhash().unwrap(),
             );
@@ -672,7 +672,7 @@ impl SplGovernanceInteractor {
                 ],
                 Some(&voter_authority_pubkey),
                 &[
-                    &voter.authority,
+                    voter.authority,
                 ],
                 self.solana_client.get_latest_blockhash().unwrap(),
             );
@@ -682,8 +682,8 @@ impl SplGovernanceInteractor {
 }
 
 #[derive(Debug)]
-pub struct Realm {
-    authority: Keypair,
+pub struct Realm<'a> {
+    authority: &'a Keypair,
     pub address: Pubkey,
     data: RealmV2,
     max_voter_weight_addin_address: Option<Pubkey>,
@@ -709,8 +709,8 @@ pub struct Proposal {
 }
 
 #[derive(Debug)]
-pub struct TokenOwner {
-    pub authority: Keypair,
+pub struct TokenOwner<'a> {
+    pub authority: &'a Keypair,
     token_owner_record_address: Pubkey,
     token_owner_record: TokenOwnerRecordV2,
     // voter_weight_record_authority: Option<Keypair>,
