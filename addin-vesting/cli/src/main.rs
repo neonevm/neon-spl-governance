@@ -15,21 +15,27 @@ use solana_sdk::{
 use spl_associated_token_account::{create_associated_token_account, get_associated_token_address};
 use spl_token;
 use std::convert::TryInto;
+use spl_governance_tools::account::{
+    get_account_data,
+    // create_and_serialize_account_signed,
+};
 use token_vesting::{
-    instruction::{change_destination, create, init, unlock, Schedule},
-    state::{unpack_schedules, VestingScheduleHeader},
+    instruction::{deposit, withdraw, change_owner, Schedule},
+    state::{ VestingRecord, VestingSchedule },
 };
 
 // Lock the vesting contract
-fn command_create_svc(
+fn command_deposit_svc(
     rpc_client: RpcClient,
     program_id: Pubkey,
     payer: Keypair,
     source_token_owner: Keypair,
     possible_source_token_pubkey: Option<Pubkey>,
     destination_token_pubkey: Pubkey,
+    owner_address: Pubkey,
     mint_address: Pubkey,
-    schedules: Vec<Schedule>,
+    realm_address: Pubkey,
+    schedules: Vec<VestingSchedule>,
     confirm: bool,
 ) {
     // If no source token account was given, use the associated source account
@@ -56,40 +62,42 @@ fn command_create_svc(
     let vesting_token_pubkey = get_associated_token_address(&vesting_pubkey, &mint_address);
 
     let instructions = [
-        init(
-            &system_program::id(),
-            &sysvar::rent::id(),
-            &program_id,
-            &payer.pubkey(),
-            &vesting_pubkey,
-            vesting_seed,
-            schedules.len() as u32,
-        )
-        .unwrap(),
+        // init(
+        //     &system_program::id(),
+        //     &sysvar::rent::id(),
+        //     &program_id,
+        //     &payer.pubkey(),
+        //     &vesting_pubkey,
+        //     vesting_seed,
+        //     schedules.len() as u32,
+        // )
+        // .unwrap(),
         create_associated_token_account(
             &source_token_owner.pubkey(),
             &vesting_pubkey,
             &mint_address,
         ),
-        create(
+        deposit(
             &program_id,
             &spl_token::id(),
+            vesting_seed,
             &vesting_pubkey,
             &vesting_token_pubkey,
             &source_token_owner.pubkey(),
             &source_token_pubkey,
             &destination_token_pubkey,
-            &mint_address,
+            // &mint_address,
+            &owner_address,
+            &payer.pubkey(),
             schedules,
-            vesting_seed,
         )
         .unwrap(),
     ];
 
     let mut transaction = Transaction::new_with_payer(&instructions, Some(&payer.pubkey()));
 
-    let recent_blockhash = rpc_client.get_recent_blockhash().unwrap().0;
-    transaction.sign(&[&payer], recent_blockhash);
+    let latest_blockhash = rpc_client.get_latest_blockhash().unwrap();
+    transaction.sign(&[&payer], latest_blockhash);
 
     msg!(
         "\nThe seed of the contract is: {:?}",
@@ -111,7 +119,7 @@ fn command_create_svc(
     }
 }
 
-fn command_unlock_svc(
+fn command_withdraw_svc(
     rpc_client: RpcClient,
     program_id: Pubkey,
     vesting_seed: [u8; 32],
@@ -123,6 +131,8 @@ fn command_unlock_svc(
     let packed_state = rpc_client.get_account_data(&vesting_pubkey).unwrap();
     let header_state =
         VestingScheduleHeader::unpack(&packed_state[..VestingScheduleHeader::LEN]).unwrap();
+    // let mut vesting_record = get_account_data::<VestingRecord>(&program_id, &vesting_pubkey).unwrap();
+
     let destination_token_pubkey = header_state.destination_address;
 
     let vesting_token_pubkey =
@@ -141,13 +151,13 @@ fn command_unlock_svc(
 
     let mut transaction = Transaction::new_with_payer(&[unlock_instruction], Some(&payer.pubkey()));
 
-    let recent_blockhash = rpc_client.get_recent_blockhash().unwrap().0;
-    transaction.sign(&[&payer], recent_blockhash);
+    let latest_blockhash = rpc_client.get_latest_blockhash().unwrap();
+    transaction.sign(&[&payer], latest_blockhash);
 
     rpc_client.send_transaction(&transaction).unwrap();
 }
 
-fn command_change_destination(
+fn command_change_owner(
     rpc_client: RpcClient,
     program_id: Pubkey,
     destination_token_account_owner: Keypair,
@@ -161,7 +171,7 @@ fn command_change_destination(
 
     let packed_state = rpc_client.get_account_data(&vesting_pubkey).unwrap();
     let state_header =
-        VestingScheduleHeader::unpack(&packed_state[..VestingScheduleHeader::LEN]).unwrap();
+        VestingRecord::unpack(&packed_state[..VestingRecord::LEN]).unwrap();
     let destination_token_pubkey = state_header.destination_address;
 
     let new_destination_token_account = match opt_new_destination_token_account {
@@ -184,10 +194,10 @@ fn command_change_destination(
 
     let mut transaction = Transaction::new_with_payer(&[unlock_instruction], Some(&payer.pubkey()));
 
-    let recent_blockhash = rpc_client.get_recent_blockhash().unwrap().0;
+    let latest_blockhash = rpc_client.get_latest_blockhash().unwrap();
     transaction.sign(
         &[&payer, &destination_token_account_owner],
-        recent_blockhash,
+        latest_blockhash,
     );
 
     rpc_client.send_transaction(&transaction).unwrap();
@@ -211,6 +221,7 @@ fn command_info(
     let packed_state = rpc_client.get_account_data(&vesting_pubkey).unwrap();
     let state_header =
         VestingScheduleHeader::unpack(&packed_state[..VestingScheduleHeader::LEN]).unwrap();
+    // let mut vesting_record = get_account_data::<VestingRecord>(&program_id, &vesting_pubkey).unwrap();
     let vesting_token_pubkey =
         get_associated_token_address(&vesting_pubkey, &state_header.mint_address);
     msg!("Vesting Token Account Pubkey: {:?}", &vesting_token_pubkey);
@@ -264,7 +275,7 @@ fn main() {
                     "Specify the address (public key) of the program.",
                 ),
         )
-        .subcommand(SubCommand::with_name("create").about("Create a new vesting contract with an optional release schedule")        
+        .subcommand(SubCommand::with_name("deposit").about("Create a new vesting contract with an optional release schedule")        
             .arg(
                 Arg::with_name("mint_address")
                     .long("mint_address")
@@ -420,7 +431,7 @@ fn main() {
                     ),
             )
         )
-        .subcommand(SubCommand::with_name("unlock").about("Unlock a vesting contract. This will only release \
+        .subcommand(SubCommand::with_name("withdraw").about("Unlock & Withdraw a vesting contract. This will only release \
         the schedules that have reached maturity.")
             .arg(
                 Arg::with_name("seed")
@@ -445,7 +456,7 @@ fn main() {
                     ),
             )
         )
-        .subcommand(SubCommand::with_name("change-destination").about("Change the destination of a vesting contract")
+        .subcommand(SubCommand::with_name("change-owner").about("Change the owner of a vesting contract")
             .arg(
                 Arg::with_name("seed")
                     .long("seed")
@@ -524,7 +535,7 @@ fn main() {
     let program_id = pubkey_of(&matches, "program_id").unwrap();
 
     let _ = match matches.subcommand() {
-        ("create", Some(arg_matches)) => {
+        ("deposit", Some(arg_matches)) => {
             let source_keypair = keypair_of(arg_matches, "source_owner").unwrap();
             let source_token_pubkey = pubkey_of(arg_matches, "source_token_address");
             let mint_address = pubkey_of(arg_matches, "mint_address").unwrap();
@@ -611,7 +622,7 @@ fn main() {
                 });
             }
 
-            command_create_svc(
+            command_deposit_svc(
                 rpc_client,
                 program_id,
                 payer_keypair,
@@ -623,13 +634,13 @@ fn main() {
                 confirm,
             )
         }
-        ("unlock", Some(arg_matches)) => {
+        ("withdraw", Some(arg_matches)) => {
             // The seed is given in the format of a pubkey on the user side but it's handled as a [u8;32] in the program
             let vesting_seed = pubkey_of(arg_matches, "seed").unwrap().to_bytes();
             let payer_keypair = keypair_of(arg_matches, "payer").unwrap();
-            command_unlock_svc(rpc_client, program_id, vesting_seed, payer_keypair)
+            command_withdraw_svc(rpc_client, program_id, vesting_seed, payer_keypair)
         }
-        ("change-destination", Some(arg_matches)) => {
+        ("change-owner", Some(arg_matches)) => {
             let vesting_seed = pubkey_of(arg_matches, "seed").unwrap().to_bytes();
             let destination_account_owner =
                 keypair_of(arg_matches, "current_destination_owner").unwrap();
@@ -637,7 +648,7 @@ fn main() {
             let opt_new_destination_token_account =
                 pubkey_of(arg_matches, "new_destination_token_address");
             let payer_keypair = keypair_of(arg_matches, "payer").unwrap();
-            command_change_destination(
+            command_change_owner(
                 rpc_client,
                 program_id,
                 destination_account_owner,
