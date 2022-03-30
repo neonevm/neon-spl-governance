@@ -27,9 +27,15 @@ use spl_governance::{
 //};
 
 // mod tokens;
-mod commands;
 
-use commands::{ Realm, Governance, Proposal, TokenOwner, AddinFixedWeights };
+use governance_lib::{
+    client::SplGovernanceInteractor,
+    realm::Realm,
+    governance::Governance,
+    proposal::Proposal,
+    token_owner::TokenOwner,
+    addin_fixed_weights::AddinFixedWeights,
+};
 
 const GOVERNANCE_KEY_FILE_PATH: &'static str = "solana-program-library/target/deploy/spl_governance-keypair.json";
 const VOTER_WEIGHT_ADDIN_KEY_FILE_PATH: &'static str = "target/deploy/spl_governance_addin_fixed_weights-keypair.json";
@@ -46,7 +52,7 @@ const VOTERS_KEY_FILE_PATH: [&str;5] = [
 ];
 
 // const REALM_NAME: &'static str = "Test Realm";
-const REALM_NAME: &'static str = "Test_Realm_2";
+const REALM_NAME: &'static str = "Test_Realm_4";
 // const REALM_NAME: &'static str = "Test Realm 6";
 const PROPOSAL_NAME: &'static str = "Proposal To Vote";
 const PROPOSAL_DESCRIPTION: &'static str = "proposal_description";
@@ -77,12 +83,12 @@ fn main() {
 
     let owner_keypair = &voter_keypairs[0];
 
-    let interactor = commands::SplGovernanceInteractor::new(
+    let interactor = SplGovernanceInteractor::new(
             "http://localhost:8899",
             program_id,
             voter_weight_addin_pubkey,
             &payer_keypair);
-    // let interactor = commands::SplGovernanceInteractor::new("https://api.devnet.solana.com", program_id, voter_weight_addin_pubkey);
+    // let interactor = SplGovernanceInteractor::new("https://api.devnet.solana.com", program_id, voter_weight_addin_pubkey);
 
     let mut realm: Realm = interactor.create_realm(
         owner_keypair,
