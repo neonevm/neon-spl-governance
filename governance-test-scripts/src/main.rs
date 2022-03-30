@@ -1,9 +1,8 @@
 
 use solana_sdk::{
-    pubkey::{ Pubkey },
     signer::{
         Signer,
-        keypair::{ Keypair, read_keypair_file },
+        keypair::read_keypair_file,
     },
 };
 
@@ -20,152 +19,92 @@ use spl_governance::{
     },
 };
 
-use spl_governance_addin_fixed_weights::{
-    instruction::{
-        get_max_voter_weight_address,
-        get_voter_weight_address,
-    }
-};
+//use spl_governance_addin_fixed_weights::{
+//    instruction::{
+//        get_max_voter_weight_address,
+//        get_voter_weight_address,
+//    }
+//};
 
 // mod tokens;
 mod commands;
 
-use commands::{ Realm, Governance, Proposal, TokenOwner };
+use commands::{ Realm, Governance, Proposal, TokenOwner, AddinFixedWeights };
 
 const GOVERNANCE_KEY_FILE_PATH: &'static str = "solana-program-library/target/deploy/spl_governance-keypair.json";
 const VOTER_WEIGHT_ADDIN_KEY_FILE_PATH: &'static str = "target/deploy/spl_governance_addin_fixed_weights-keypair.json";
 const COMMUTINY_MINT_KEY_FILE_PATH: &'static str = "governance-test-scripts/community_mint.keypair";
 const GOVERNED_MINT_KEY_FILE_PATH: &'static str = "governance-test-scripts/governance.keypair";
+const PAYER_KEY_FILE_PATH: &'static str = "artifacts/payer.keypair";
 
-const VOTER1_KEY_FILE_PATH: &'static str = "artifacts/voter1.keypair";
-const VOTER2_KEY_FILE_PATH: &'static str = "artifacts/voter2.keypair";
-const VOTER3_KEY_FILE_PATH: &'static str = "artifacts/voter3.keypair";
-const VOTER4_KEY_FILE_PATH: &'static str = "artifacts/voter4.keypair";
-const VOTER5_KEY_FILE_PATH: &'static str = "artifacts/voter5.keypair";
+const VOTERS_KEY_FILE_PATH: [&str;5] = [
+    "artifacts/voter1.keypair",
+    "artifacts/voter2.keypair",
+    "artifacts/voter3.keypair",
+    "artifacts/voter4.keypair",
+    "artifacts/voter5.keypair",
+];
 
 // const REALM_NAME: &'static str = "Test Realm";
-const REALM_NAME: &'static str = "_Test_Realm_5";
+const REALM_NAME: &'static str = "Test_Realm_2";
 // const REALM_NAME: &'static str = "Test Realm 6";
 const PROPOSAL_NAME: &'static str = "Proposal To Vote";
 const PROPOSAL_DESCRIPTION: &'static str = "proposal_description";
 
 fn main() {
 
-    let owner_keypair: Keypair = read_keypair_file(VOTER1_KEY_FILE_PATH).unwrap();
-    // let owner_pubkey: Pubkey = owner_keypair.pubkey();
-    // println!("Owner Pubkey: {}", owner_pubkey);
-
-    let program_keypair: Keypair = read_keypair_file(GOVERNANCE_KEY_FILE_PATH).unwrap();
-    let program_id: Pubkey = program_keypair.pubkey();
+    let program_id = read_keypair_file(GOVERNANCE_KEY_FILE_PATH).unwrap().pubkey();
     println!("Governance Program Id: {}", program_id);
 
-    let community_keypair: Keypair = read_keypair_file(COMMUTINY_MINT_KEY_FILE_PATH).unwrap();
-    let community_pubkey: Pubkey = community_keypair.pubkey();
+    let payer_keypair = read_keypair_file(PAYER_KEY_FILE_PATH).unwrap();
+    println!("Payer Pubkey: {}", payer_keypair.pubkey());
+
+    let community_pubkey = read_keypair_file(COMMUTINY_MINT_KEY_FILE_PATH).unwrap().pubkey();
     println!("Community Token Mint Pubkey: {}", community_pubkey);
 
-    let voter_weight_addin_keypair: Keypair = read_keypair_file(VOTER_WEIGHT_ADDIN_KEY_FILE_PATH).unwrap();
-    let voter_weight_addin_pubkey: Pubkey = voter_weight_addin_keypair.pubkey();
+    let voter_weight_addin_pubkey = read_keypair_file(VOTER_WEIGHT_ADDIN_KEY_FILE_PATH).unwrap().pubkey();
     println!("Voter Weight Addin Pubkey: {}", voter_weight_addin_pubkey);
 
-    let governed_account_keypair: Keypair = read_keypair_file(GOVERNED_MINT_KEY_FILE_PATH).unwrap();
-    let governed_account_pubkey: Pubkey = governed_account_keypair.pubkey();
+    let governed_account_pubkey = read_keypair_file(GOVERNED_MINT_KEY_FILE_PATH).unwrap().pubkey();
     println!("Governed Account (Mint) Pubkey: {}", governed_account_pubkey);
 
-    let voter1_keypair: Keypair = read_keypair_file(VOTER1_KEY_FILE_PATH).unwrap();
-    let voter1_pubkey: Pubkey = voter1_keypair.pubkey();
-    println!("Voter1 Pubkey: {}", voter1_pubkey);
+    let mut voter_keypairs = vec!();
+    for (i, file) in VOTERS_KEY_FILE_PATH.iter().enumerate() {
+        let keypair = read_keypair_file(file).unwrap();
+        println!("Voter{} Pubkey: {}", i, keypair.pubkey());
+        voter_keypairs.push(keypair);
+    }
 
-    let voter2_keypair: Keypair = read_keypair_file(VOTER2_KEY_FILE_PATH).unwrap();
-    let voter2_pubkey: Pubkey = voter2_keypair.pubkey();
-    println!("Voter2 Pubkey: {}", voter2_pubkey);
+    let owner_keypair = &voter_keypairs[0];
 
-    let voter3_keypair: Keypair = read_keypair_file(VOTER3_KEY_FILE_PATH).unwrap();
-    let voter3_pubkey: Pubkey = voter3_keypair.pubkey();
-    println!("Voter3 Pubkey: {}", voter3_pubkey);
-
-    let voter4_keypair: Keypair = read_keypair_file(VOTER4_KEY_FILE_PATH).unwrap();
-    let voter4_pubkey: Pubkey = voter4_keypair.pubkey();
-    println!("Voter4 Pubkey: {}", voter4_pubkey);
-
-    let voter5_keypair: Keypair = read_keypair_file(VOTER5_KEY_FILE_PATH).unwrap();
-    let voter5_pubkey: Pubkey = voter5_keypair.pubkey();
-    println!("Voter5 Pubkey: {}", voter5_pubkey);
-
-    // let max_voter_weight_record_keypair: Keypair = read_keypair_file(MAX_VOTER_WEIGHT_RECORD_KEY_FILE_PATH).unwrap();
-    // let max_voter_weight_record_pubkey: Pubkey = max_voter_weight_record_keypair.pubkey();
-    // println!("Max Voter Weight Record Pubkey: {}", max_voter_weight_record_pubkey);
-
-    // let voter_weight_record_keypair: Keypair = read_keypair_file(VOTER_WEIGHT_RECORD_KEY_FILE_PATH).unwrap();
-    // let voter_weight_record_pubkey: Pubkey = voter_weight_record_keypair.pubkey();
-    // println!("Voter Weight Record Pubkey: {}", voter_weight_record_pubkey);
-
-    // let voter2_weight_record_keypair: Keypair = read_keypair_file(VOTER2_WEIGHT_RECORD_KEY_FILE_PATH).unwrap();
-    // let voter2_weight_record_pubkey: Pubkey = voter2_weight_record_keypair.pubkey();
-    // println!("Voter2 Weight Record Pubkey: {}", voter2_weight_record_pubkey);
-
-    // let voter3_weight_record_keypair: Keypair = read_keypair_file(VOTER3_WEIGHT_RECORD_KEY_FILE_PATH).unwrap();
-    // let voter3_weight_record_pubkey: Pubkey = voter3_weight_record_keypair.pubkey();
-    // println!("Voter3 Weight Record Pubkey: {}", voter3_weight_record_pubkey);
-
-    let interactor = commands::SplGovernanceInteractor::new("http://localhost:8899", program_id, voter_weight_addin_pubkey);
+    let interactor = commands::SplGovernanceInteractor::new(
+            "http://localhost:8899",
+            program_id,
+            voter_weight_addin_pubkey,
+            &payer_keypair);
     // let interactor = commands::SplGovernanceInteractor::new("https://api.devnet.solana.com", program_id, voter_weight_addin_pubkey);
 
-    let realm: Realm = interactor.create_realm(owner_keypair, &community_pubkey, Some(voter_weight_addin_pubkey), REALM_NAME).unwrap();
+    let mut realm: Realm = interactor.create_realm(
+        owner_keypair,
+        &community_pubkey,
+        Some(voter_weight_addin_pubkey),
+        REALM_NAME).unwrap();
     println!("{:?}", realm);
-
     println!("Realm Pubkey: {}", interactor.get_realm_address(REALM_NAME));
 
-    // let result = interactor.setup_max_voter_weight_record_mock(&realm, max_voter_weight_record_keypair, 10_000_000_000);
-    let result = interactor.setup_max_voter_weight_record_fixed(&realm);
-    println!("{:?}", result);
+    let fixed_weight_addin = AddinFixedWeights::new(&interactor, voter_weight_addin_pubkey);
+    let result = fixed_weight_addin.setup_max_voter_weight_record(&realm);
+    println!("VoterWeightAddin.setup_max_voter_weight_record = {:?}", result);
+    realm.set_max_voter_weight_record_address(Some(result.unwrap()));
 
-    let (max_voter_weight_record_address,_) = get_max_voter_weight_address(&voter_weight_addin_pubkey, &realm.address, &community_pubkey);
-    println!("MaxVoterWeightRecord Pubkey {:?}", max_voter_weight_record_address);
-    let max_voter_weight_record = interactor.get_max_voter_weight_record(&max_voter_weight_record_address);
-    println!("{:?}", max_voter_weight_record);
-    // return;
-
-    let token_owner1: TokenOwner = interactor.create_token_owner_record(&realm, voter1_keypair).unwrap();
-    // let token_owner: TokenOwner = interactor.setup_voter_weight_record_mock(&realm, token_owner, voter_weight_record_keypair, 10_000_000_000).unwrap();
-    let token_owner1: TokenOwner = interactor.setup_voter_weight_record_fixed(&realm, token_owner1).unwrap();
-    println!("Token Owner 1 \n{:?}", token_owner1);
-
-    let (voter_weight_record_address,_) = get_voter_weight_address(&voter_weight_addin_pubkey, &realm.address, &community_pubkey, &token_owner1.authority.pubkey());
-    let voter_weight_record = interactor.get_voter_weight_record(&voter_weight_record_address);
-    println!("Token Owner 1 VoterWeightRecord \n{:?}", voter_weight_record);
-
-    let token_owner2: TokenOwner = interactor.create_token_owner_record(&realm, voter2_keypair).unwrap();
-    // let token_owner2: TokenOwner = interactor.setup_voter_weight_record_mock(&realm, token_owner2, voter2_weight_record_keypair, 2_000_000_000).unwrap();
-    let token_owner2: TokenOwner = interactor.setup_voter_weight_record_fixed(&realm, token_owner2).unwrap();
-    println!("Token Owner 2 \n{:?}", token_owner2);
-
-    let (voter_weight_record_address,_) = get_voter_weight_address(&voter_weight_addin_pubkey, &realm.address, &community_pubkey, &token_owner2.authority.pubkey());
-    let voter_weight_record = interactor.get_voter_weight_record(&voter_weight_record_address);
-    println!("Token Owner 2 VoterWeightRecord \n{:?}", voter_weight_record);
-
-    let token_owner3: TokenOwner = interactor.create_token_owner_record(&realm, voter3_keypair).unwrap();
-    let token_owner3: TokenOwner = interactor.setup_voter_weight_record_fixed(&realm, token_owner3).unwrap();
-    println!("Token Owner 3 \n{:?}", token_owner3);
-
-    let (voter_weight_record_address,_) = get_voter_weight_address(&voter_weight_addin_pubkey, &realm.address, &community_pubkey, &token_owner3.authority.pubkey());
-    let voter_weight_record = interactor.get_voter_weight_record(&voter_weight_record_address);
-    println!("Token Owner 3 VoterWeightRecord \n{:?}", voter_weight_record);
-
-    let token_owner4: TokenOwner = interactor.create_token_owner_record(&realm, voter4_keypair).unwrap();
-    let token_owner4: TokenOwner = interactor.setup_voter_weight_record_fixed(&realm, token_owner4).unwrap();
-    println!("Token Owner 4 \n{:?}", token_owner4);
-
-    let (voter_weight_record_address,_) = get_voter_weight_address(&voter_weight_addin_pubkey, &realm.address, &community_pubkey, &token_owner4.authority.pubkey());
-    let voter_weight_record = interactor.get_voter_weight_record(&voter_weight_record_address);
-    println!("Token Owner 4 VoterWeightRecord \n{:?}", voter_weight_record);
-
-    let token_owner5: TokenOwner = interactor.create_token_owner_record(&realm, voter5_keypair).unwrap();
-    let token_owner5: TokenOwner = interactor.setup_voter_weight_record_fixed(&realm, token_owner5).unwrap();
-    println!("Token Owner 5 \n{:?}", token_owner4);
-
-    let (voter_weight_record_address,_) = get_voter_weight_address(&voter_weight_addin_pubkey, &realm.address, &community_pubkey, &token_owner5.authority.pubkey());
-    let voter_weight_record = interactor.get_voter_weight_record(&voter_weight_record_address);
-    println!("Token Owner 5 VoterWeightRecord \n{:?}", voter_weight_record);
+    let mut token_owners = vec!();
+    for (i, keypair) in voter_keypairs.iter().enumerate() {
+        let mut token_owner: TokenOwner = realm.create_token_owner_record(&keypair.pubkey()).unwrap();
+        let voter_weight_record = fixed_weight_addin.setup_voter_weight_record(&realm, &keypair.pubkey()).unwrap();
+        token_owner.set_voter_weight_record_address(Some(voter_weight_record));
+        println!("Token Owner {} \n{:?}, voter_weight_record: {}", i, token_owner, voter_weight_record);
+        token_owners.push(token_owner);
+    }
 
     let gov_config: GovernanceConfig =
         GovernanceConfig {
@@ -178,7 +117,11 @@ fn main() {
             min_council_weight_to_create_proposal: 0,
         };
 
-    let governance: Governance = interactor.create_governance(&realm, &token_owner1, &governed_account_pubkey, gov_config).unwrap();
+    let governance: Governance = realm.create_governance(
+            &voter_keypairs[0],
+            &token_owners[0],
+            &governed_account_pubkey,
+            gov_config).unwrap();
     println!("{:?}", governance);
 
     let proposal_number: u32 = 
@@ -188,34 +131,28 @@ fn main() {
         } else {
             0
         };
-    let proposal: Proposal = interactor.create_proposal(&realm, &token_owner1, &governance, PROPOSAL_NAME, PROPOSAL_DESCRIPTION, proposal_number).unwrap();
+    let proposal: Proposal = governance.create_proposal(
+            &voter_keypairs[0],
+            &token_owners[0],
+            PROPOSAL_NAME,
+            PROPOSAL_DESCRIPTION,
+            proposal_number).unwrap();
     println!("{:?}", proposal);
 
     // let result = interactor.add_signatory(&realm, &governance, &proposal, &token_owner);
     // println!("Add signatory {:?}", result);
 
-    let proposal: Proposal = 
-        if proposal.data.state == ProposalState::Draft {
-            interactor.sign_off_proposal(&realm, &governance, proposal, &token_owner1).unwrap()
-        } else {
-            proposal
-        };
-    println!("{:?}\n", proposal);
+    if proposal.get_state().unwrap() == ProposalState::Draft {
+        proposal.sign_off_proposal(
+                &voter_keypairs[0],
+                &token_owners[0]).unwrap();
+    }
 
-    // // let result = interactor.cast_vote(&realm, &governance, &proposal, &token_owner, Some(max_voter_weight_record_pubkey), true);
-    let result = interactor.cast_vote(&realm, &governance, &proposal, &token_owner1, true);
-    println!("{:?}", result);
-
-    let result = interactor.cast_vote(&realm, &governance, &proposal, &token_owner2, false);
-    println!("{:?}", result);
-
-    // let result = interactor.cast_vote(&realm, &governance, &proposal, &token_owner3, false);
-    // println!("{:?}", result);
-
-    // let result = interactor.cast_vote(&realm, &governance, &proposal, &token_owner4, true);
-    // println!("{:?}", result);
-
-    // let result = interactor.cast_vote(&realm, &governance, &proposal, &token_owner5, true);
-    // println!("{:?}", result);
-
+    for (i, owner) in token_owners.iter().enumerate() {
+        let yes = i == 0 || i == 3 || i == 4;
+        let result = proposal.cast_vote(
+                &voter_keypairs[i],
+                &owner, yes);
+        println!("CastVote {} {:?}", i, result);
+    }
 }
