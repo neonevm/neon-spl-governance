@@ -3,6 +3,7 @@ members = [
     "addin-fixed-weights/program",
     "addin-vesting/program",
     "governance-test-scripts",
+    "governance-lib",
 ]
 exclude = [
     "solana-program-library",
