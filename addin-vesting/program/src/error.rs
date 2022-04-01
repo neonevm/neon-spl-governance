@@ -53,6 +53,12 @@ pub enum VestingError {
 
     #[error("Invalid MaxVoterWeightRecord linkage")]
     InvalidMaxVoterWeightRecordLinkage,
+
+    #[error("VestingIsNotUnderRealm")]
+    VestingIsNotUnderRealm,
+
+    #[error("InvalidPercentage")]
+    InvalidPercentage,
 }
 
 impl From<VestingError> for ProgramError {

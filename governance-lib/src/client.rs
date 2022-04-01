@@ -48,13 +48,13 @@ impl<'a> SplGovernanceInteractor<'a> {
         SplGovernanceInteractor {
             url: url.to_string(),
             solana_client: RpcClient::new_with_commitment(url.to_string(),CommitmentConfig::confirmed()),
-            payer: payer,
+            payer,
             spl_governance_program_address: program_address,
             spl_governance_voter_weight_addin_address: addin_address,
         }
     }
     pub fn account_exists(&self, address: &Pubkey) -> bool {
-        self.solana_client.get_account(&address).is_ok()
+        self.solana_client.get_account(address).is_ok()
     }
     pub fn get_realm_address(&self, name: &str) -> Pubkey {
         get_realm_address(&self.spl_governance_program_address, name)

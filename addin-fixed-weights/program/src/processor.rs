@@ -142,5 +142,5 @@ fn get_voter_weight_fixed(token_owner: &Pubkey) -> Result<u64,ProgramError> {
         .iter()
         .find(|&&item| item.0 == *token_owner )
         .map(|item| item.1 )
-        .ok_or(VoterWeightAddinError::WrongTokenOwner.into())
+        .ok_or_else(|| VoterWeightAddinError::WrongTokenOwner.into())
 }
