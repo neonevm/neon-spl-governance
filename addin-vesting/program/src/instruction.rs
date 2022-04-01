@@ -25,7 +25,7 @@ pub enum VestingInstruction {
     ///   * Single owner
     ///   0. `[]` The system program account
     ///   1. `[]` The spl-token program account
-    ///   2. `[writable]` The vesting account. PDA seeds: [seeds]
+    ///   2. `[writable]` The vesting account. PDA seeds: [vesting spl-token account]
     ///   3. `[writable]` The vesting spl-token account
     ///   4. `[signer]` The source spl-token account owner
     ///   5. `[writable]` The source spl-token account
@@ -40,8 +40,6 @@ pub enum VestingInstruction {
     ///
     Deposit {
         #[allow(dead_code)]
-        seeds: [u8; 32],
-        #[allow(dead_code)]
         schedules: Vec<VestingSchedule>,
     },
 
@@ -51,7 +49,7 @@ pub enum VestingInstruction {
     ///
     ///   * Single owner
     ///   0. `[]` The spl-token program account
-    ///   1. `[writable]` The vesting account. PDA seeds: [seeds]
+    ///   1. `[writable]` The vesting account. PDA seeds: [vesting spl-token account]
     ///   2. `[writable]` The vesting spl-token account
     ///   3. `[writable]` The destination spl-token account
     ///   4. `[signer]` The Vesting Owner account
@@ -63,11 +61,7 @@ pub enum VestingInstruction {
     ///   8. `[writable]` The VoterWeightRecord. PDA seeds: ['voter_weight', realm, token_mint, vesting_owner]
     ///   9. `[writable]` The MaxVoterWeightRecord. PDA seeds: ['max_voter_weight', realm, token_mint]
     ///
-    Withdraw {
-        #[allow(dead_code)]
-        seeds: [u8; 32],
-    },
-
+    Withdraw,
 
 
     /// Change the destination account of a given simple vesting contract (SVC)
@@ -76,7 +70,7 @@ pub enum VestingInstruction {
     /// Accounts expected by this instruction:
     ///
     ///   * Single owner
-    ///   0. `[writable]` The Vesting account. PDA seeds: [seeds]
+    ///   0. `[writable]` The Vesting account. PDA seeds: [vesting spl-token account]
     ///   1. `[signer]` The Current Vesting Owner account
     ///   2. `[]` The New Vesting Owner account
     ///
@@ -86,10 +80,8 @@ pub enum VestingInstruction {
     ///   5. `[]` Governing Owner Record. PDA seeds (governance program): ['governance', realm, token_mint, current_vesting_owner]
     ///   6. `[writable]` The from VoterWeight Record. PDA seeds: ['voter_weight', realm, token_mint, current_vesting_owner]
     ///   7. `[writable]` The to VoterWeight Record. PDA seeds: ['voter_weight', realm, token_mint, new_vesting_owner]
-    ChangeOwner {
-        #[allow(dead_code)]
-        seeds: [u8; 32],
-    },
+    ChangeOwner,
+
 
     /// Create VoterWeightRecord for account
     ///
@@ -105,12 +97,13 @@ pub enum VestingInstruction {
     ///   6. `[writable]` The VoterWeightRecord. PDA seeds: ['voter_weight', realm, token_mint, token_owner]
     CreateVoterWeightRecord,
 
+
     /// Set Vote Percentage for calcalate voter_weight from total_amount of deposited tokens
     ///
     /// Accounts expected by this instruction:
     /// 
     ///  * Single owner
-    ///   0. `[]` The Vesting account. PDA seeds: [seeds]
+    ///   0. `[]` The Vesting account. PDA seeds: [vesting spl-token account]
     ///   1. `[]` The Vesting Owner account
     ///   2. `[signer]` The Vesting Authority account
     ///   3. `[]` The Governance program account
@@ -118,9 +111,6 @@ pub enum VestingInstruction {
     ///   5. `[]` Governing Owner Record. PDA seeds (governance program): ['governance', realm, token_mint, vesting_owner]
     ///   6. `[writable]` The VoterWeight Record. PDA seeds: ['voter_weight', realm, token_mint, vesting_owner]
     SetVotePercentage {
-        #[allow(dead_code)]
-        seeds: [u8; 32],
-
         #[allow(dead_code)]
         vote_percentage: u16,
     },
@@ -131,7 +121,6 @@ pub enum VestingInstruction {
 pub fn deposit(
     program_id: &Pubkey,
     token_program_id: &Pubkey,
-    seeds: [u8; 32],
     vesting_token_account: &Pubkey,
     source_token_owner: &Pubkey,
     source_token_account: &Pubkey,
@@ -139,7 +128,7 @@ pub fn deposit(
     payer: &Pubkey,
     schedules: Vec<VestingSchedule>,
 ) -> Result<Instruction, ProgramError> {
-    let vesting_account = Pubkey::create_program_address(&[&seeds], program_id)?;
+    let (vesting_account, _) = Pubkey::find_program_address(&[vesting_token_account.as_ref()], program_id);
     let accounts = vec![
         AccountMeta::new_readonly(system_program::id(), false),
         AccountMeta::new_readonly(*token_program_id, false),
@@ -151,7 +140,7 @@ pub fn deposit(
         AccountMeta::new_readonly(*payer, true),
     ];
 
-    let instruction = VestingInstruction::Deposit { seeds, schedules };
+    let instruction = VestingInstruction::Deposit { schedules };
 
     Ok(Instruction {
         program_id: *program_id,
@@ -166,7 +155,6 @@ pub fn deposit(
 pub fn deposit_with_realm(
     program_id: &Pubkey,
     token_program_id: &Pubkey,
-    seeds: [u8; 32],
     vesting_token_account: &Pubkey,
     source_token_owner: &Pubkey,
     source_token_account: &Pubkey,
@@ -177,7 +165,7 @@ pub fn deposit_with_realm(
     realm: &Pubkey,
     mint: &Pubkey,
 ) -> Result<Instruction, ProgramError> {
-    let vesting_account = Pubkey::create_program_address(&[&seeds], program_id)?;
+    let (vesting_account, _) = Pubkey::find_program_address(&[vesting_token_account.as_ref()], program_id);
     let voting_weight_record_account = get_voter_weight_record_address(program_id, realm, mint, vesting_owner);
     let max_voting_weight_record_account = get_max_voter_weight_record_address(program_id, realm, mint);
     let accounts = vec![
@@ -196,7 +184,7 @@ pub fn deposit_with_realm(
         AccountMeta::new(max_voting_weight_record_account, false),
     ];
 
-    let instruction = VestingInstruction::Deposit { seeds, schedules };
+    let instruction = VestingInstruction::Deposit { schedules };
 
     Ok(Instruction {
         program_id: *program_id,
@@ -209,12 +197,11 @@ pub fn deposit_with_realm(
 pub fn withdraw(
     program_id: &Pubkey,
     token_program_id: &Pubkey,
-    seeds: [u8; 32],
     vesting_token_account: &Pubkey,
     destination_token_account: &Pubkey,
     vesting_owner: &Pubkey,
 ) -> Result<Instruction, ProgramError> {
-    let vesting_account = Pubkey::create_program_address(&[&seeds], program_id)?;
+    let (vesting_account, _) = Pubkey::find_program_address(&[vesting_token_account.as_ref()], program_id);
     let accounts = vec![
         AccountMeta::new_readonly(*token_program_id, false),
         AccountMeta::new(vesting_account, false),
@@ -223,7 +210,7 @@ pub fn withdraw(
         AccountMeta::new_readonly(*vesting_owner, true),
     ];
 
-    let instruction = VestingInstruction::Withdraw { seeds };
+    let instruction = VestingInstruction::Withdraw;
 
     Ok(Instruction {
         program_id: *program_id,
@@ -237,7 +224,6 @@ pub fn withdraw(
 pub fn withdraw_with_realm(
     program_id: &Pubkey,
     token_program_id: &Pubkey,
-    seeds: [u8; 32],
     vesting_token_account: &Pubkey,
     destination_token_account: &Pubkey,
     vesting_owner: &Pubkey,
@@ -245,7 +231,7 @@ pub fn withdraw_with_realm(
     realm: &Pubkey,
     mint: &Pubkey,
 ) -> Result<Instruction, ProgramError> {
-    let vesting_account = Pubkey::create_program_address(&[&seeds], program_id)?;
+    let (vesting_account, _) = Pubkey::find_program_address(&[vesting_token_account.as_ref()], program_id);
     let owner_record_account = get_token_owner_record_address(governance_id, realm, mint, vesting_owner);
     let voting_weight_record_account = get_voter_weight_record_address(program_id, realm, mint, vesting_owner);
     let max_voting_weight_record_account = get_max_voter_weight_record_address(program_id, realm, mint);
@@ -263,7 +249,7 @@ pub fn withdraw_with_realm(
         AccountMeta::new(max_voting_weight_record_account, false),
     ];
 
-    let instruction = VestingInstruction::Withdraw { seeds };
+    let instruction = VestingInstruction::Withdraw;
 
     Ok(Instruction {
         program_id: *program_id,
@@ -275,18 +261,18 @@ pub fn withdraw_with_realm(
 /// Creates a `ChangeOwner` instruction
 pub fn change_owner(
     program_id: &Pubkey,
-    seeds: [u8; 32],
+    vesting_token_account: &Pubkey,
     vesting_owner: &Pubkey,
     new_vesting_owner: &Pubkey,
 ) -> Result<Instruction, ProgramError> {
-    let vesting_account = Pubkey::create_program_address(&[&seeds], program_id)?;
+    let (vesting_account, _) = Pubkey::find_program_address(&[vesting_token_account.as_ref()], program_id);
     let accounts = vec![
         AccountMeta::new(vesting_account, false),
         AccountMeta::new_readonly(*vesting_owner, true),
         AccountMeta::new_readonly(*new_vesting_owner, false),
     ];
 
-    let instruction = VestingInstruction::ChangeOwner { seeds };
+    let instruction = VestingInstruction::ChangeOwner;
 
     Ok(Instruction {
         program_id: *program_id,
@@ -298,14 +284,14 @@ pub fn change_owner(
 /// Creates a `ChangeOwner` instruction with realm
 pub fn change_owner_with_realm(
     program_id: &Pubkey,
-    seeds: [u8; 32],
+    vesting_token_account: &Pubkey,
     vesting_owner: &Pubkey,
     new_vesting_owner: &Pubkey,
     governance_id: &Pubkey,
     realm: &Pubkey,
     mint: &Pubkey,
 ) -> Result<Instruction, ProgramError> {
-    let vesting_account = Pubkey::create_program_address(&[&seeds], program_id)?;
+    let (vesting_account, _) = Pubkey::find_program_address(&[vesting_token_account.as_ref()], program_id);
     let current_owner_record_account = get_token_owner_record_address(governance_id, realm, mint, vesting_owner);
     let current_voter_weight_record_account = get_voter_weight_record_address(program_id, realm, mint, vesting_owner);
     let new_voter_weight_record_account = get_voter_weight_record_address(program_id, realm, mint, new_vesting_owner);
@@ -321,7 +307,7 @@ pub fn change_owner_with_realm(
         AccountMeta::new(new_voter_weight_record_account, false),
     ];
 
-    let instruction = VestingInstruction::ChangeOwner { seeds };
+    let instruction = VestingInstruction::ChangeOwner;
 
     Ok(Instruction {
         program_id: *program_id,
@@ -365,7 +351,7 @@ pub fn create_voter_weight_record(
 #[allow(clippy::too_many_arguments)]
 pub fn set_vote_percentage_with_realm(
     program_id: &Pubkey,
-    seeds: [u8; 32],
+    vesting_token_account: &Pubkey,
     vesting_owner: &Pubkey,
     vesting_authority: &Pubkey,
     governance_id: &Pubkey,
@@ -373,7 +359,7 @@ pub fn set_vote_percentage_with_realm(
     mint: &Pubkey,
     vote_percentage: u16,
 ) -> Result<Instruction, ProgramError> {
-    let vesting_account = Pubkey::create_program_address(&[&seeds], program_id)?;
+    let (vesting_account, _) = Pubkey::find_program_address(&[vesting_token_account.as_ref()], program_id);
     let token_owner_record_account = get_token_owner_record_address(governance_id, realm, mint, vesting_owner);
     let voter_weight_record_account = get_voter_weight_record_address(program_id, realm, mint, vesting_owner);
     let accounts = vec![
@@ -386,7 +372,7 @@ pub fn set_vote_percentage_with_realm(
         AccountMeta::new(voter_weight_record_account, false),
     ];
 
-    let instruction = VestingInstruction::SetVotePercentage { seeds, vote_percentage };
+    let instruction = VestingInstruction::SetVotePercentage { vote_percentage };
 
     Ok(Instruction {
         program_id: *program_id,
@@ -404,7 +390,6 @@ mod test {
     #[test]
     fn test_instruction_packing() {
         let original_deposit = VestingInstruction::Deposit {
-            seeds: [50u8; 32],
             schedules: vec![VestingSchedule {
                 amount: 42,
                 release_time: 250,
@@ -416,17 +401,23 @@ mod test {
         );
 
 
-        let original_withdraw = VestingInstruction::Withdraw { seeds: [50u8; 32] };
+        let original_withdraw = VestingInstruction::Withdraw;
         assert_eq!(
             original_withdraw,
             VestingInstruction::try_from_slice(&original_withdraw.try_to_vec().unwrap()).unwrap()
         );
 
 
-        let original_change = VestingInstruction::ChangeOwner { seeds: [50u8; 32] };
+        let original_change = VestingInstruction::ChangeOwner;
         assert_eq!(
             original_change,
             VestingInstruction::try_from_slice(&original_change.try_to_vec().unwrap()).unwrap()
+        );
+
+        let original_set_vote_percentage = VestingInstruction::SetVotePercentage { vote_percentage: 2500 };
+        assert_eq!(
+            original_set_vote_percentage,
+            VestingInstruction::try_from_slice(&original_set_vote_percentage.try_to_vec().unwrap()).unwrap()
         );
     }
 }

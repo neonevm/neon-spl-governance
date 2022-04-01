@@ -61,10 +61,8 @@ async fn test_token_vesting() {
     let new_destination_account = Keypair::new();
     let new_destination_token_account = Keypair::new();
 
-    let mut seeds = [42u8; 32];
-    let (vesting_account_key, bump) = Pubkey::find_program_address(&[&seeds[..31]], &program_id);
-    seeds[31] = bump;
     let vesting_token_account = Keypair::new();
+    let (vesting_account_key,_) = Pubkey::find_program_address(&[&vesting_token_account.pubkey().as_ref()], &program_id);
     
     let mut program_test = ProgramTest::new(
         "spl_governance_addin_vesting",
@@ -136,7 +134,6 @@ async fn test_token_vesting() {
         deposit(
             &program_id,
             &spl_token::id(),
-            seeds.clone(),
             &vesting_token_account.pubkey(),
             &source_account.pubkey(),
             &source_token_account.pubkey(),
@@ -157,7 +154,7 @@ async fn test_token_vesting() {
     let change_owner_instructions = [
         change_owner(
             &program_id,
-            seeds.clone(),
+            &vesting_token_account.pubkey(),
             &destination_account.pubkey(),
             &new_destination_account.pubkey(),
         ).unwrap(),
@@ -174,7 +171,6 @@ async fn test_token_vesting() {
         withdraw(
             &program_id,
             &spl_token::id(),
-            seeds.clone(),
             &vesting_token_account.pubkey(),
             &destination_token_account.pubkey(),
             &new_destination_account.pubkey(),
@@ -217,16 +213,9 @@ async fn test_token_vesting_with_realm() {
     let new_destination_token_account = Keypair::new();
     let new_destination_delegate = Keypair::new();
 
-    let mut seeds = [42u8; 32];
-    let (vesting_account_key, bump) = Pubkey::find_program_address(&[&seeds[..31]], &program_id);
-    seeds[31] = bump;
     let vesting_token_account = Keypair::new();
+    let (vesting_account_key,_) = Pubkey::find_program_address(&[&vesting_token_account.pubkey().as_ref()], &program_id);
 
-    let mut seeds2 = [40u8; 32];
-    let (vesting_account_key2, bump2) = Pubkey::find_program_address(&[&seeds2[..31]], &program_id);
-    seeds2[31] = bump2;
-    let vesting_token_account2 = Keypair::new();
-    
     let mut program_test = ProgramTest::new(
         "spl_governance_addin_vesting",
         program_id,
@@ -270,9 +259,6 @@ async fn test_token_vesting_with_realm() {
     ).await.unwrap();
     banks_client.process_transaction(
         create_token_account(&payer, &mint, recent_blockhash, &new_destination_token_account, &new_destination_account.pubkey())
-    ).await.unwrap();
-    banks_client.process_transaction(
-        create_token_account(&payer, &mint, recent_blockhash, &vesting_token_account2, &vesting_account_key2)
     ).await.unwrap();
 
 
@@ -343,7 +329,6 @@ async fn test_token_vesting_with_realm() {
         deposit_with_realm(
             &program_id,
             &spl_token::id(),
-            seeds.clone(),
             &vesting_token_account.pubkey(),
             &source_account.pubkey(),
             &source_token_account.pubkey(),
@@ -384,7 +369,7 @@ async fn test_token_vesting_with_realm() {
     let change_owner_instructions = [
         change_owner_with_realm(
             &program_id,
-            seeds.clone(),
+            &vesting_token_account.pubkey(),
             &destination_account.pubkey(),
             &new_destination_account.pubkey(),
             &governance_id,
@@ -421,7 +406,7 @@ async fn test_token_vesting_with_realm() {
     let set_vote_percentage_instructions = [
         set_vote_percentage_with_realm(
             &program_id,
-            seeds.clone(),
+            &vesting_token_account.pubkey(),
             &new_destination_account.pubkey(),
             &new_destination_delegate.pubkey(),
             &governance_id,
@@ -453,7 +438,6 @@ async fn test_token_vesting_with_realm() {
         withdraw_with_realm(
             &program_id,
             &spl_token::id(),
-            seeds.clone(),
             &vesting_token_account.pubkey(),
             &destination_token_account.pubkey(),
             &new_destination_account.pubkey(),
