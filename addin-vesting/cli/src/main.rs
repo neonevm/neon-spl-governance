@@ -45,24 +45,25 @@ fn command_deposit_svc(
         _ => possible_source_token_pubkey.unwrap(),
     };
 
-    // Find a valid seed for the vesting program account key to be non reversible and unused
-    let mut not_found = true;
-    let mut vesting_seed: [u8; 32] = [0; 32];
     let vesting_token_keypair = Keypair::new();
     let vesting_token_pubkey = vesting_token_keypair.pubkey();
-    let mut vesting_pubkey = Pubkey::new_unique();
-    while not_found {
-        vesting_seed = Pubkey::new_unique().to_bytes();
-        let program_id_bump = Pubkey::find_program_address(&[&vesting_seed[..31]], &vesting_addin_program_id);
-        vesting_pubkey = program_id_bump.0;
-        vesting_seed[31] = program_id_bump.1;
-        not_found = match rpc_client.get_account(&vesting_pubkey) {
-            Ok(_) => true,
-            Err(_) => false,
-        }
-    }
+    // // Find a valid seed for the vesting program account key to be non reversible and unused
+    // let mut not_found = true;
+    // let mut vesting_seed: [u8; 32] = [0; 32];
+    // let mut vesting_pubkey = Pubkey::new_unique();
+    // while not_found {
+    //     vesting_seed = Pubkey::new_unique().to_bytes();
+    //     let program_id_bump = Pubkey::find_program_address(&[&vesting_seed[..31]], &vesting_addin_program_id);
+    //     vesting_pubkey = program_id_bump.0;
+    //     vesting_seed[31] = program_id_bump.1;
+    //     not_found = match rpc_client.get_account(&vesting_pubkey) {
+    //         Ok(_) => true,
+    //         Err(_) => false,
+    //     }
+    // }
 
     // let vesting_token_pubkey = get_associated_token_address(&vesting_pubkey, &mint_address);
+    let (vesting_pubkey,_) = Pubkey::find_program_address(&[&vesting_token_pubkey.as_ref()], &vesting_addin_program_id);
 
     let instructions = [
         system_instruction::create_account(
@@ -78,6 +79,11 @@ fn command_deposit_svc(
             &mint_pubkey, 
             &vesting_pubkey
         ).unwrap(),
+        // create_associated_token_account(
+        //     &source_token_owner.pubkey(),
+        //     &vesting_pubkey,
+        //     &mint_pubkey, 
+        // ),
         // deposit(
         //     &vesting_addin_program_id,
         //     &spl_token::id(),
@@ -96,7 +102,7 @@ fn command_deposit_svc(
         deposit_with_realm(
             &vesting_addin_program_id,
             &spl_token::id(),
-            vesting_seed,
+            // vesting_seed,
             &vesting_token_pubkey,
             &source_token_owner.pubkey(),
             &source_token_pubkey,
@@ -115,13 +121,14 @@ fn command_deposit_svc(
     let latest_blockhash = rpc_client.get_latest_blockhash().unwrap();
     transaction.sign(&[&payer, &vesting_token_keypair, &source_token_owner], latest_blockhash);
 
-    msg!(
-        "\nThe seed of the contract is: {:?}",
-        Pubkey::new_from_array(vesting_seed)
-    );
-    msg!("Please write it down as it is needed to interact with the contract!");
+    // msg!(
+    //     "\nThe seed of the contract is: {:?}",
+    //     Pubkey::new_from_array(vesting_seed)
+    // );
+    // msg!("Please write it down as it is needed to interact with the contract!");
 
     msg!("The vesting account pubkey: {:?}", vesting_pubkey,);
+    msg!("The vesting token pubkey: {:?}", vesting_token_pubkey,);
 
     if confirm {
         rpc_client
@@ -148,40 +155,40 @@ fn command_withdraw_svc(
     destination_token_pubkey: Pubkey,
 ) {
     // Find the non reversible public key for the vesting contract via the seed
-    let (vesting_pubkey, _) = Pubkey::find_program_address(&[&vesting_seed[..31]], &vesting_addin_program_id);
+    // let (vesting_pubkey, _) = Pubkey::find_program_address(&[&vesting_seed[..31]], &vesting_addin_program_id);
 
-    let packed_state = rpc_client.get_account_data(&vesting_pubkey).unwrap();
-    let header_state =
-        VestingRecord::unpack(&packed_state[..VestingRecord::LEN]).unwrap();
-    // let mut vesting_record = get_account_data::<VestingRecord>(&vesting_addin_program_id, &vesting_pubkey).unwrap();
+    // let packed_state = rpc_client.get_account_data(&vesting_pubkey).unwrap();
+    // let header_state =
+    //     VestingRecord::unpack(&packed_state[..VestingRecord::LEN]).unwrap();
+    // // let mut vesting_record = get_account_data::<VestingRecord>(&vesting_addin_program_id, &vesting_pubkey).unwrap();
 
-    // let destination_token_pubkey = header_state.destination_address;
+    // // let destination_token_pubkey = header_state.destination_address;
 
-    let vesting_token_pubkey =
-        get_associated_token_address(&vesting_pubkey, &header_state.mint_address);
+    // let vesting_token_pubkey =
+    //     get_associated_token_address(&vesting_pubkey, &header_state.mint_address);
 
-    let unlock_instruction = withdraw_with_realm(
-        &vesting_addin_program_id,
-        &spl_token::id(),
-        vesting_seed,
-        // &sysvar::clock::id(),
-        // &vesting_pubkey,
-        &vesting_token_pubkey,
-        &destination_token_pubkey,
-        // vesting_seed,
-        &vesting_owner_pubkey,
-        &governance_program_id,
-        &realm_pubkey,
-        &mint_pubkey,
-    )
-    .unwrap();
+    // let unlock_instruction = withdraw_with_realm(
+    //     &vesting_addin_program_id,
+    //     &spl_token::id(),
+    //     vesting_seed,
+    //     // &sysvar::clock::id(),
+    //     // &vesting_pubkey,
+    //     &vesting_token_pubkey,
+    //     &destination_token_pubkey,
+    //     // vesting_seed,
+    //     &vesting_owner_pubkey,
+    //     &governance_program_id,
+    //     &realm_pubkey,
+    //     &mint_pubkey,
+    // )
+    // .unwrap();
 
-    let mut transaction = Transaction::new_with_payer(&[unlock_instruction], Some(&payer.pubkey()));
+    // let mut transaction = Transaction::new_with_payer(&[unlock_instruction], Some(&payer.pubkey()));
 
-    let latest_blockhash = rpc_client.get_latest_blockhash().unwrap();
-    transaction.sign(&[&payer], latest_blockhash);
+    // let latest_blockhash = rpc_client.get_latest_blockhash().unwrap();
+    // transaction.sign(&[&payer], latest_blockhash);
 
-    rpc_client.send_transaction(&transaction).unwrap();
+    // rpc_client.send_transaction(&transaction).unwrap();
 }
 
 // fn command_change_owner(
