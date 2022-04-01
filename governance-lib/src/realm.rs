@@ -57,7 +57,7 @@ impl<'a> Realm<'a> {
     }
 
     pub fn create_token_owner_record<'b:'a>(&'b self, token_owner: &Pubkey) -> Result<TokenOwner<'a>,ClientError> {
-        let token_owner_record_address: Pubkey = self.get_token_owner_record_address(&token_owner);
+        let token_owner_record_address: Pubkey = self.get_token_owner_record_address(token_owner);
 
         if !self.interactor.account_exists(&token_owner_record_address) {
             let create_token_owner_record_instruction: Instruction =
@@ -87,8 +87,8 @@ impl<'a> Realm<'a> {
             TokenOwner {
                 realm: self,
                 //authority: token_owner_keypair,
-                token_owner_record_address: token_owner_record_address,
-                token_owner_record: self.get_token_owner_record_v2(&token_owner),
+                token_owner_record_address,
+                token_owner_record: self.get_token_owner_record_v2(token_owner),
                 // voter_weight_record_authority: None,
                 voter_weight_record_address: None,
                 // voter_weight_record: None,

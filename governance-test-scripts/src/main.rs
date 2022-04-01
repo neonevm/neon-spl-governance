@@ -37,11 +37,11 @@ use governance_lib::{
     addin_fixed_weights::AddinFixedWeights,
 };
 
-const GOVERNANCE_KEY_FILE_PATH: &'static str = "solana-program-library/target/deploy/spl_governance-keypair.json";
-const VOTER_WEIGHT_ADDIN_KEY_FILE_PATH: &'static str = "target/deploy/spl_governance_addin_fixed_weights-keypair.json";
-const COMMUTINY_MINT_KEY_FILE_PATH: &'static str = "governance-test-scripts/community_mint.keypair";
-const GOVERNED_MINT_KEY_FILE_PATH: &'static str = "governance-test-scripts/governance.keypair";
-const PAYER_KEY_FILE_PATH: &'static str = "artifacts/payer.keypair";
+const GOVERNANCE_KEY_FILE_PATH: &str = "solana-program-library/target/deploy/spl_governance-keypair.json";
+const VOTER_WEIGHT_ADDIN_KEY_FILE_PATH: &str = "target/deploy/spl_governance_addin_fixed_weights-keypair.json";
+const COMMUTINY_MINT_KEY_FILE_PATH: &str = "governance-test-scripts/community_mint.keypair";
+const GOVERNED_MINT_KEY_FILE_PATH: &str = "governance-test-scripts/governance.keypair";
+const PAYER_KEY_FILE_PATH: &str = "artifacts/payer.keypair";
 
 const VOTERS_KEY_FILE_PATH: [&str;5] = [
     "artifacts/voter1.keypair",
@@ -51,11 +51,11 @@ const VOTERS_KEY_FILE_PATH: [&str;5] = [
     "artifacts/voter5.keypair",
 ];
 
-// const REALM_NAME: &'static str = "Test Realm";
-const REALM_NAME: &'static str = "Test_Realm_4";
-// const REALM_NAME: &'static str = "Test Realm 6";
-const PROPOSAL_NAME: &'static str = "Proposal To Vote";
-const PROPOSAL_DESCRIPTION: &'static str = "proposal_description";
+// const REALM_NAME: &str = "Test Realm";
+const REALM_NAME: &str = "Test_Realm_4";
+// const REALM_NAME: &str = "Test Realm 6";
+const PROPOSAL_NAME: &str = "Proposal To Vote";
+const PROPOSAL_DESCRIPTION: &str = "proposal_description";
 
 fn main() {
 
@@ -130,13 +130,13 @@ fn main() {
             gov_config).unwrap();
     println!("{:?}", governance);
 
-    let proposal_number: u32 = 
-        if governance.get_proposal_count() > 0 {
-            // governance.get_proposal_count()
-            0
-        } else {
-            0
-        };
+    let proposal_number: u32 = 0;
+//        if governance.get_proposal_count() > 0 {
+//            // governance.get_proposal_count()
+//            0
+//        } else {
+//            0
+//        };
     let proposal: Proposal = governance.create_proposal(
             &voter_keypairs[0],
             &token_owners[0],
@@ -158,7 +158,7 @@ fn main() {
         let yes = i == 0 || i == 3 || i == 4;
         let result = proposal.cast_vote(
                 &voter_keypairs[i],
-                &owner, yes);
+                owner, yes);
         println!("CastVote {} {:?}", i, result);
     }
 }

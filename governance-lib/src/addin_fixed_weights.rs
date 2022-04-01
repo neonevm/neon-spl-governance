@@ -65,7 +65,7 @@ impl<'a> AddinFixedWeights<'a> {
                 &self.program_id,
                 &realm.address,
                 &realm.community_mint,
-                &token_owner);
+                token_owner);
 
         if !self.interactor.account_exists(&voter_weight_record_pubkey) {
             let setup_voter_weight_record_instruction: Instruction =
@@ -73,7 +73,7 @@ impl<'a> AddinFixedWeights<'a> {
                     &self.program_id,
                     &realm.address,
                     &realm.data.community_mint,
-                    &token_owner,
+                    token_owner,
                     &self.interactor.payer.pubkey(),
                 );
             

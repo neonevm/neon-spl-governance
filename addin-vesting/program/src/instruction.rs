@@ -362,6 +362,7 @@ pub fn create_voter_weight_record(
 }
 
 /// Creates a `ChangeVotePercentage` instruction with realm
+#[allow(clippy::too_many_arguments)]
 pub fn set_vote_percentage_with_realm(
     program_id: &Pubkey,
     seeds: [u8; 32],
