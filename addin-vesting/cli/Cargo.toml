@@ -5,13 +5,14 @@ authors = ["Bonfida <contact@bonfida.com>"]
 edition = "2018"
 
 [dependencies]
-solana-program = "=1.9.13"
-solana-client = "=1.9.13"
-solana-sdk = "=1.9.13"
-solana-clap-utils = "=1.9.13"
-token-vesting =  { version = "0.1.0", path="../program", features=["no-entrypoint"] }
+solana-program = "1.9.13"
+solana-client = "1.9.13"
+solana-sdk = "1.9.13"
+solana-clap-utils = "1.9.13"
+#token-vesting =  { version = "0.1.0", path="../program", features=["no-entrypoint"] }
 spl-token = {version = "3.2.0", features = ["no-entrypoint"]}
 spl-associated-token-account = {version = "1.0.2", features = ["no-entrypoint"]}
+spl-governance-addin-vesting = { version = "0.1", path = "../program" }
 clap = "2.33.3"
 chrono = "0.4.19"
 iso8601-duration = { git = "https://github.com/rrichardson/iso8601-duration.git", rev = "9e01f51ea253e95e0fba5e4d7ad0c537922931e7"}
