@@ -17,21 +17,27 @@ use solana_sdk::{
 use spl_governance_addin_vesting::{
     entrypoint::process_instruction,
     state::{VestingSchedule, VestingRecord},
-    voter_weight::{VoterWeightRecord, get_voter_weight_record_address},
+    voter_weight::{ExtendedVoterWeightRecord, get_voter_weight_record_address},
     max_voter_weight::{MaxVoterWeightRecord, get_max_voter_weight_record_address},
     instruction::{
         deposit,
         withdraw,
         change_owner,
+
         deposit_with_realm,
         withdraw_with_realm,
         change_owner_with_realm,
         create_voter_weight_record,
+        set_vote_percentage_with_realm,
     },
 };
 use spl_token::{self, instruction::{initialize_mint, initialize_account, mint_to}};
 use spl_governance::{
-    instruction::{create_realm, create_token_owner_record},
+    instruction::{
+        create_realm,
+        create_token_owner_record,
+        set_governance_delegate,
+    },
     state::{
         enums::MintMaxVoteWeightSource,
         realm::get_realm_address,
@@ -61,7 +67,7 @@ async fn test_token_vesting() {
     let vesting_token_account = Keypair::new();
     
     let mut program_test = ProgramTest::new(
-        "token_vesting",
+        "spl_governance_addin_vesting",
         program_id,
         processor!(process_instruction),
     );
@@ -209,6 +215,7 @@ async fn test_token_vesting_with_realm() {
 
     let new_destination_account = Keypair::new();
     let new_destination_token_account = Keypair::new();
+    let new_destination_delegate = Keypair::new();
 
     let mut seeds = [42u8; 32];
     let (vesting_account_key, bump) = Pubkey::find_program_address(&[&seeds[..31]], &program_id);
@@ -221,7 +228,7 @@ async fn test_token_vesting_with_realm() {
     let vesting_token_account2 = Keypair::new();
     
     let mut program_test = ProgramTest::new(
-        "token_vesting",
+        "spl_governance_addin_vesting",
         program_id,
         processor!(process_instruction),
     );
@@ -393,6 +400,55 @@ async fn test_token_vesting_with_realm() {
     banks_client.process_transaction(change_owner_transaction).await.unwrap();
 
 
+    let set_governance_delegate_instructions = [
+        set_governance_delegate(
+            &governance_id,
+            &new_destination_account.pubkey(),
+            &realm_address,
+            &mint.pubkey(),
+            &new_destination_account.pubkey(),
+            &Some(new_destination_delegate.pubkey()),
+        ),
+    ];
+    let mut set_governance_delegate_transaction = Transaction::new_with_payer(
+        &set_governance_delegate_instructions,
+        Some(&payer.pubkey()),
+    );
+    set_governance_delegate_transaction.partial_sign(&[&payer, &new_destination_account], recent_blockhash);
+    banks_client.process_transaction(set_governance_delegate_transaction).await.unwrap();
+
+
+    let set_vote_percentage_instructions = [
+        set_vote_percentage_with_realm(
+            &program_id,
+            seeds.clone(),
+            &new_destination_account.pubkey(),
+            &new_destination_delegate.pubkey(),
+            &governance_id,
+            &realm_address,
+            &mint.pubkey(),
+            30*100,
+        ).unwrap(),
+    ];
+    let mut set_vote_percentage_transaction = Transaction::new_with_payer(
+        &set_vote_percentage_instructions,
+        Some(&payer.pubkey()),
+    );
+    set_vote_percentage_transaction.partial_sign(&[&payer, &new_destination_delegate], recent_blockhash);
+    banks_client.process_transaction(set_vote_percentage_transaction).await.unwrap();
+
+
+    let voter_weight_record_address2 = get_voter_weight_record_address(
+        &program_id,
+        &realm_address,
+        &mint.pubkey(),
+        &new_destination_account.pubkey()
+    );
+    let voter_weight_record_account2 = banks_client.get_account(voter_weight_record_address2).await.unwrap().unwrap();
+    let voter_weight_record2: ExtendedVoterWeightRecord = try_from_slice_unchecked(&voter_weight_record_account2.data).unwrap();
+    println!("VoterWeightRecord before withdraw: {:?}", voter_weight_record2);
+    
+
     let withdraw_instrictions = [
         withdraw_with_realm(
             &program_id,
@@ -426,7 +482,7 @@ async fn test_token_vesting_with_realm() {
         &destination_account.pubkey()
     );
     let voter_weight_record_account = banks_client.get_account(voter_weight_record_address).await.unwrap().unwrap();
-    let voter_weight_record: VoterWeightRecord = try_from_slice_unchecked(&voter_weight_record_account.data).unwrap();
+    let voter_weight_record: ExtendedVoterWeightRecord = try_from_slice_unchecked(&voter_weight_record_account.data).unwrap();
     println!("VoterWeightRecord: {:?}", voter_weight_record);
 
     let voter_weight_record_address2 = get_voter_weight_record_address(
@@ -436,7 +492,7 @@ async fn test_token_vesting_with_realm() {
         &new_destination_account.pubkey()
     );
     let voter_weight_record_account2 = banks_client.get_account(voter_weight_record_address2).await.unwrap().unwrap();
-    let voter_weight_record2: VoterWeightRecord = try_from_slice_unchecked(&voter_weight_record_account2.data).unwrap();
+    let voter_weight_record2: ExtendedVoterWeightRecord = try_from_slice_unchecked(&voter_weight_record_account2.data).unwrap();
     println!("VoterWeightRecord: {:?}", voter_weight_record2);
 
     let max_voter_weight_record_address = get_max_voter_weight_record_address(
