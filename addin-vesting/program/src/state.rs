@@ -26,6 +26,7 @@ pub struct VestingRecord {
     pub account_type: VestingAccountType,
     pub owner: Pubkey,
     pub mint: Pubkey,
+    pub token: Pubkey,
     pub realm: Option<Pubkey>,
     pub schedule: Vec<VestingSchedule>,
 }
@@ -52,6 +53,7 @@ mod tests {
             account_type: VestingAccountType::VestingRecord,
             owner: Pubkey::new_unique(),
             mint: Pubkey::new_unique(),
+            token: Pubkey::new_unique(),
             realm: Some(Pubkey::new_unique()),
             schedule: vec!(
                 VestingSchedule {release_time: 30767976, amount: 969},
@@ -81,5 +83,4 @@ mod tests {
         let vesting_record_target = get_account_data::<VestingRecord>(&program_id, &account_info).unwrap();
         assert_eq!(vesting_record_source, vesting_record_target);
     }
-
 }
