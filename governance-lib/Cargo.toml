@@ -1,5 +1,5 @@
 [package]
-name = "governance-test-scripts"
+name = "governance-lib"
 version = "0.1.0"
 edition = "2021"
 
@@ -16,5 +16,3 @@ spl-governance-addin-api= { version = "0.1.1", path = "../solana-program-library
 spl-governance-addin-mock = { version = "0.1", path = "../solana-program-library/governance/addin-mock/program" }
 
 spl-governance-addin-fixed-weights = { version = "0.1", path = "../addin-fixed-weights/program" }
-
-governance-lib = { path = "../governance-lib" }
