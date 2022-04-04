@@ -14,7 +14,7 @@ https://github.com/solana-labs/solana-program-library/tree/master/governance
 This feature allows you to redefine the way to determine the number of votes a voter
 can vote with (and perform a number of other actions) in a spl-governance program Realm.
 This is done by creating an addin program that generates special records
-VoterWeightRecord/MaxVoterWeightRecord with a fixed internal structure (see 
+`VoterWeightRecord`/`MaxVoterWeightRecord` with a fixed internal structure (see 
 governance/addin-api inside the solana-program-library repository).
 
 If a Realm settings specify usage of an addin program to obtain a weight of a voter
