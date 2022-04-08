@@ -8,8 +8,8 @@ edition = "2018"
 solana-program = "1.9.13"
 solana-client = "1.9.13"
 solana-sdk = "1.9.13"
+solana-account-decoder = "1.10"
 solana-clap-utils = "1.9.13"
-#token-vesting =  { version = "0.1.0", path="../program", features=["no-entrypoint"] }
 spl-token = {version = "3.2.0", features = ["no-entrypoint"]}
 spl-associated-token-account = {version = "1.0.2", features = ["no-entrypoint"]}
 spl-governance-addin-vesting = { version = "0.1", path = "../program" }
