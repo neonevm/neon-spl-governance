@@ -1,109 +1,110 @@
+// use std::str::FromStr;
 use chrono::{DateTime, Duration};
 use clap::{
     crate_description, crate_name, crate_version, value_t, App, AppSettings, Arg, SubCommand,
 };
 use solana_clap_utils::{
     input_parsers::{keypair_of, pubkey_of, value_of, values_of},
-    input_validators::{is_amount, is_keypair, is_parsable, is_pubkey, is_slot, is_url},
+    input_validators::{is_amount, is_keypair, is_pubkey, is_slot, is_url},
 };
-use solana_client::rpc_client::RpcClient;
-use solana_program::{msg, program_pack::Pack, pubkey::Pubkey, system_program, sysvar};
+use solana_client::{
+    rpc_client::RpcClient,
+    rpc_config::{ RpcProgramAccountsConfig, RpcAccountInfoConfig, },
+    rpc_filter,
+};
+use solana_program::{
+    borsh::try_from_slice_unchecked,
+    msg, program_pack::Pack, pubkey::Pubkey, rent::Rent,
+};
 use solana_sdk::{
     self, commitment_config::CommitmentConfig, signature::Keypair, signature::Signer,
+    account::Account,
+    system_instruction,
+    instruction::Instruction,
     transaction::Transaction,
+    // signer::{ 
+    //     keypair::read_keypair_file,
+    // },
 };
-use spl_associated_token_account::{create_associated_token_account, get_associated_token_address};
+use spl_associated_token_account::{get_associated_token_address};
 use spl_token;
 use std::convert::TryInto;
-use token_vesting::{
-    instruction::{change_destination, create, init, unlock, Schedule},
-    state::{unpack_schedules, VestingScheduleHeader},
+use spl_governance_addin_vesting::{
+    state::{ VestingRecord, VestingSchedule },
+    instruction::{ deposit, deposit_with_realm, withdraw, withdraw_with_realm, change_owner, change_owner_with_realm, create_voter_weight_record, set_vote_percentage_with_realm },
+    voter_weight::get_voter_weight_record_address,
 };
 
 // Lock the vesting contract
-fn command_create_svc(
+fn command_deposit_svc(
     rpc_client: RpcClient,
-    program_id: Pubkey,
+    vesting_addin_program_id: Pubkey,
     payer: Keypair,
     source_token_owner: Keypair,
     possible_source_token_pubkey: Option<Pubkey>,
-    destination_token_pubkey: Pubkey,
-    mint_address: Pubkey,
-    schedules: Vec<Schedule>,
+    vesting_owner_pubkey: Pubkey,
+    mint_pubkey: Pubkey,
+    schedules: Vec<VestingSchedule>,
     confirm: bool,
 ) {
     // If no source token account was given, use the associated source account
     let source_token_pubkey = match possible_source_token_pubkey {
-        None => get_associated_token_address(&source_token_owner.pubkey(), &mint_address),
+        None => get_associated_token_address(&source_token_owner.pubkey(), &mint_pubkey),
         _ => possible_source_token_pubkey.unwrap(),
     };
 
-    // Find a valid seed for the vesting program account key to be non reversible and unused
-    let mut not_found = true;
-    let mut vesting_seed: [u8; 32] = [0; 32];
-    let mut vesting_pubkey = Pubkey::new_unique();
-    while not_found {
-        vesting_seed = Pubkey::new_unique().to_bytes();
-        let program_id_bump = Pubkey::find_program_address(&[&vesting_seed[..31]], &program_id);
-        vesting_pubkey = program_id_bump.0;
-        vesting_seed[31] = program_id_bump.1;
-        not_found = match rpc_client.get_account(&vesting_pubkey) {
-            Ok(_) => true,
-            Err(_) => false,
-        }
-    }
+    let vesting_token_keypair = Keypair::new();
+    let vesting_token_pubkey = vesting_token_keypair.pubkey();
 
-    let vesting_token_pubkey = get_associated_token_address(&vesting_pubkey, &mint_address);
+    let (vesting_pubkey,_) = Pubkey::find_program_address(&[&vesting_token_pubkey.as_ref()], &vesting_addin_program_id);
 
     let instructions = [
-        init(
-            &system_program::id(),
-            &sysvar::rent::id(),
-            &program_id,
-            &payer.pubkey(),
-            &vesting_pubkey,
-            vesting_seed,
-            schedules.len() as u32,
-        )
-        .unwrap(),
-        create_associated_token_account(
+        system_instruction::create_account(
             &source_token_owner.pubkey(),
-            &vesting_pubkey,
-            &mint_address,
+            &vesting_token_pubkey,
+            Rent::default().minimum_balance(spl_token::state::Account::LEN),
+            spl_token::state::Account::LEN as u64,
+            &spl_token::id()
         ),
-        create(
-            &program_id,
+        spl_token::instruction::initialize_account(
+            &spl_token::id(), 
+            &vesting_token_pubkey,
+            &mint_pubkey, 
+            &vesting_pubkey
+        ).unwrap(),
+        deposit(
+            &vesting_addin_program_id,
             &spl_token::id(),
-            &vesting_pubkey,
             &vesting_token_pubkey,
             &source_token_owner.pubkey(),
             &source_token_pubkey,
-            &destination_token_pubkey,
-            &mint_address,
+            &vesting_owner_pubkey,
+            &payer.pubkey(),
             schedules,
-            vesting_seed,
         )
         .unwrap(),
     ];
 
     let mut transaction = Transaction::new_with_payer(&instructions, Some(&payer.pubkey()));
 
-    let recent_blockhash = rpc_client.get_recent_blockhash().unwrap().0;
-    transaction.sign(&[&payer], recent_blockhash);
+    let latest_blockhash = rpc_client.get_latest_blockhash().unwrap();
+    transaction.sign(&[&payer, &vesting_token_keypair, &source_token_owner], latest_blockhash);
 
-    msg!(
-        "\nThe seed of the contract is: {:?}",
-        Pubkey::new_from_array(vesting_seed)
-    );
-    msg!("Please write it down as it is needed to interact with the contract!");
-
+    msg!("Vesting addin program id: {:?}", vesting_addin_program_id,);
+    msg!("spl-token program id: {:?}", spl_token::id(),);
+    msg!("Source token owner pubkey: {:?}", source_token_owner.pubkey(),);
+    msg!("Source token pubkey: {:?}", source_token_pubkey,);
+    msg!("Vesting owner pubkey: {:?}", vesting_owner_pubkey,);
+    msg!("Payer: {:?}", payer.pubkey(),);
     msg!("The vesting account pubkey: {:?}", vesting_pubkey,);
+    msg!("The vesting token pubkey: {:?}", vesting_token_pubkey,);
 
     if confirm {
         rpc_client
             .send_and_confirm_transaction_with_spinner_and_commitment(
                 &transaction,
-                CommitmentConfig::finalized(),
+                CommitmentConfig::confirmed(),
+                // CommitmentConfig::finalized(),
             )
             .unwrap();
     } else {
@@ -111,83 +112,290 @@ fn command_create_svc(
     }
 }
 
-fn command_unlock_svc(
+fn command_deposit_with_realm_svc(
     rpc_client: RpcClient,
-    program_id: Pubkey,
-    vesting_seed: [u8; 32],
+    governance_program_id: Pubkey,
+    vesting_addin_program_id: Pubkey,
     payer: Keypair,
+    source_token_owner: Keypair,
+    possible_source_token_pubkey: Option<Pubkey>,
+    vesting_owner_pubkey: Pubkey,
+    mint_pubkey: Pubkey,
+    realm_pubkey: Pubkey,
+    schedules: Vec<VestingSchedule>,
+    confirm: bool,
 ) {
-    // Find the non reversible public key for the vesting contract via the seed
-    let (vesting_pubkey, _) = Pubkey::find_program_address(&[&vesting_seed[..31]], &program_id);
+    // If no source token account was given, use the associated source account
+    let source_token_pubkey = match possible_source_token_pubkey {
+        None => get_associated_token_address(&source_token_owner.pubkey(), &mint_pubkey),
+        _ => possible_source_token_pubkey.unwrap(),
+    };
 
-    let packed_state = rpc_client.get_account_data(&vesting_pubkey).unwrap();
-    let header_state =
-        VestingScheduleHeader::unpack(&packed_state[..VestingScheduleHeader::LEN]).unwrap();
-    let destination_token_pubkey = header_state.destination_address;
+    let vesting_token_keypair = Keypair::new();
+    let vesting_token_pubkey = vesting_token_keypair.pubkey();
 
-    let vesting_token_pubkey =
-        get_associated_token_address(&vesting_pubkey, &header_state.mint_address);
+    let (vesting_pubkey,_) = Pubkey::find_program_address(&[&vesting_token_pubkey.as_ref()], &vesting_addin_program_id);
 
-    let unlock_instruction = unlock(
-        &program_id,
+    let instructions = [
+        system_instruction::create_account(
+            &source_token_owner.pubkey(),
+            &vesting_token_pubkey,
+            Rent::default().minimum_balance(spl_token::state::Account::LEN),
+            spl_token::state::Account::LEN as u64,
+            &spl_token::id()
+        ),
+        spl_token::instruction::initialize_account(
+            &spl_token::id(), 
+            &vesting_token_pubkey,
+            &mint_pubkey, 
+            &vesting_pubkey
+        ).unwrap(),
+        deposit_with_realm(
+            &vesting_addin_program_id,
+            &spl_token::id(),
+            &vesting_token_pubkey,
+            &source_token_owner.pubkey(),
+            &source_token_pubkey,
+            &vesting_owner_pubkey,
+            &payer.pubkey(),
+            schedules,
+            &governance_program_id,
+            &realm_pubkey,
+            &mint_pubkey,
+        )
+        .unwrap(),
+    ];
+
+    let mut transaction = Transaction::new_with_payer(&instructions, Some(&payer.pubkey()));
+
+    let latest_blockhash = rpc_client.get_latest_blockhash().unwrap();
+    transaction.sign(&[&payer, &vesting_token_keypair, &source_token_owner], latest_blockhash);
+
+    msg!("Vesting addin program id: {:?}", vesting_addin_program_id,);
+    msg!("spl-token program id: {:?}", spl_token::id(),);
+    msg!("Source token owner pubkey: {:?}", source_token_owner.pubkey(),);
+    msg!("Source token pubkey: {:?}", source_token_pubkey,);
+    msg!("Vesting owner pubkey: {:?}", vesting_owner_pubkey,);
+    msg!("Payer: {:?}", payer.pubkey(),);
+    msg!("Governance program id: {:?}", governance_program_id,);
+    msg!("The vesting account pubkey: {:?}", vesting_pubkey,);
+    msg!("The vesting token pubkey: {:?}", vesting_token_pubkey,);
+
+    if confirm {
+        rpc_client
+            .send_and_confirm_transaction_with_spinner_and_commitment(
+                &transaction,
+                CommitmentConfig::confirmed(),
+                // CommitmentConfig::finalized(),
+            )
+            .unwrap();
+    } else {
+        rpc_client.send_transaction(&transaction).unwrap();
+    }
+}
+
+fn command_withdraw_svc(
+    rpc_client: RpcClient,
+    vesting_addin_program_id: Pubkey,
+    payer: Keypair,
+    vesting_owner: Keypair,
+    vesting_token_pubkey: Pubkey,
+    destination_token_pubkey: Pubkey,
+) {
+
+    let withdraw_instruction = withdraw(
+        &vesting_addin_program_id,
         &spl_token::id(),
-        &sysvar::clock::id(),
-        &vesting_pubkey,
         &vesting_token_pubkey,
         &destination_token_pubkey,
-        vesting_seed,
+        &vesting_owner.pubkey(),
     )
     .unwrap();
 
-    let mut transaction = Transaction::new_with_payer(&[unlock_instruction], Some(&payer.pubkey()));
+    let mut transaction = Transaction::new_with_payer(&[withdraw_instruction], Some(&payer.pubkey()));
 
-    let recent_blockhash = rpc_client.get_recent_blockhash().unwrap().0;
-    transaction.sign(&[&payer], recent_blockhash);
+    let latest_blockhash = rpc_client.get_latest_blockhash().unwrap();
+    transaction.sign(&[&payer, &vesting_owner], latest_blockhash);
 
     rpc_client.send_transaction(&transaction).unwrap();
 }
 
-fn command_change_destination(
+fn command_withdraw_with_realm_svc(
     rpc_client: RpcClient,
-    program_id: Pubkey,
-    destination_token_account_owner: Keypair,
-    opt_new_destination_account: Option<Pubkey>,
-    opt_new_destination_token_account: Option<Pubkey>,
-    vesting_seed: [u8; 32],
+    governance_program_id: Pubkey,
+    vesting_addin_program_id: Pubkey,
     payer: Keypair,
+    vesting_owner: Keypair,
+    vesting_token_pubkey: Pubkey,
+    mint_pubkey: Pubkey,
+    realm_pubkey: Pubkey,
+    destination_token_pubkey: Pubkey,
 ) {
-    // Find the non reversible public key for the vesting contract via the seed
-    let (vesting_pubkey, _) = Pubkey::find_program_address(&[&vesting_seed[..31]], &program_id);
 
-    let packed_state = rpc_client.get_account_data(&vesting_pubkey).unwrap();
-    let state_header =
-        VestingScheduleHeader::unpack(&packed_state[..VestingScheduleHeader::LEN]).unwrap();
-    let destination_token_pubkey = state_header.destination_address;
-
-    let new_destination_token_account = match opt_new_destination_token_account {
-        None => get_associated_token_address(
-            &opt_new_destination_account.unwrap(),
-            &state_header.mint_address,
-        ),
-        Some(new_destination_token_account) => new_destination_token_account,
-    };
-
-    let unlock_instruction = change_destination(
-        &program_id,
-        &vesting_pubkey,
-        &destination_token_account_owner.pubkey(),
+    let withdraw_instruction = withdraw_with_realm(
+        &vesting_addin_program_id,
+        &spl_token::id(),
+        &vesting_token_pubkey,
         &destination_token_pubkey,
-        &new_destination_token_account,
-        vesting_seed,
+        &vesting_owner.pubkey(),
+        &governance_program_id,
+        &realm_pubkey,
+        &mint_pubkey,
     )
     .unwrap();
 
-    let mut transaction = Transaction::new_with_payer(&[unlock_instruction], Some(&payer.pubkey()));
+    let mut transaction = Transaction::new_with_payer(&[withdraw_instruction], Some(&payer.pubkey()));
 
-    let recent_blockhash = rpc_client.get_recent_blockhash().unwrap().0;
+    let latest_blockhash = rpc_client.get_latest_blockhash().unwrap();
+    transaction.sign(&[&payer, &vesting_owner], latest_blockhash);
+
+    rpc_client.send_transaction(&transaction).unwrap();
+}
+
+fn command_change_owner(
+    rpc_client: RpcClient,
+    vesting_addin_program_id: Pubkey,
+    payer: Keypair,
+    vesting_owner: Keypair,
+    vesting_token_pubkey: Pubkey,
+    new_vesting_owner_pubkey: Pubkey,
+) {
+
+    let change_owner_instruction = change_owner(
+        &vesting_addin_program_id,
+        &vesting_token_pubkey,
+        &vesting_owner.pubkey(),
+        &new_vesting_owner_pubkey,
+    )
+    .unwrap();
+
+    let mut transaction = Transaction::new_with_payer(&[change_owner_instruction], Some(&payer.pubkey()));
+
+    let latest_blockhash = rpc_client.get_latest_blockhash().unwrap();
     transaction.sign(
-        &[&payer, &destination_token_account_owner],
-        recent_blockhash,
+        &[&payer, &vesting_owner],
+        latest_blockhash,
+    );
+
+    rpc_client.send_transaction(&transaction).unwrap();
+}
+
+fn command_change_owner_with_realm(
+    rpc_client: RpcClient,
+    governance_program_id: Pubkey,
+    vesting_addin_program_id: Pubkey,
+    payer: Keypair,
+    vesting_owner: Keypair,
+    vesting_token_pubkey: Pubkey,
+    mint_pubkey: Pubkey,
+    realm_pubkey: Pubkey,
+    new_vesting_owner_pubkey: Pubkey,
+) {
+
+    let mut instructions: Vec<Instruction> = Vec::new();
+
+    let new_voter_weight_record_pubkey = get_voter_weight_record_address(&vesting_addin_program_id, &realm_pubkey, &mint_pubkey, &new_vesting_owner_pubkey);
+
+    let new_voter_weight_record_data_result = rpc_client.get_account_data(&new_voter_weight_record_pubkey);
+    if new_voter_weight_record_data_result.is_err() || new_voter_weight_record_data_result.unwrap().is_empty() {
+
+        let create_voter_weight_record_instruction = create_voter_weight_record(
+            &vesting_addin_program_id,
+            &new_vesting_owner_pubkey,
+            &payer.pubkey(),
+            &governance_program_id,
+            &realm_pubkey,
+            &mint_pubkey,
+        )
+        .unwrap();
+        instructions.push(create_voter_weight_record_instruction);
+    }
+
+    let change_owner_instruction = change_owner_with_realm(
+        &vesting_addin_program_id,
+        &vesting_token_pubkey,
+        &vesting_owner.pubkey(),
+        &new_vesting_owner_pubkey,
+        &governance_program_id,
+        &realm_pubkey,
+        &mint_pubkey,
+    )
+    .unwrap();
+    instructions.push(change_owner_instruction);
+
+    let mut transaction = Transaction::new_with_payer(&instructions, Some(&payer.pubkey()));
+
+    let latest_blockhash = rpc_client.get_latest_blockhash().unwrap();
+    transaction.sign(
+        &[&payer, &vesting_owner],
+        latest_blockhash,
+    );
+
+    rpc_client.send_transaction(&transaction).unwrap();
+}
+
+fn command_create_voter_weight_record(
+    rpc_client: RpcClient,
+    governance_program_id: Pubkey,
+    vesting_addin_program_id: Pubkey,
+    payer: Keypair,
+    record_owner_pubkey: Pubkey,
+    mint_pubkey: Pubkey,
+    realm_pubkey: Pubkey,
+) {
+
+    let instruction = create_voter_weight_record(
+        &vesting_addin_program_id,
+        &record_owner_pubkey,
+        &payer.pubkey(),
+        &governance_program_id,
+        &realm_pubkey,
+        &mint_pubkey,
+    )
+    .unwrap();
+
+    let mut transaction = Transaction::new_with_payer(&[instruction], Some(&payer.pubkey()));
+
+    let latest_blockhash = rpc_client.get_latest_blockhash().unwrap();
+    transaction.sign(
+        &[&payer],
+        latest_blockhash,
+    );
+
+    rpc_client.send_transaction(&transaction).unwrap();
+}
+
+fn command_set_vote_percentage_with_realm(
+    rpc_client: RpcClient,
+    governance_program_id: Pubkey,
+    vesting_addin_program_id: Pubkey,
+    payer: Keypair,
+    vesting_authority: Keypair,
+    vesting_owner_pubkey: Pubkey,
+    vesting_token_pubkey: Pubkey,
+    mint_pubkey: Pubkey,
+    realm_pubkey: Pubkey,
+    percentage: u16,
+) {
+
+    let instruction = set_vote_percentage_with_realm(
+        &vesting_addin_program_id,
+        &vesting_token_pubkey,
+        &vesting_owner_pubkey,
+        &vesting_authority.pubkey(),
+        &governance_program_id,
+        &realm_pubkey,
+        &mint_pubkey,
+        percentage,
+    )
+    .unwrap();
+
+    let mut transaction = Transaction::new_with_payer(&[instruction], Some(&payer.pubkey()));
+
+    let latest_blockhash = rpc_client.get_latest_blockhash().unwrap();
+    transaction.sign(
+        &[&payer,&vesting_authority],
+        latest_blockhash,
     );
 
     rpc_client.send_transaction(&transaction).unwrap();
@@ -195,33 +403,29 @@ fn command_change_destination(
 
 fn command_info(
     rpc_client: RpcClient,
-    rpc_url: String,
-    program_id: Pubkey,
-    vesting_seed: [u8; 32],
+    vesting_addin_program_id: Pubkey,
+    vesting_token_pubkey: Pubkey,
 ) {
     msg!("\n---------------VESTING--CONTRACT--INFO-----------------\n");
-    msg!("RPC URL: {:?}", &rpc_url);
-    msg!("Program ID: {:?}", &program_id);
-    msg!("Vesting Seed: {:?}", Pubkey::new_from_array(vesting_seed));
+    // msg!("RPC URL: {:?}", &rpc_url);
+    msg!("Program ID: {:?}", &vesting_addin_program_id);
 
-    // Find the non reversible public key for the vesting contract via the seed
-    let (vesting_pubkey, _) = Pubkey::find_program_address(&[&vesting_seed[..31]], &program_id);
+    let (vesting_pubkey,_) = Pubkey::find_program_address(&[&vesting_token_pubkey.as_ref()], &vesting_addin_program_id);
     msg!("Vesting Account Pubkey: {:?}", &vesting_pubkey);
 
-    let packed_state = rpc_client.get_account_data(&vesting_pubkey).unwrap();
-    let state_header =
-        VestingScheduleHeader::unpack(&packed_state[..VestingScheduleHeader::LEN]).unwrap();
-    let vesting_token_pubkey =
-        get_associated_token_address(&vesting_pubkey, &state_header.mint_address);
+    let vesting_record_account_data = rpc_client.get_account_data(&vesting_pubkey).unwrap();
+    let vesting_record: VestingRecord = try_from_slice_unchecked(&vesting_record_account_data).unwrap();
     msg!("Vesting Token Account Pubkey: {:?}", &vesting_token_pubkey);
-    msg!("Initialized: {:?}", &state_header.is_initialized);
-    msg!("Mint Address: {:?}", &state_header.mint_address);
-    msg!(
-        "Destination Token Address: {:?}",
-        &state_header.destination_address
-    );
+    report_vesting_record_info(&vesting_record);
+}
 
-    let schedules = unpack_schedules(&packed_state[VestingScheduleHeader::LEN..]).unwrap();
+fn report_vesting_record_info(vesting_record: &VestingRecord) {
+    msg!("Vesting Owner Address: {:?}", &vesting_record.owner);
+    msg!("Vesting Mint Address:  {:?}", &vesting_record.mint);
+    msg!("Vesting Token Address: {:?}", &vesting_record.token);
+    msg!("Vesting Realm: {:?}", &vesting_record.realm);
+
+    let schedules = &vesting_record.schedule;
 
     for i in 0..schedules.len() {
         msg!("\nSCHEDULE {:?}", i);
@@ -247,6 +451,7 @@ fn main() {
             Arg::with_name("rpc_url")
                 .long("url")
                 .value_name("URL")
+                .default_value("http://localhost:8899")
                 .validator(is_url)
                 .takes_value(true)
                 .global(true)
@@ -255,30 +460,35 @@ fn main() {
                 ),
         )
         .arg(
-            Arg::with_name("program_id")
-                .long("program_id")
+            Arg::with_name("governance_program_id")
+                .long("governance_program_id")
                 .value_name("ADDRESS")
+                .default_value("82pQHEmBbW6CQS8GzLP3WE2pCgMUPSW2XzpuSih3aFDk")
                 .validator(is_pubkey)
                 .takes_value(true)
+                .global(true)
                 .help(
-                    "Specify the address (public key) of the program.",
+                    "Specify the address (public key) of the governance program.",
                 ),
         )
-        .subcommand(SubCommand::with_name("create").about("Create a new vesting contract with an optional release schedule")        
-            .arg(
-                Arg::with_name("mint_address")
-                    .long("mint_address")
-                    .value_name("ADDRESS")
-                    .validator(is_pubkey)
-                    .takes_value(true)
-                    .help(
-                        "Specify the address (publickey) of the mint for the token that should be used.",
-                    ),
-            )
+        .arg(
+            Arg::with_name("vesting_program_id")
+                .long("vesting_program_id")
+                .value_name("ADDRESS")
+                .default_value("Hu548Kzvfo9C9zATuXVpnmxYRUCJxrsXLdiKjxuTczim")
+                .validator(is_pubkey)
+                .takes_value(true)
+                .global(true)
+                .help(
+                    "Specify the address (public key) of the vesting addin program.",
+                ),
+        )
+        .subcommand(SubCommand::with_name("deposit").about("Create a new vesting contract with an optional release schedule")        
             .arg(
                 Arg::with_name("source_owner")
                     .long("source_owner")
                     .value_name("KEYPAIR")
+                    .required(true)
                     .validator(is_keypair)
                     .takes_value(true)
                     .help(
@@ -291,6 +501,7 @@ fn main() {
                 Arg::with_name("source_token_address")
                     .long("source_token_address")
                     .value_name("ADDRESS")
+                    .required(true)
                     .validator(is_pubkey)
                     .takes_value(true)
                     .help(
@@ -298,33 +509,42 @@ fn main() {
                     ),
             )
             .arg(
-                Arg::with_name("destination_address")
-                    .long("destination_address")
+                Arg::with_name("vesting_owner")
+                    .long("vesting_owner")
                     .value_name("ADDRESS")
+                    .required(true)
                     .validator(is_pubkey)
                     .takes_value(true)
                     .help(
-                        "Specify the destination (non-token) account address. \
-                        If specified, the vesting destination will be the associated \
-                        token account for the mint of the contract."
+                        "Specify the address (publickey) of the vesting record owner.",
                     ),
             )
             .arg(
-                Arg::with_name("destination_token_address")
-                    .long("destination_token_address")
+                Arg::with_name("mint_address")
+                    .long("mint_address")
+                    .value_name("ADDRESS")
+                    .required(true)
+                    .validator(is_pubkey)
+                    .takes_value(true)
+                    .help(
+                        "Specify the address (publickey) of the mint for the token that should be used.",
+                    ),
+            )
+            .arg(
+                Arg::with_name("realm_address")
+                    .long("realm_address")
                     .value_name("ADDRESS")
                     .validator(is_pubkey)
                     .takes_value(true)
                     .help(
-                        "Specify the destination token account address. \
-                        If specified, this address will be used as a destination, \
-                        and overwrite the associated token account.",
+                        "Specify the address (publickey) of the governance realm.",
                     ),
             )
             .arg(
                 Arg::with_name("amounts")
                     .long("amounts")
                     .value_name("AMOUNT")
+                    .required(true)
                     .validator(is_amount)
                     .takes_value(true)
                     .multiple(true)
@@ -420,18 +640,8 @@ fn main() {
                     ),
             )
         )
-        .subcommand(SubCommand::with_name("unlock").about("Unlock a vesting contract. This will only release \
+        .subcommand(SubCommand::with_name("withdraw").about("Unlock & Withdraw a vesting contract. This will only release \
         the schedules that have reached maturity.")
-            .arg(
-                Arg::with_name("seed")
-                    .long("seed")
-                    .value_name("SEED")
-                    .validator(is_parsable::<String>)
-                    .takes_value(true)
-                    .help(
-                        "Specify the seed for the vesting contract.",
-                    ),
-            )
             .arg(
                 Arg::with_name("payer")
                     .long("payer")
@@ -442,56 +652,45 @@ fn main() {
                         "Specify the transaction fee payer account address. \
                         This may be a keypair file, the ASK keyword. \
                         Defaults to the client keypair.",
+                    ),
+            )
+            .arg(
+                Arg::with_name("vesting_owner")
+                    .long("vesting_owner")
+                    .value_name("KEYPAIR")
+                    .required(true)
+                    .validator(is_keypair)
+                    .takes_value(true)
+                    .help(
+                        "Specify the vesting owner account address. \
+                        This may be a keypair file, the ASK keyword. \
+                        Defaults to the client keypair.",
+                    ),
+            )
+            .arg(
+                Arg::with_name("vesting_address")
+                    .long("vesting_address")
+                    .value_name("ADDRESS")
+                    .required(true)
+                    .validator(is_pubkey)
+                    .takes_value(true)
+                    .help(
+                        "Specify the vesting token address (publickey).",
+                    ),
+            )
+            .arg(
+                Arg::with_name("destination_address")
+                    .long("destination_address")
+                    .value_name("ADDRESS")
+                    .required(true)
+                    .validator(is_pubkey)
+                    .takes_value(true)
+                    .help(
+                        "Specify the destination token address (publickey).",
                     ),
             )
         )
-        .subcommand(SubCommand::with_name("change-destination").about("Change the destination of a vesting contract")
-            .arg(
-                Arg::with_name("seed")
-                    .long("seed")
-                    .value_name("SEED")
-                    .validator(is_parsable::<String>)
-                    .takes_value(true)
-                    .help(
-                        "Specify the seed for the vesting contract.",
-                    ),
-            )
-            .arg(
-                Arg::with_name("current_destination_owner")
-                    .long("current_destination_owner")
-                    .value_name("KEYPAIR")
-                    .validator(is_keypair)
-                    .takes_value(true)
-                    .help(
-                        "Specify the current destination owner account keypair. \
-                        This may be a keypair file, the ASK keyword. \
-                        Defaults to the client keypair.",
-                    ),
-            )
-            .arg(
-                Arg::with_name("new_destination_address")
-                    .long("new_destination_address")
-                    .value_name("ADDRESS")
-                    .validator(is_pubkey)
-                    .takes_value(true)
-                    .help(
-                        "Specify the new destination (non-token) account address. \
-                        If specified, the vesting destination will be the associated \
-                        token account for the mint of the contract."
-                    ),
-            )
-            .arg(
-                Arg::with_name("new_destination_token_address")
-                    .long("new_destination_token_address")
-                    .value_name("ADDRESS")
-                    .validator(is_pubkey)
-                    .takes_value(true)
-                    .help(
-                        "Specify the new destination token account address. \
-                        If specified, this address will be used as a destination, \
-                        and overwrite the associated token account.",
-                    ),
-            )
+        .subcommand(SubCommand::with_name("change-owner").about("Change the owner of a vesting contract")
             .arg(
                 Arg::with_name("payer")
                     .long("payer")
@@ -502,18 +701,175 @@ fn main() {
                         "Specify the transaction fee payer account address. \
                         This may be a keypair file, the ASK keyword. \
                         Defaults to the client keypair.",
+                    ),
+            )
+            .arg(
+                Arg::with_name("vesting_owner")
+                    .long("vesting_owner")
+                    .value_name("KEYPAIR")
+                    .required(true)
+                    .validator(is_keypair)
+                    .takes_value(true)
+                    .help(
+                        "Specify the vesting owner account address. \
+                        This may be a keypair file, the ASK keyword. \
+                        Defaults to the client keypair.",
+                    ),
+            )
+            .arg(
+                Arg::with_name("vesting_address")
+                    .long("vesting_address")
+                    .value_name("ADDRESS")
+                    .required(true)
+                    .validator(is_pubkey)
+                    .takes_value(true)
+                    .help(
+                        "Specify the vesting token address (publickey).",
+                    ),
+            )
+            .arg(
+                Arg::with_name("new_vesting_owner")
+                    .long("new_vesting_owner")
+                    .value_name("ADDRESS")
+                    .required(true)
+                    .validator(is_pubkey)
+                    .takes_value(true)
+                    .help(
+                        "Specify the new vesting owner address (publickey).",
+                    ),
+            )
+        )
+        .subcommand(SubCommand::with_name("create-voter-weight-record").about("Create Voter Weight Record")
+            .arg(
+                Arg::with_name("payer")
+                    .long("payer")
+                    .value_name("KEYPAIR")
+                    .required(true)
+                    .validator(is_keypair)
+                    .takes_value(true)
+                    .help(
+                        "Specify the transaction fee payer account address. \
+                        This may be a keypair file, the ASK keyword. \
+                        Defaults to the client keypair.",
+                    ),
+            )
+            .arg(
+                Arg::with_name("record_owner")
+                    .long("record_owner")
+                    .value_name("ADDRESS")
+                    .required(true)
+                    .validator(is_pubkey)
+                    .takes_value(true)
+                    .help(
+                        "Specify the record owner address (publickey).",
+                    ),
+            )
+            .arg(
+                Arg::with_name("mint_address")
+                    .long("mint_address")
+                    .value_name("ADDRESS")
+                    .required(true)
+                    .validator(is_pubkey)
+                    .takes_value(true)
+                    .help(
+                        "Specify the address (publickey) of the mint for the token that should be used.",
+                    ),
+            )
+            .arg(
+                Arg::with_name("realm_address")
+                    .long("realm_address")
+                    .value_name("ADDRESS")
+                    .required(true)
+                    .validator(is_pubkey)
+                    .takes_value(true)
+                    .help(
+                        "Specify the address (publickey) of the governance realm.",
+                    ),
+            )
+        )
+        .subcommand(SubCommand::with_name("set-vote-percentage").about("Set vote percentage of a vesting contract for a Realm")
+            .arg(
+                Arg::with_name("payer")
+                    .long("payer")
+                    .value_name("KEYPAIR")
+                    .validator(is_keypair)
+                    .takes_value(true)
+                    .help(
+                        "Specify the transaction fee payer account address. \
+                        This may be a keypair file, the ASK keyword. \
+                        Defaults to the client keypair.",
+                    ),
+            )
+            .arg(
+                Arg::with_name("vesting_authority")
+                    .long("vesting_authority")
+                    .value_name("KEYPAIR")
+                    .required(true)
+                    .validator(is_keypair)
+                    .takes_value(true)
+                    .help(
+                        "Specify the vesting authority account address. \
+                        This may be a keypair file, the ASK keyword. \
+                        Defaults to the client keypair.",
+                    ),
+            )
+            .arg(
+                Arg::with_name("vesting_owner")
+                    .long("vesting_owner")
+                    .value_name("ADDRESS")
+                    .required(true)
+                    .validator(is_pubkey)
+                    .takes_value(true)
+                    .help(
+                        "Specify the vesting owner address (publickey).",
+                    ),
+            )
+            .arg(
+                Arg::with_name("vesting_address")
+                    .long("vesting_address")
+                    .value_name("ADDRESS")
+                    .required(true)
+                    .validator(is_pubkey)
+                    .takes_value(true)
+                    .help(
+                        "Specify the vesting token address (publickey).",
+                    ),
+            )
+            .arg(
+                Arg::with_name("percentage")
+                    .long("percentage")
+                    .value_name("PERCENTAGE")
+                    .required(true)
+                    .validator(is_amount)
+                    .takes_value(true)
+                    .help(
+                        "Deposited tokens percentage of voting.",
                     ),
             )
         )
         .subcommand(SubCommand::with_name("info").about("Print information about a vesting contract")
             .arg(
-                Arg::with_name("seed")
-                    .long("seed")
-                    .value_name("SEED")
-                    .validator(is_parsable::<String>)
+                Arg::with_name("vesting_address")
+                    .long("vesting_address")
+                    .value_name("ADDRESS")
+                    .required(true)
+                    .validator(is_pubkey)
                     .takes_value(true)
                     .help(
-                        "Specify the seed for the vesting contract.",
+                        "Specify the vesting token address (publickey).",
+                    ),
+            )
+        )
+        .subcommand(SubCommand::with_name("info-owner").about("Print information about vesting contracts of a vesting owner")
+            .arg(
+                Arg::with_name("vesting_owner")
+                    .long("vesting_owner")
+                    .value_name("ADDRESS")
+                    .required(true)
+                    .validator(is_pubkey)
+                    .takes_value(true)
+                    .help(
+                        "Specify the vesting owner address (publickey).",
                     ),
             )
         )
@@ -521,21 +877,20 @@ fn main() {
 
     let rpc_url = value_t!(matches, "rpc_url", String).unwrap();
     let rpc_client = RpcClient::new(rpc_url);
-    let program_id = pubkey_of(&matches, "program_id").unwrap();
+
+    let governance_program_id = pubkey_of(&matches, "governance_program_id").unwrap();
+    let vesting_addin_program_id = pubkey_of(&matches, "vesting_program_id").unwrap();
 
     let _ = match matches.subcommand() {
-        ("create", Some(arg_matches)) => {
+        ("deposit", Some(arg_matches)) => {
             let source_keypair = keypair_of(arg_matches, "source_owner").unwrap();
             let source_token_pubkey = pubkey_of(arg_matches, "source_token_address");
-            let mint_address = pubkey_of(arg_matches, "mint_address").unwrap();
-            let destination_pubkey = match pubkey_of(arg_matches, "destination_token_address") {
-                None => get_associated_token_address(
-                    &pubkey_of(arg_matches, "destination_address").unwrap(),
-                    &mint_address,
-                ),
-                Some(destination_token_pubkey) => destination_token_pubkey,
-            };
-            let payer_keypair = keypair_of(arg_matches, "payer").unwrap();
+            let vesting_owner_pubkey = pubkey_of(arg_matches, "vesting_owner").unwrap();
+
+            let mint_pubkey = pubkey_of(arg_matches, "mint_address").unwrap();
+            let realm_opt: Option<Pubkey> = pubkey_of(arg_matches, "realm_address");
+
+            let payer_keypair = keypair_of(arg_matches, "payer").unwrap_or( keypair_of(arg_matches, "source_owner").unwrap() );
 
             // Parsing schedules
             let mut schedule_amounts: Vec<u64> = values_of(arg_matches, "amounts").unwrap();
@@ -603,54 +958,209 @@ fn main() {
                 eprintln!("error: Number of amounts given is not equal to number of release heights given.");
                 std::process::exit(1);
             }
-            let mut schedules: Vec<Schedule> = Vec::with_capacity(schedule_amounts.len());
+            let mut schedules: Vec<VestingSchedule> = Vec::with_capacity(schedule_amounts.len());
             for (&a, &h) in schedule_amounts.iter().zip(schedule_times.iter()) {
-                schedules.push(Schedule {
+                schedules.push(VestingSchedule {
                     release_time: h,
                     amount: a,
                 });
             }
 
-            command_create_svc(
+            if let Some(realm_pubkey) = realm_opt {
+                command_deposit_with_realm_svc(
+                    rpc_client,
+                    governance_program_id,
+                    vesting_addin_program_id,
+                    payer_keypair,
+                    source_keypair,
+                    source_token_pubkey,
+                    vesting_owner_pubkey,
+                    mint_pubkey,
+                    realm_pubkey,
+                    schedules,
+                    confirm,
+                )
+            } else {
+                command_deposit_svc(
+                    rpc_client,
+                    vesting_addin_program_id,
+                    payer_keypair,
+                    source_keypair,
+                    source_token_pubkey,
+                    vesting_owner_pubkey,
+                    mint_pubkey,
+                    schedules,
+                    confirm,
+                )
+            }
+        }
+        ("withdraw", Some(arg_matches)) => {
+
+            let vesting_owner_keypair = keypair_of(arg_matches, "vesting_owner").unwrap();
+            let vesting_token_pubkey = pubkey_of(arg_matches, "vesting_address").unwrap();
+
+            let destination_token_pubkey = pubkey_of(arg_matches, "destination_address").unwrap();
+
+            let payer_keypair = keypair_of(arg_matches, "payer").unwrap_or( keypair_of(arg_matches, "vesting_owner").unwrap() );
+
+            let (vesting_pubkey,_) = Pubkey::find_program_address(&[&vesting_token_pubkey.as_ref()], &vesting_addin_program_id);
+
+            let vesting_record_account_data = rpc_client.get_account_data(&vesting_pubkey).unwrap();
+            let vesting_record: VestingRecord = try_from_slice_unchecked(&vesting_record_account_data).unwrap();
+
+            if let Some(realm_pubkey) = vesting_record.realm {
+                let mint_pubkey: Pubkey = vesting_record.mint;
+
+                command_withdraw_with_realm_svc(
+                    rpc_client,
+                    governance_program_id,
+                    vesting_addin_program_id,
+                    payer_keypair,
+                    vesting_owner_keypair,
+                    vesting_token_pubkey,
+                    mint_pubkey,
+                    realm_pubkey,
+                    destination_token_pubkey,
+                )
+            } else {
+                command_withdraw_svc(
+                    rpc_client,
+                    vesting_addin_program_id,
+                    payer_keypair,
+                    vesting_owner_keypair,
+                    vesting_token_pubkey,
+                    destination_token_pubkey,
+                )
+            };
+        }
+        ("change-owner", Some(arg_matches)) => {
+
+            let vesting_owner_keypair = keypair_of(arg_matches, "vesting_owner").unwrap();
+            let vesting_token_pubkey = pubkey_of(arg_matches, "vesting_address").unwrap();
+
+            let new_vesting_owner_pubkey = pubkey_of(arg_matches, "new_vesting_owner").unwrap();
+            
+            let payer_keypair = keypair_of(arg_matches, "payer").unwrap_or( keypair_of(arg_matches, "vesting_owner").unwrap() );
+
+            let (vesting_pubkey,_) = Pubkey::find_program_address(&[&vesting_token_pubkey.as_ref()], &vesting_addin_program_id);
+
+            let vesting_record_account_data = rpc_client.get_account_data(&vesting_pubkey).unwrap();
+            let vesting_record: VestingRecord = try_from_slice_unchecked(&vesting_record_account_data).unwrap();
+
+            if let Some(realm_pubkey) = vesting_record.realm {
+                let mint_pubkey: Pubkey = vesting_record.mint;
+
+                command_change_owner_with_realm(
+                    rpc_client,
+                    governance_program_id,
+                    vesting_addin_program_id,
+                    payer_keypair,
+                    vesting_owner_keypair,
+                    vesting_token_pubkey,
+                    mint_pubkey,
+                    realm_pubkey,
+                    new_vesting_owner_pubkey,
+                )
+            } else {
+                command_change_owner(
+                    rpc_client,
+                    vesting_addin_program_id,
+                    payer_keypair,
+                    vesting_owner_keypair,
+                    vesting_token_pubkey,
+                    new_vesting_owner_pubkey,
+                )
+            }
+        }
+        ("create-voter-weight-record", Some(arg_matches)) => {
+
+            let record_owner_pubkey = pubkey_of(arg_matches, "record_owner").unwrap();
+            
+            let mint_pubkey = pubkey_of(arg_matches, "mint_address").unwrap();
+            let realm_pubkey = pubkey_of(arg_matches, "realm_address").unwrap();
+            
+            let payer_keypair = keypair_of(arg_matches, "payer").unwrap();
+
+            command_create_voter_weight_record(
                 rpc_client,
-                program_id,
+                governance_program_id,
+                vesting_addin_program_id,
                 payer_keypair,
-                source_keypair,
-                source_token_pubkey,
-                destination_pubkey,
-                mint_address,
-                schedules,
-                confirm,
+                record_owner_pubkey,
+                mint_pubkey,
+                realm_pubkey,
             )
         }
-        ("unlock", Some(arg_matches)) => {
-            // The seed is given in the format of a pubkey on the user side but it's handled as a [u8;32] in the program
-            let vesting_seed = pubkey_of(arg_matches, "seed").unwrap().to_bytes();
-            let payer_keypair = keypair_of(arg_matches, "payer").unwrap();
-            command_unlock_svc(rpc_client, program_id, vesting_seed, payer_keypair)
-        }
-        ("change-destination", Some(arg_matches)) => {
-            let vesting_seed = pubkey_of(arg_matches, "seed").unwrap().to_bytes();
-            let destination_account_owner =
-                keypair_of(arg_matches, "current_destination_owner").unwrap();
-            let opt_new_destination_account = pubkey_of(arg_matches, "new_destination_address");
-            let opt_new_destination_token_account =
-                pubkey_of(arg_matches, "new_destination_token_address");
-            let payer_keypair = keypair_of(arg_matches, "payer").unwrap();
-            command_change_destination(
+        ("set-vote-percentage", Some(arg_matches)) => {
+
+            let vesting_authority = keypair_of(arg_matches, "vesting_authority").unwrap();
+            let vesting_token_pubkey = pubkey_of(arg_matches, "vesting_address").unwrap();
+
+            let vesting_owner_pubkey = pubkey_of(arg_matches, "vesting_owner").unwrap();
+            
+            let percentage: u16 = value_of(arg_matches, "percentage").unwrap();
+
+            let payer_keypair = keypair_of(arg_matches, "payer").unwrap_or( keypair_of(arg_matches, "vesting_authority").unwrap() );
+
+            let (vesting_pubkey,_) = Pubkey::find_program_address(&[&vesting_token_pubkey.as_ref()], &vesting_addin_program_id);
+            
+            let vesting_record_account_data = rpc_client.get_account_data(&vesting_pubkey).unwrap();
+            let vesting_record: VestingRecord = try_from_slice_unchecked(&vesting_record_account_data).unwrap();
+
+            let mint_pubkey: Pubkey = vesting_record.mint;
+            let realm_pubkey: Pubkey = vesting_record.realm.unwrap();
+            
+            command_set_vote_percentage_with_realm(
                 rpc_client,
-                program_id,
-                destination_account_owner,
-                opt_new_destination_account,
-                opt_new_destination_token_account,
-                vesting_seed,
+                governance_program_id,
+                vesting_addin_program_id,
                 payer_keypair,
+                vesting_authority,
+                vesting_owner_pubkey,
+                vesting_token_pubkey,
+                mint_pubkey,
+                realm_pubkey,
+                percentage,
             )
         }
         ("info", Some(arg_matches)) => {
-            let vesting_seed = pubkey_of(arg_matches, "seed").unwrap().to_bytes();
-            let rpcurl = value_of(arg_matches, "rpc_url").unwrap();
-            command_info(rpc_client, rpcurl, program_id, vesting_seed)
+            let vesting_token_pubkey = pubkey_of(arg_matches, "vesting_address").unwrap();
+            command_info(rpc_client, vesting_addin_program_id, vesting_token_pubkey)
+        }
+        ("info-owner", Some(arg_matches)) => {
+            let vesting_owner_pubkey = pubkey_of(arg_matches, "vesting_owner").unwrap();
+
+            let records: Vec<(Pubkey,Account)> =
+                rpc_client.get_program_accounts_with_config(
+                    &vesting_addin_program_id,
+                    RpcProgramAccountsConfig {
+                        filters: Some(vec![
+                            rpc_filter::RpcFilterType::Memcmp(
+                                rpc_filter::Memcmp {
+                                    offset: 0,
+                                    bytes: rpc_filter::MemcmpEncodedBytes::Bytes({
+                                        let mut fd: Vec<u8> = vec![1];
+                                        fd.append(&mut vesting_owner_pubkey.to_bytes().to_vec());
+                                        fd
+                                    }),
+                                    encoding: None,
+                                },
+                            )
+                        ]),
+                        account_config: RpcAccountInfoConfig {
+                            encoding: Some(solana_account_decoder::UiAccountEncoding::Base64),
+                            data_slice: None,
+                            commitment: None,
+                        },
+                        with_context: Some(false),
+                    }
+                ).unwrap();
+            
+            for (vesting_account_pubkey, vesting_account) in records {
+                let vesting_record: VestingRecord = try_from_slice_unchecked(&vesting_account.data).unwrap();
+                msg!("\nVesting Account Pubkey: {:?}", &vesting_account_pubkey);
+                report_vesting_record_info(&vesting_record);
+            }
         }
         _ => unreachable!(),
     };
