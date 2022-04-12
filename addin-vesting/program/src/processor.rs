@@ -37,6 +37,9 @@ use crate::{
         create_max_voter_weight_record,
         get_max_voter_weight_record_data_checked,
     },
+    token_owner_record::{
+        get_token_owner_record_data_if_exists,
+    },
 };
 
 pub struct Processor {}
@@ -275,7 +278,7 @@ impl Processor {
             let realm_data = get_realm_data(governance_account.key, realm_account)?;
             realm_data.assert_is_valid_governing_token_mint(&vesting_record.mint)?;
 
-            let owner_record_data = get_token_owner_record_data_for_seeds(
+            let owner_record_optional_data = get_token_owner_record_data_if_exists(
                 governance_account.key,
                 owner_record_account,
                 &get_token_owner_record_address_seeds(
@@ -284,7 +287,9 @@ impl Processor {
                     vesting_owner_account.key,
                 ),
             )?;
-            owner_record_data.assert_can_withdraw_governing_tokens()?;
+            if let Some(owner_record_data) = owner_record_optional_data {
+                owner_record_data.assert_can_withdraw_governing_tokens()?;
+            }
 
             let mut voter_weight_record = get_voter_weight_record_data_checked(
                     program_id,
@@ -363,7 +368,7 @@ impl Processor {
             let realm_data = get_realm_data(governance_account.key, realm_account)?;
             realm_data.assert_is_valid_governing_token_mint(&vesting_record.mint)?;
 
-            let owner_record_data = get_token_owner_record_data_for_seeds(
+            let owner_record_optional_data = get_token_owner_record_data_if_exists(
                 governance_account.key,
                 owner_record_account,
                 &get_token_owner_record_address_seeds(
@@ -372,7 +377,9 @@ impl Processor {
                     vesting_owner_account.key,
                 ),
             )?;
-            owner_record_data.assert_can_withdraw_governing_tokens()?;
+            if let Some(owner_record_data) = owner_record_optional_data {
+                owner_record_data.assert_can_withdraw_governing_tokens()?;
+            }
 
             let mut voter_weight_record = get_voter_weight_record_data_checked(
                     program_id,

@@ -59,6 +59,9 @@ pub enum VestingError {
 
     #[error("InvalidPercentage")]
     InvalidPercentage,
+
+    #[error("Invalid TokenOwnerRecord")]
+    InvalidTokenOwnerRecord,
 }
 
 impl From<VestingError> for ProgramError {
