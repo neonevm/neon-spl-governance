@@ -208,10 +208,10 @@ async fn test_token_vesting_with_realm() {
 
     let destination_account = Keypair::new();
     let destination_token_account = Keypair::new();
+    let destination_delegate = Keypair::new();
 
     let new_destination_account = Keypair::new();
     let new_destination_token_account = Keypair::new();
-    let new_destination_delegate = Keypair::new();
 
     let vesting_token_account = Keypair::new();
     let (vesting_account_key,_) = Pubkey::find_program_address(&[&vesting_token_account.pubkey().as_ref()], &program_id);
@@ -303,13 +303,6 @@ async fn test_token_vesting_with_realm() {
             &mint.pubkey(),
             &payer.pubkey(),
         ),
-        create_token_owner_record(
-            &governance_id,
-            &realm_address,
-            &new_destination_account.pubkey(),
-            &mint.pubkey(),
-            &payer.pubkey(),
-        ),
     ];
     let mut create_realm_transaction = Transaction::new_with_payer(
         &create_realm_instructions,
@@ -348,6 +341,44 @@ async fn test_token_vesting_with_realm() {
     banks_client.process_transaction(deposit_transaction).await.unwrap();
 
 
+    let set_governance_delegate_instructions = [
+        set_governance_delegate(
+            &governance_id,
+            &destination_account.pubkey(),
+            &realm_address,
+            &mint.pubkey(),
+            &destination_account.pubkey(),
+            &Some(destination_delegate.pubkey()),
+        ),
+    ];
+    let mut set_governance_delegate_transaction = Transaction::new_with_payer(
+        &set_governance_delegate_instructions,
+        Some(&payer.pubkey()),
+    );
+    set_governance_delegate_transaction.partial_sign(&[&payer, &destination_account], recent_blockhash);
+    banks_client.process_transaction(set_governance_delegate_transaction).await.unwrap();
+
+
+    let set_vote_percentage_instructions = [
+        set_vote_percentage_with_realm(
+            &program_id,
+            &vesting_token_account.pubkey(),
+            &destination_account.pubkey(),
+            &destination_delegate.pubkey(),
+            &governance_id,
+            &realm_address,
+            &mint.pubkey(),
+            30*100,
+        ).unwrap(),
+    ];
+    let mut set_vote_percentage_transaction = Transaction::new_with_payer(
+        &set_vote_percentage_instructions,
+        Some(&payer.pubkey()),
+    );
+    set_vote_percentage_transaction.partial_sign(&[&payer, &destination_delegate], recent_blockhash);
+    banks_client.process_transaction(set_vote_percentage_transaction).await.unwrap();
+
+
     let init_new_destination_instructions = [
         create_voter_weight_record(
             &program_id,
@@ -383,44 +414,6 @@ async fn test_token_vesting_with_realm() {
     );
     change_owner_transaction.partial_sign(&[&payer, &destination_account], recent_blockhash);
     banks_client.process_transaction(change_owner_transaction).await.unwrap();
-
-
-    let set_governance_delegate_instructions = [
-        set_governance_delegate(
-            &governance_id,
-            &new_destination_account.pubkey(),
-            &realm_address,
-            &mint.pubkey(),
-            &new_destination_account.pubkey(),
-            &Some(new_destination_delegate.pubkey()),
-        ),
-    ];
-    let mut set_governance_delegate_transaction = Transaction::new_with_payer(
-        &set_governance_delegate_instructions,
-        Some(&payer.pubkey()),
-    );
-    set_governance_delegate_transaction.partial_sign(&[&payer, &new_destination_account], recent_blockhash);
-    banks_client.process_transaction(set_governance_delegate_transaction).await.unwrap();
-
-
-    let set_vote_percentage_instructions = [
-        set_vote_percentage_with_realm(
-            &program_id,
-            &vesting_token_account.pubkey(),
-            &new_destination_account.pubkey(),
-            &new_destination_delegate.pubkey(),
-            &governance_id,
-            &realm_address,
-            &mint.pubkey(),
-            30*100,
-        ).unwrap(),
-    ];
-    let mut set_vote_percentage_transaction = Transaction::new_with_payer(
-        &set_vote_percentage_instructions,
-        Some(&payer.pubkey()),
-    );
-    set_vote_percentage_transaction.partial_sign(&[&payer, &new_destination_delegate], recent_blockhash);
-    banks_client.process_transaction(set_vote_percentage_transaction).await.unwrap();
 
 
     let voter_weight_record_address2 = get_voter_weight_record_address(
