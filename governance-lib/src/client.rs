@@ -28,28 +28,29 @@ use {
 
 const MIN_COMMUNITY_WEIGHT_TO_CREATE_GOVERNANCE: u64 = 1;
 
-pub struct SplGovernanceInteractor<'a> {
+pub struct Client<'a> {
     pub url: String,
-    pub solana_client: RpcClient,
     pub payer: &'a Keypair,
+    pub solana_client: RpcClient,
     pub spl_governance_program_address: Pubkey,
     pub spl_governance_voter_weight_addin_address: Pubkey,
 }
 
-impl<'a> fmt::Debug for SplGovernanceInteractor<'a> {
+impl<'a> fmt::Debug for Client<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("SplGovernanceInteractor")
+        f.debug_struct("Client")
             .field("url", &self.url)
+            .field("payer", &self.payer.pubkey())
             .field("program", &self.spl_governance_program_address)
             .field("addin", &self.spl_governance_voter_weight_addin_address)
             .finish()
     }
 }
 
-impl<'a> SplGovernanceInteractor<'a> {
+impl<'a> Client<'a> {
 
     pub fn new(url: &str, program_address: Pubkey, addin_address: Pubkey, payer: &'a Keypair) -> Self {
-        SplGovernanceInteractor {
+        Client {
             url: url.to_string(),
             solana_client: RpcClient::new_with_commitment(url.to_string(),CommitmentConfig::confirmed()),
             payer,
@@ -59,9 +60,9 @@ impl<'a> SplGovernanceInteractor<'a> {
     }
 
     pub fn send_and_confirm_transaction<T: Signers>(
-        &self,
-        instructions: &[Instruction],
-        signing_keypairs: &T,
+            &self,
+            instructions: &[Instruction],
+            signing_keypairs: &T,
     ) -> Result<Signature, ClientError> {
         let mut transaction: Transaction =
             Transaction::new_with_payer(
@@ -77,9 +78,9 @@ impl<'a> SplGovernanceInteractor<'a> {
     }
 
     pub fn get_account_data_pack<T: Pack + IsInitialized>(
-        &self,
-        owner_program_id: &Pubkey,
-        account_key: &Pubkey,
+            &self,
+            owner_program_id: &Pubkey,
+            account_key: &Pubkey,
     ) -> Result<Option<T>, ClientError> {
         let account_info = &self.solana_client.get_account_with_commitment(
                 &account_key, self.solana_client.commitment())?.value;
@@ -104,9 +105,9 @@ impl<'a> SplGovernanceInteractor<'a> {
     }
 
     pub fn get_account_data<T: BorshDeserialize + IsInitialized>(
-        &self,
-        owner_program_id: &Pubkey,
-        account_key: &Pubkey,
+            &self,
+            owner_program_id: &Pubkey,
+            account_key: &Pubkey,
     ) -> Result<Option<T>, ClientError> {
         let account_info = &self.solana_client.get_account_with_commitment(
                 &account_key, self.solana_client.commitment())?.value;
@@ -195,7 +196,7 @@ impl<'a> SplGovernanceInteractor<'a> {
         Ok(
             Realm {
                 //authority: realm_authority,
-                interactor: self,
+                client: self,
                 address: realm_pubkey,
                 community_mint: *community_mint_pubkey,
                 data: self.get_realm_v2(realm_name).unwrap(),

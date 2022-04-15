@@ -43,7 +43,7 @@ use spl_governance_addin_vesting::state::VestingSchedule;
 // mod tokens;
 
 use governance_lib::{
-    client::SplGovernanceInteractor,
+    client::Client,
     realm::{RealmConfig, Realm},
     governance::Governance,
     proposal::Proposal,
@@ -110,21 +110,21 @@ fn main() {
         voter_keypairs.push(keypair);
     }
 
-    let interactor = SplGovernanceInteractor::new(
+    let client = Client::new(
             "http://localhost:8899",
             program_id,
             voter_weight_addin_pubkey,
             &payer_keypair);
-    // let interactor = SplGovernanceInteractor::new("https://api.devnet.solana.com", program_id, voter_weight_addin_pubkey);
+    // let client = Client::new("https://api.devnet.solana.com", program_id, voter_weight_addin_pubkey);
 
-    let mint = interactor.get_account_data_pack::<spl_token::state::Mint>(&spl_token::id(), &community_pubkey).unwrap();
+    let mint = client.get_account_data_pack::<spl_token::state::Mint>(&spl_token::id(), &community_pubkey).unwrap();
     if let Some(_mint) = mint {
 //        if !mint.mint_authority.contains(&payer_keypair.pubkey()) {
 //            panic!("Invalid mint authority: actual {:?}, expected {}", mint.mint_authority, creator_keypair.pubkey());
 //        }
     } else {
         let result = create_mint(
-                &interactor.solana_client,
+                &client.solana_client,
                 &payer_keypair,
                 &community_keypair,
                 &creator_keypair.pubkey(),
@@ -133,20 +133,20 @@ fn main() {
         println!("Created community mint: {}", result);
     }
 
-    let realm: Realm = interactor.create_realm(
+    let realm: Realm = client.create_realm(
         &creator_keypair,
         &community_pubkey,
         Some(voter_weight_addin_pubkey),
         REALM_NAME).unwrap();
     println!("{:?}", realm);
-    println!("Realm Pubkey: {}", interactor.get_realm_address(REALM_NAME));
+    println!("Realm Pubkey: {}", client.get_realm_address(REALM_NAME));
 
-    let fixed_weight_addin = AddinFixedWeights::new(&interactor, voter_weight_addin_pubkey);
+    let fixed_weight_addin = AddinFixedWeights::new(&client, voter_weight_addin_pubkey);
     let result = fixed_weight_addin.setup_max_voter_weight_record(&realm);
     println!("VoterWeightAddin.setup_max_voter_weight_record = {:?}", result);
     realm.settings_mut().max_voter_weight_record_address = Some(result.unwrap());
 
-    let vesting_addin = AddinVesting::new(&interactor, vesting_addin_pubkey);
+    let vesting_addin = AddinVesting::new(&client, vesting_addin_pubkey);
 
     //let mut creator_token_owner: TokenOwner = realm.create_token_owner_record(&creator_keypair.pubkey()).unwrap();
     //let creator_voter_weight = fixed_weight_addin.setup_voter_weight_record(&realm, &creator_keypair.pubkey()).unwrap();
@@ -186,7 +186,7 @@ fn main() {
     // STEP 2: Pass Token and Realm under governance
     // transaction if already correct authority)
     let mut instructions = vec!();
-    let mint = interactor.get_account_data_pack::<spl_token::state::Mint>(&spl_token::id(), &community_pubkey).unwrap().unwrap();
+    let mint = client.get_account_data_pack::<spl_token::state::Mint>(&spl_token::id(), &community_pubkey).unwrap().unwrap();
     if mint.mint_authority.contains(&creator_keypair.pubkey()) {
         instructions.push(
                 spl_token::instruction::set_authority(
@@ -199,7 +199,7 @@ fn main() {
                 ).unwrap()
             );
     }
-    let realm_data = interactor.get_account_data::<spl_governance::state::realm::RealmV2>(&program_id, &realm.address).unwrap().unwrap();
+    let realm_data = client.get_account_data::<spl_governance::state::realm::RealmV2>(&program_id, &realm.address).unwrap().unwrap();
     if realm_data.authority == Some(creator_keypair.pubkey()) {
         instructions.push(
                 realm.set_realm_authority_instruction(
@@ -218,9 +218,9 @@ fn main() {
                     &creator_keypair,
                     &payer_keypair,
                 ],
-                interactor.solana_client.get_latest_blockhash().unwrap(),
+                client.solana_client.get_latest_blockhash().unwrap(),
             );
-        interactor.solana_client.send_and_confirm_transaction(&transaction).unwrap();
+        client.solana_client.send_and_confirm_transaction(&transaction).unwrap();
     }
 
     // =========================================================================
@@ -236,7 +236,7 @@ fn main() {
             proposal_number).unwrap();
     println!("{:?}", proposal);
 
-    // let result = interactor.add_signatory(&realm, &governance, &proposal, &token_owner);
+    // let result = client.add_signatory(&realm, &governance, &proposal, &token_owner);
     // println!("Add signatory {:?}", result);
     
     let governance_token_account = spl_associated_token_account::get_associated_token_address_with_program_id(
@@ -246,7 +246,7 @@ fn main() {
                     );
     println!("Governance address: {}", governance.address);
     println!("Governance token account: {}", governance_token_account);
-    if !interactor.account_exists(&governance_token_account) {
+    if !client.account_exists(&governance_token_account) {
         let transaction: Transaction = 
             Transaction::new_signed_with_payer(
                 &[
@@ -260,9 +260,9 @@ fn main() {
                 &[
                     &payer_keypair,
                 ],
-                interactor.solana_client.get_latest_blockhash().unwrap(),
+                client.solana_client.get_latest_blockhash().unwrap(),
             );
-        let signature = interactor.solana_client.send_and_confirm_transaction(&transaction).unwrap();
+        let signature = client.solana_client.send_and_confirm_transaction(&transaction).unwrap();
         println!("Create associated token account {}", signature);
     }
 
@@ -289,7 +289,7 @@ fn main() {
         println!("{}, Voter {}, amount {}, token_account {}", i, owner, amount, vesting_token_account);
 
         let mut instructions = vec!();
-        if !interactor.account_exists(&vesting_token_account) {
+        if !client.account_exists(&vesting_token_account) {
             instructions.extend([
                 system_instruction::create_account_with_seed(
                     &payer_keypair.pubkey(),              // from
@@ -325,7 +325,7 @@ fn main() {
                 ).unwrap(),
             );
             
-        let result = interactor.send_and_confirm_transaction(&instructions, &[&creator_keypair]).unwrap();
+        let result = client.send_and_confirm_transaction(&instructions, &[&creator_keypair]).unwrap();
         println!("   created: {}", result);
     }
 
