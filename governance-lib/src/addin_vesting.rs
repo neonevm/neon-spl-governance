@@ -78,7 +78,7 @@ impl<'a> AddinVesting<'a> {
             vesting_owner,
             &self.client.payer.pubkey(),
             schedules,
-            &realm.client.spl_governance_program_address,
+            &realm.program_id,
             &realm.address,
             &realm.community_mint,
         )

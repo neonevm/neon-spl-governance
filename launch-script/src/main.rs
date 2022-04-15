@@ -74,7 +74,7 @@ const VOTERS_KEY_FILE_PATH: [&str;5] = [
 ];
 
 // const REALM_NAME: &str = "Test Realm";
-const REALM_NAME: &str = "Test_Realm_7";
+const REALM_NAME: &str = "Test_Realm_9";
 // const REALM_NAME: &str = "Test Realm 6";
 const PROPOSAL_NAME: &str = "Proposal To Vote";
 const PROPOSAL_DESCRIPTION: &str = "proposal_description";
@@ -133,13 +133,21 @@ fn main() {
         println!("Created community mint: {}", result);
     }
 
-    let realm: Realm = client.create_realm(
-        &creator_keypair,
-        &community_pubkey,
-        Some(voter_weight_addin_pubkey),
-        REALM_NAME).unwrap();
+    let realm = Realm::new(&client, &program_id, REALM_NAME, &community_pubkey);
+    if let Some(realm_data) = realm.get_data().unwrap() {
+        if realm_data.community_mint != realm.community_mint {
+            panic!("Invalid Realm community mint: expected {}, actual {}",
+                    realm.community_mint, realm_data.community_mint);
+        }
+    } else {
+        realm.create_realm(
+                &creator_keypair,
+                Some(voter_weight_addin_pubkey),
+                Some(voter_weight_addin_pubkey),
+            ).unwrap();
+    }
     println!("{:?}", realm);
-    println!("Realm Pubkey: {}", client.get_realm_address(REALM_NAME));
+    println!("Realm Pubkey: {}", realm.address); //client.get_realm_address(REALM_NAME));
 
     let fixed_weight_addin = AddinFixedWeights::new(&client, voter_weight_addin_pubkey);
     let result = fixed_weight_addin.setup_max_voter_weight_record(&realm);
@@ -155,7 +163,10 @@ fn main() {
 
     let mut token_owners = vec!();
     for (i, keypair) in voter_keypairs.iter().enumerate() {
-        let mut token_owner: TokenOwner = realm.create_token_owner_record(&keypair.pubkey()).unwrap();
+        let mut token_owner: TokenOwner = realm.token_owner_record(&keypair.pubkey());
+        if let None = token_owner.get_data().unwrap() {
+            token_owner.create_token_owner_record().unwrap();
+        }
         let voter_weight_record = fixed_weight_addin.setup_voter_weight_record(&realm, &keypair.pubkey()).unwrap();
         token_owner.set_voter_weight_record_address(Some(voter_weight_record));
         println!("Token Owner {} \n{:?}, voter_weight_record: {}", i, token_owner, voter_weight_record);
@@ -176,11 +187,14 @@ fn main() {
             min_council_weight_to_create_proposal: 0,
         };
 
-    let governance: Governance = realm.create_governance(
-            &creator_keypair,
-            &token_owners[0],
-            &governed_account_pubkey,
-            gov_config).unwrap();
+    let governance = realm.governance(&governed_account_pubkey);
+    if let None = governance.get_data().unwrap() {
+        governance.create_governance(
+                &creator_keypair,
+                &token_owners[0],
+                gov_config,
+            ).unwrap();
+    }
     println!("{:?}", governance);
 
     // STEP 2: Pass Token and Realm under governance
@@ -227,13 +241,14 @@ fn main() {
     // Create TGE proposal (Token Genesis Event)
     // =========================================================================
 
-    let proposal_number: u32 = governance.get_proposals_count();
-    let proposal: Proposal = governance.create_proposal(
+    let proposal_number = governance.get_proposals_count();
+    let proposal: Proposal = governance.proposal(proposal_number);
+    proposal.create_proposal(
             &creator_keypair,
             &token_owners[0],
             &format!("{} {}", PROPOSAL_NAME, proposal_number),
             PROPOSAL_DESCRIPTION,
-            proposal_number).unwrap();
+        ).unwrap();
     println!("{:?}", proposal);
 
     // let result = client.add_signatory(&realm, &governance, &proposal, &token_owner);
@@ -269,6 +284,7 @@ fn main() {
     let total_amount = DISTRIBUTION_LIST.iter().map(|(_, amount)| amount).sum::<u64>() + ADDITIONAL_SUPPLY;
     proposal.insert_transaction(
             &creator_keypair,
+            &token_owners[0],
             0, 0, 0,
             vec![
                 spl_token::instruction::mint_to(
@@ -311,6 +327,7 @@ fn main() {
         instructions.push(
                 proposal.insert_transaction_instruction(
                     &creator_keypair.pubkey(),
+                    &token_owners[0],
                     0, (i+1).try_into().unwrap(), 0,
                     vec![
                         vesting_addin.deposit_with_realm_instruction(
@@ -322,7 +339,7 @@ fn main() {
                             &realm,                       // realm
                         ).unwrap().into(),
                     ],
-                ).unwrap(),
+                ),
             );
             
         let result = client.send_and_confirm_transaction(&instructions, &[&creator_keypair]).unwrap();
@@ -332,6 +349,7 @@ fn main() {
     // Change to other VoterWeight addin
     proposal.insert_transaction(
         &creator_keypair,
+        &token_owners[0],
         0, (DISTRIBUTION_LIST.len()+1).try_into().unwrap(), 0,
         vec![
             realm.set_realm_config_instruction(
@@ -350,6 +368,7 @@ fn main() {
     // Change Governance config
     proposal.insert_transaction(
         &creator_keypair,
+        &token_owners[0],
         0, (DISTRIBUTION_LIST.len()+2).try_into().unwrap(), 0,
         vec![
             governance.set_governance_config_instruction(
@@ -372,7 +391,7 @@ fn main() {
 
     for (i, owner) in token_owners.iter().enumerate() {
         let yes_no = i == 0 || i == 3 || i == 4;
-        let result = proposal.cast_vote(&voter_keypairs[i], owner, yes_no);
+        let result = proposal.cast_vote(&token_owners[0], &voter_keypairs[i], owner, yes_no);
         println!("CastVote {} {:?}", i, result);
     }
 
@@ -395,12 +414,12 @@ fn main() {
     // ===================================================================================
     // Create proposal
     // ===================================================================================
-    let proposal: Proposal = governance.create_proposal(
+    let proposal: Proposal = governance.proposal(governance.get_proposals_count());
+    proposal.create_proposal(
             &creator_keypair,
             &token_owners[0],
             "Deploy EVM",
             PROPOSAL_DESCRIPTION,
-            governance.get_proposals_count(),
         ).unwrap();
     println!("{:?}", proposal);
 
@@ -410,7 +429,7 @@ fn main() {
 
     for (i, owner) in token_owners.iter().enumerate() {
         let yes_no = i == 0 || i == 3 || i == 4;
-        let result = proposal.cast_vote(&voter_keypairs[i], owner, yes_no);
+        let result = proposal.cast_vote(&token_owners[0], &voter_keypairs[i], owner, yes_no);
         println!("CastVote {} {:?}", i, result);
     }
 }
