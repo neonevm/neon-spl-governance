@@ -14,10 +14,10 @@ use {
     },
     spl_governance::{
         state::{
-            governance::GovernanceV2,
+            governance::{GovernanceConfig, GovernanceV2},
             proposal::{VoteType, ProposalV2, get_proposal_address},
         },
-        instruction::create_proposal,
+        instruction::{create_proposal, set_governance_config},
     },
     solana_client::{
         client_error::ClientError,
@@ -34,8 +34,11 @@ pub struct Governance<'a> {
 impl<'a> Governance<'a> {
     pub fn get_interactor(&self) -> &SplGovernanceInteractor<'a> {self.realm.interactor}
 
-    pub fn get_proposal_count(&self) -> u32 {
-        self.data.proposals_count
+    pub fn get_proposals_count(&self) -> u32 {
+        let data: GovernanceV2 = self.get_interactor().get_account_data(
+                &self.get_interactor().spl_governance_program_address,
+                &self.address).unwrap().unwrap();
+        data.proposals_count
     }
 
     pub fn get_proposal_address(&self, proposal_index: u32) -> Pubkey {
@@ -49,6 +52,14 @@ impl<'a> Governance<'a> {
     pub fn get_proposal_v2(&self, proposal_pubkey: Pubkey) -> ProposalV2 {
         let mut dt: &[u8] = &self.get_interactor().solana_client.get_account_data(&proposal_pubkey).unwrap();
         ProposalV2::deserialize(&mut dt).unwrap()
+    }
+
+    // Note: Only governance PDA via a proposal can authorize change to its own config
+    pub fn set_governance_config_instruction(&self, config: GovernanceConfig) -> Instruction {
+        set_governance_config(
+                &self.get_interactor().spl_governance_program_address,
+                &self.address,
+                config)
     }
 
     pub fn create_proposal<'b:'a>(&'b self, create_authority: &Keypair, token_owner: &TokenOwner, proposal_name: &str, proposal_description: &str, proposal_index: u32) -> Result<Proposal<'a>,ClientError> {

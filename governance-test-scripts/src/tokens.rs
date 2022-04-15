@@ -9,10 +9,47 @@ use solana_sdk::{
     program_pack::{ Pack },
 };
 
-use spl_token::state::{ Account };
+use spl_token::state::{ Account, Mint };
 
-use solana_client::rpc_client::{ RpcClient };
+use solana_client::{
+    client_error::ClientError,
+    rpc_client::RpcClient,
+};
 
+pub fn create_mint(client: &RpcClient, payer: &Keypair, mint_keypair: &Keypair,
+        mint_authority: &Pubkey, freeze_authority: Option<&Pubkey>, decimals: u8) -> Result<Pubkey,ClientError>
+{
+    let transaction: Transaction = 
+        Transaction::new_signed_with_payer(
+            &[
+                solana_sdk::system_instruction::create_account(
+                    &payer.pubkey(),
+                    &mint_keypair.pubkey(),
+                    client.get_minimum_balance_for_rent_exemption(Mint::LEN).unwrap(),
+                    Mint::LEN as u64,
+                    &spl_token::id(),
+                ),
+                spl_token::instruction::initialize_mint(
+                    &spl_token::id(),
+                    &mint_keypair.pubkey(),
+                    mint_authority,
+                    freeze_authority,
+                    decimals
+                ).unwrap(),
+            ],
+            Some(&payer.pubkey()),
+            &[
+                mint_keypair,
+                payer,
+            ],
+            client.get_latest_blockhash()?,
+        );
+
+    client.send_and_confirm_transaction(&transaction)?;
+    Ok(mint_keypair.pubkey())
+}
+
+/*
 pub fn create_account(client: &RpcClient, owner_keypair: &Keypair, mint_keypair: &Keypair, mint_pubkey: &Pubkey) -> Result<Pubkey,()> {
 
     let owner_pubkey: Pubkey = owner_keypair.pubkey();
@@ -178,4 +215,4 @@ pub fn create_accounts_mint_liquidity(client: &RpcClient, owner_keypair: &Keypai
         // }
         // return;
     // }
-}
+}*/

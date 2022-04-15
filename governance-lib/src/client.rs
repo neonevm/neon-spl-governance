@@ -1,14 +1,18 @@
 use {
-    crate::realm::Realm,
+    crate::realm::{Realm, RealmSettings},
     borsh::BorshDeserialize,
     solana_sdk::{
+        borsh::try_from_slice_unchecked,
         commitment_config::CommitmentConfig,
         pubkey::Pubkey,
         instruction::Instruction,
         transaction::Transaction,
         signer::{Signer, keypair::Keypair},
+        signers::Signers,
+        signature::Signature,
+        program_pack::{Pack, IsInitialized},
     },
-    std::fmt,
+    std::{cell::RefCell, fmt},
     spl_governance::{
         state::{
             enums::MintMaxVoteWeightSource,
@@ -53,6 +57,79 @@ impl<'a> SplGovernanceInteractor<'a> {
             spl_governance_voter_weight_addin_address: addin_address,
         }
     }
+
+    pub fn send_and_confirm_transaction<T: Signers>(
+        &self,
+        instructions: &[Instruction],
+        signing_keypairs: &T,
+    ) -> Result<Signature, ClientError> {
+        let mut transaction: Transaction =
+            Transaction::new_with_payer(
+                instructions,
+                Some(&self.payer.pubkey()),
+            );
+
+        let blockhash = self.solana_client.get_latest_blockhash().unwrap();
+        transaction.partial_sign(&[self.payer], blockhash);
+        transaction.sign(signing_keypairs, blockhash);
+        
+        self.solana_client.send_and_confirm_transaction(&transaction)
+    }
+
+    pub fn get_account_data_pack<T: Pack + IsInitialized>(
+        &self,
+        owner_program_id: &Pubkey,
+        account_key: &Pubkey,
+    ) -> Result<Option<T>, ClientError> {
+        let account_info = &self.solana_client.get_account_with_commitment(
+                &account_key, self.solana_client.commitment())?.value;
+
+        if let Some(account_info) = account_info {
+            if account_info.data.is_empty() {
+                panic!("Account {} is empty", account_key);
+            }
+            if account_info.owner != *owner_program_id {
+                panic!("Invalid account owner for {}: expected {}, actual {}",
+                        account_key, owner_program_id, account_info.owner);
+            }
+        
+            let account: T = T::unpack(&account_info.data).unwrap(); //try_from_slice_unchecked(&account_info.data).unwrap();
+            if !account.is_initialized() {
+                panic!("Unitialized account {}", account_key);
+            }
+            Ok(Some(account))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn get_account_data<T: BorshDeserialize + IsInitialized>(
+        &self,
+        owner_program_id: &Pubkey,
+        account_key: &Pubkey,
+    ) -> Result<Option<T>, ClientError> {
+        let account_info = &self.solana_client.get_account_with_commitment(
+                &account_key, self.solana_client.commitment())?.value;
+
+        if let Some(account_info) = account_info {
+            if account_info.data.is_empty() {
+                panic!("Account {} is empty", account_key);
+            }
+            if account_info.owner != *owner_program_id {
+                panic!("Invalid account owner for {}: expected {}, actual {}",
+                        account_key, owner_program_id, account_info.owner);
+            }
+        
+            let account: T = try_from_slice_unchecked(&account_info.data).unwrap();
+            if !account.is_initialized() {
+                panic!("Unitialized account {}", account_key);
+            }
+            Ok(Some(account))
+        } else {
+            Ok(None)
+        }
+    }
+
     pub fn account_exists(&self, address: &Pubkey) -> bool {
         self.solana_client.get_account(address).is_ok()
     }
@@ -124,7 +201,10 @@ impl<'a> SplGovernanceInteractor<'a> {
                 data: self.get_realm_v2(realm_name).unwrap(),
                 //max_voter_weight_addin_address: addin_opt,
                 // voter_weight_addin_address: addin_opt,
-                max_voter_weight_record_address: None,
+                //max_voter_weight_record_address: RefCell::new(None),
+                _settings: RefCell::new(RealmSettings {
+                        max_voter_weight_record_address: addin_opt,
+                    }),
             }
         )
     }

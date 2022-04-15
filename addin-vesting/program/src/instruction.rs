@@ -176,7 +176,7 @@ pub fn deposit_with_realm(
         AccountMeta::new_readonly(*source_token_owner, true),
         AccountMeta::new(*source_token_account, false),
         AccountMeta::new_readonly(*vesting_owner, false),
-        AccountMeta::new_readonly(*payer, true),
+        AccountMeta::new(*payer, true),
 
         AccountMeta::new_readonly(*governance_id, false),
         AccountMeta::new_readonly(*realm, false),
