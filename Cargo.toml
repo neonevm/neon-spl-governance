@@ -5,6 +5,7 @@ members = [
     "addin-vesting/cli",
     "governance-test-scripts",
     "governance-lib",
+    "launch-script",
 ]
 exclude = [
     "solana-program-library",
