@@ -1,6 +1,6 @@
 use {
     crate::{
-        client::SplGovernanceInteractor,
+        client::Client,
         token_owner::TokenOwner,
         governance::Governance,
     },
@@ -60,7 +60,7 @@ impl RealmSettings {
 pub struct Realm<'a> {
 //    authority: &'a Keypair,
 //    payer_authority: &'a Keypair,
-    pub interactor: &'a SplGovernanceInteractor<'a>,
+    pub client: &'a Client<'a>,
     pub address: Pubkey,
     pub community_mint: Pubkey,
     pub data: RealmV2,
@@ -75,26 +75,26 @@ impl<'a> Realm<'a> {
     pub fn settings_mut(&self) -> RefMut<RealmSettings> {self._settings.borrow_mut()}
 
     pub fn get_token_owner_record_address(&self, token_owner: &Pubkey) -> Pubkey {
-        get_token_owner_record_address(&self.interactor.spl_governance_program_address, &self.address, &self.community_mint, token_owner)
+        get_token_owner_record_address(&self.client.spl_governance_program_address, &self.address, &self.community_mint, token_owner)
     }
 
     pub fn get_token_owner_record_v2(&self, token_owner: &Pubkey) -> TokenOwnerRecordV2 {
         let record_address = self.get_token_owner_record_address(token_owner);
-        let mut dt: &[u8] = &self.interactor.solana_client.get_account_data(&record_address).unwrap();
+        let mut dt: &[u8] = &self.client.solana_client.get_account_data(&record_address).unwrap();
         TokenOwnerRecordV2::deserialize(&mut dt).unwrap()
     }
 
     pub fn create_token_owner_record<'b:'a>(&'b self, token_owner: &Pubkey) -> Result<TokenOwner<'a>,ClientError> {
         let token_owner_record_address: Pubkey = self.get_token_owner_record_address(token_owner);
 
-        if !self.interactor.account_exists(&token_owner_record_address) {
+        if !self.client.account_exists(&token_owner_record_address) {
             let create_token_owner_record_instruction: Instruction =
                 create_token_owner_record(
-                    &self.interactor.spl_governance_program_address,
+                    &self.client.spl_governance_program_address,
                     &self.address,
                     token_owner,
                     &self.community_mint,
-                    &self.interactor.payer.pubkey(),
+                    &self.client.payer.pubkey(),
                 );
             
             let transaction: Transaction =
@@ -102,14 +102,14 @@ impl<'a> Realm<'a> {
                     &[
                         create_token_owner_record_instruction,
                     ],
-                    Some(&self.interactor.payer.pubkey()),
+                    Some(&self.client.payer.pubkey()),
                     &[
-                        self.interactor.payer,
+                        self.client.payer,
                     ],
-                    self.interactor.solana_client.get_latest_blockhash().unwrap(),
+                    self.client.solana_client.get_latest_blockhash().unwrap(),
                 );
             
-            self.interactor.solana_client.send_and_confirm_transaction(&transaction)?;
+            self.client.solana_client.send_and_confirm_transaction(&transaction)?;
         }
         Ok(
             TokenOwner {
@@ -126,13 +126,13 @@ impl<'a> Realm<'a> {
     }
 
     pub fn get_governance_address(&self, governed_account_pubkey: &Pubkey) -> Pubkey {
-        get_governance_address(&self.interactor.spl_governance_program_address, &self.address, governed_account_pubkey)
+        get_governance_address(&self.client.spl_governance_program_address, &self.address, governed_account_pubkey)
     }
 
     pub fn get_governance_v2(&self, governed_account_pubkey: &Pubkey) -> GovernanceV2 {
         let governance_pubkey: Pubkey = self.get_governance_address(governed_account_pubkey);
 
-        let mut dt: &[u8] = &self.interactor.solana_client.get_account_data(&governance_pubkey).unwrap();
+        let mut dt: &[u8] = &self.client.solana_client.get_account_data(&governance_pubkey).unwrap();
         GovernanceV2::deserialize(&mut dt).unwrap()
     }
 
@@ -141,14 +141,14 @@ impl<'a> Realm<'a> {
     {
         let governance_pubkey: Pubkey = self.get_governance_address(governed_account_pubkey);
 
-        if !self.interactor.account_exists(&governance_pubkey) {
+        if !self.client.account_exists(&governance_pubkey) {
             let create_governance_instruction: Instruction =
                 create_governance(
-                    &self.interactor.spl_governance_program_address,
+                    &self.client.spl_governance_program_address,
                     &self.address,
                     Some(governed_account_pubkey),
                     &token_owner.token_owner_record_address,
-                    &self.interactor.payer.pubkey(),
+                    &self.client.payer.pubkey(),
                     &create_authority.pubkey(),       // realm_authority OR token_owner authority
                     token_owner.voter_weight_record_address,
                     gov_config,
@@ -159,15 +159,15 @@ impl<'a> Realm<'a> {
                     &[
                         create_governance_instruction,
                     ],
-                    Some(&self.interactor.payer.pubkey()),
+                    Some(&self.client.payer.pubkey()),
                     &[
                         create_authority,
-                        self.interactor.payer,
+                        self.client.payer,
                     ],
-                    self.interactor.solana_client.get_latest_blockhash().unwrap(),
+                    self.client.solana_client.get_latest_blockhash().unwrap(),
                 );
             
-            self.interactor.solana_client.send_and_confirm_transaction(&transaction).unwrap();
+            self.client.solana_client.send_and_confirm_transaction(&transaction).unwrap();
         }
         Ok(
             Governance {
@@ -184,15 +184,15 @@ impl<'a> Realm<'a> {
     {
         let governance_pubkey: Pubkey = self.get_governance_address(governed_mint);
 
-        if !self.interactor.account_exists(&governance_pubkey) {
+        if !self.client.account_exists(&governance_pubkey) {
             let create_mint_governance_instruction: Instruction =
                 create_mint_governance(
-                    &self.interactor.spl_governance_program_address,
+                    &self.client.spl_governance_program_address,
                     &self.address,
                     &governed_mint,
                     &governed_mint_authority.pubkey(),
                     &token_owner.token_owner_record_address,
-                    &self.interactor.payer.pubkey(),
+                    &self.client.payer.pubkey(),
                     &create_authority.pubkey(),       // realm_authority OR token_owner authority
                     token_owner.voter_weight_record_address,
                     gov_config,
@@ -204,15 +204,15 @@ impl<'a> Realm<'a> {
                     &[
                         create_mint_governance_instruction,
                     ],
-                    Some(&self.interactor.payer.pubkey()),
+                    Some(&self.client.payer.pubkey()),
                     &[
                         create_authority,
-                        self.interactor.payer,
+                        self.client.payer,
                     ],
-                    self.interactor.solana_client.get_latest_blockhash().unwrap(),
+                    self.client.solana_client.get_latest_blockhash().unwrap(),
                 );
             
-            self.interactor.solana_client.send_and_confirm_transaction(&transaction).unwrap();
+            self.client.solana_client.send_and_confirm_transaction(&transaction).unwrap();
         }
         Ok(
             Governance {
@@ -224,19 +224,19 @@ impl<'a> Realm<'a> {
     }
 
     pub fn get_realm_config(&self) -> Result<RealmConfigAccount,ClientError> {
-        let realm_config_address = get_realm_config_address(&self.interactor.spl_governance_program_address, &self.address);
-        let realm_config_data = self.interactor.solana_client.get_account_data(&realm_config_address)?;
+        let realm_config_address = get_realm_config_address(&self.client.spl_governance_program_address, &self.address);
+        let realm_config_data = self.client.solana_client.get_account_data(&realm_config_address)?;
         let realm_config: RealmConfigAccount = try_from_slice_unchecked(&realm_config_data).unwrap();
         Ok(realm_config)
     }
 
     pub fn set_realm_config_instruction(&self, realm_authority: &Pubkey, realm_config: &RealmConfig) -> Instruction {
         set_realm_config(
-            &self.interactor.spl_governance_program_address,
+            &self.client.spl_governance_program_address,
             &self.address,
             realm_authority,
             realm_config.council_token_mint,
-            &self.interactor.payer.pubkey(),
+            &self.client.payer.pubkey(),
             realm_config.community_voter_weight_addin,
             realm_config.max_community_voter_weight_addin,
             realm_config.min_community_weight_to_create_governance,
@@ -249,32 +249,32 @@ impl<'a> Realm<'a> {
             Transaction::new_signed_with_payer(
                 &[
                     set_realm_config(
-                        &self.interactor.spl_governance_program_address,
+                        &self.client.spl_governance_program_address,
                         &self.address,
                         &realm_authority.pubkey(),
                         realm_config.council_token_mint,
-                        &self.interactor.payer.pubkey(),
+                        &self.client.payer.pubkey(),
                         realm_config.community_voter_weight_addin,
                         realm_config.max_community_voter_weight_addin,
                         realm_config.min_community_weight_to_create_governance,
                         realm_config.community_mint_max_vote_weight_source.clone(),
                     ),
                 ],
-                Some(&self.interactor.payer.pubkey()),
+                Some(&self.client.payer.pubkey()),
                 &[
                     realm_authority,
-                    self.interactor.payer,
+                    self.client.payer,
                 ],
-                self.interactor.solana_client.get_latest_blockhash().unwrap(),
+                self.client.solana_client.get_latest_blockhash().unwrap(),
             );
         
-        self.interactor.solana_client.send_and_confirm_transaction(&transaction).unwrap();
+        self.client.solana_client.send_and_confirm_transaction(&transaction).unwrap();
         Ok(())
     }
 
     pub fn set_realm_authority_instruction(&self, realm_authority: &Pubkey, new_realm_authority: Option<&Pubkey>, action: SetRealmAuthorityAction) -> Instruction {
         set_realm_authority(
-            &self.interactor.spl_governance_program_address,
+            &self.client.spl_governance_program_address,
             &self.address,
             &realm_authority,
             new_realm_authority,
@@ -286,21 +286,21 @@ impl<'a> Realm<'a> {
             Transaction::new_signed_with_payer(
                 &[
                     set_realm_authority(
-                        &self.interactor.spl_governance_program_address,
+                        &self.client.spl_governance_program_address,
                         &self.address,
                         &realm_authority.pubkey(),
                         new_realm_authority,
                         action
                     ),
                 ],
-                Some(&self.interactor.payer.pubkey()),
+                Some(&self.client.payer.pubkey()),
                 &[
                     realm_authority,
-                    self.interactor.payer,
+                    self.client.payer,
                 ],
-                self.interactor.solana_client.get_latest_blockhash()?,
+                self.client.solana_client.get_latest_blockhash()?,
             );
 
-        self.interactor.solana_client.send_and_confirm_transaction(&transaction)
+        self.client.solana_client.send_and_confirm_transaction(&transaction)
     }
 }

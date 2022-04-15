@@ -1,6 +1,6 @@
 use {
     crate::{
-        client::SplGovernanceInteractor,
+        client::Client,
         governance::Governance,
         token_owner::TokenOwner,
     },
@@ -43,7 +43,7 @@ pub struct Proposal<'a> {
 }
 
 impl<'a> Proposal<'a> {
-    fn get_interactor(&self) -> &SplGovernanceInteractor<'a> {self.governance.get_interactor()}
+    fn get_client(&self) -> &Client<'a> {self.governance.get_client()}
 
     pub fn get_state(&self) -> Result<ProposalState,ClientError> {
         let data = self.governance.get_proposal_v2(self.address);
@@ -52,7 +52,7 @@ impl<'a> Proposal<'a> {
 
     pub fn get_proposal_transaction_address(&self, option_index: u8, index: u16) -> Pubkey {
         get_proposal_transaction_address(
-                &self.get_interactor().spl_governance_program_address,
+                &self.get_client().spl_governance_program_address,
                 &self.address,
                 &option_index.to_le_bytes(),
                 &index.to_le_bytes())
@@ -61,10 +61,10 @@ impl<'a> Proposal<'a> {
     pub fn get_proposal_transaction_data(&self, option_index: u8, index: u16) -> ClientResult<Option<ProposalTransactionV2>> {
         let transaction_pubkey: Pubkey = self.get_proposal_transaction_address(option_index, index);
 
-        //let mut dt: &[u8] = &self.get_interactor().solana_client.get_account_data(&transaction_pubkey)?;
+        //let mut dt: &[u8] = &self.get_client().solana_client.get_account_data(&transaction_pubkey)?;
         //Ok(ProposalTransactionV2::deserialize(&mut dt).unwrap())
-        self.get_interactor().get_account_data::<ProposalTransactionV2>(
-                &self.get_interactor().spl_governance_program_address,
+        self.get_client().get_account_data::<ProposalTransactionV2>(
+                &self.get_client().spl_governance_program_address,
                 &self.get_proposal_transaction_address(option_index, index))
     }
 
@@ -73,12 +73,12 @@ impl<'a> Proposal<'a> {
     pub fn insert_transaction_instruction(&self, authority: &Pubkey, option_index: u8, index: u16, hold_up_time: u32, instructions: Vec<InstructionData>) -> Result<Instruction,ProgramError> {
         Ok(
             insert_transaction(
-                &self.get_interactor().spl_governance_program_address,
+                &self.get_client().spl_governance_program_address,
                 &self.governance.address,
                 &self.address,
                 &self.token_owner_record,
                 authority,
-                &self.get_interactor().payer.pubkey(),
+                &self.get_client().payer.pubkey(),
     
                 option_index,
                 index,
@@ -89,12 +89,12 @@ impl<'a> Proposal<'a> {
     }
 
     pub fn insert_transaction(&self, authority: &Keypair, option_index: u8, index: u16, hold_up_time: u32, instructions: Vec<InstructionData>) -> ClientResult<Signature> {
-        let payer = self.get_interactor().payer;
+        let payer = self.get_client().payer;
 
         let transaction: Transaction = Transaction::new_signed_with_payer(
             &[
                 insert_transaction(
-                    &self.get_interactor().spl_governance_program_address,
+                    &self.get_client().spl_governance_program_address,
                     &self.governance.address,
                     &self.address,
                     &self.token_owner_record,
@@ -112,19 +112,19 @@ impl<'a> Proposal<'a> {
                 payer,
                 authority,
             ],
-            self.get_interactor().solana_client.get_latest_blockhash().unwrap(),
+            self.get_client().solana_client.get_latest_blockhash().unwrap(),
         );
 
-        self.get_interactor().solana_client.send_and_confirm_transaction(&transaction)
+        self.get_client().solana_client.send_and_confirm_transaction(&transaction)
     }
 
     pub fn remove_transaction(&self, authority: &Keypair, option_index: u8, index: u16, beneficiary: &Pubkey) -> ClientResult<Signature> {
-        let payer = self.get_interactor().payer;
+        let payer = self.get_client().payer;
 
         let transaction: Transaction = Transaction::new_signed_with_payer(
             &[
                 remove_transaction(
-                    &self.get_interactor().spl_governance_program_address,
+                    &self.get_client().spl_governance_program_address,
                     &self.address,
                     &self.token_owner_record,
                     &authority.pubkey(),
@@ -137,10 +137,10 @@ impl<'a> Proposal<'a> {
                 payer,
                 authority,
             ],
-            self.get_interactor().solana_client.get_latest_blockhash().unwrap(),
+            self.get_client().solana_client.get_latest_blockhash().unwrap(),
         );
 
-        self.get_interactor().solana_client.send_and_confirm_transaction(&transaction)
+        self.get_client().solana_client.send_and_confirm_transaction(&transaction)
     }
 
     pub fn execute_transactions(&self, option_index: u8) -> ClientResult<Vec<Signature>> {
@@ -163,7 +163,7 @@ impl<'a> Proposal<'a> {
     }
 
     fn _execute_transaction(&self, proposal_transaction: &ProposalTransactionV2) -> ClientResult<Signature> {
-        let payer = self.get_interactor().payer;
+        let payer = self.get_client().payer;
         println!("Proposal transaction: {:?}", proposal_transaction);
         let mut accounts = vec!();
         for instruction in &proposal_transaction.instructions {
@@ -183,7 +183,7 @@ impl<'a> Proposal<'a> {
         let transaction: Transaction = Transaction::new_signed_with_payer(
             &[
                 execute_transaction(
-                    &self.get_interactor().spl_governance_program_address,
+                    &self.get_client().spl_governance_program_address,
                     &self.governance.address,
                     &self.address,
                     &self.get_proposal_transaction_address(
@@ -197,18 +197,18 @@ impl<'a> Proposal<'a> {
             &[
                 payer,
             ],
-            self.get_interactor().solana_client.get_latest_blockhash().unwrap(),
+            self.get_client().solana_client.get_latest_blockhash().unwrap(),
         );
 
-        self.get_interactor().solana_client.send_and_confirm_transaction(&transaction)
+        self.get_client().solana_client.send_and_confirm_transaction(&transaction)
     }
 
     pub fn sign_off_proposal(&self, sign_authority: &Keypair, token_owner: &TokenOwner) -> ClientResult<Signature> {
-        let payer = self.get_interactor().payer;
+        let payer = self.get_client().payer;
 
         let sign_off_proposal_instruction: Instruction =
             sign_off_proposal(
-                &self.get_interactor().spl_governance_program_address,
+                &self.get_client().spl_governance_program_address,
                 &self.governance.realm.address,
                 &self.governance.address,
                 &self.address,
@@ -226,14 +226,14 @@ impl<'a> Proposal<'a> {
                     payer,
                     sign_authority,
                 ],
-                self.get_interactor().solana_client.get_latest_blockhash().unwrap(),
+                self.get_client().solana_client.get_latest_blockhash().unwrap(),
             );
         
-        self.get_interactor().solana_client.send_and_confirm_transaction(&transaction)
+        self.get_client().solana_client.send_and_confirm_transaction(&transaction)
     }
 
     pub fn cast_vote(&self, voter_authority: &Keypair, voter: &TokenOwner, vote_yes_no: bool) -> ClientResult<Signature> {
-        let payer = self.get_interactor().payer;
+        let payer = self.get_client().payer;
 
         let vote: Vote =
             if vote_yes_no {
@@ -249,7 +249,7 @@ impl<'a> Proposal<'a> {
         
         let cast_vote_instruction: Instruction =
             cast_vote(
-                &self.get_interactor().spl_governance_program_address,
+                &self.get_client().spl_governance_program_address,
                 &self.governance.realm.address,
                 &self.governance.address,
                 &self.address,
@@ -272,9 +272,9 @@ impl<'a> Proposal<'a> {
                 &[
                     payer, voter_authority,
                 ],
-                self.get_interactor().solana_client.get_latest_blockhash().unwrap(),
+                self.get_client().solana_client.get_latest_blockhash().unwrap(),
             );
         
-        self.get_interactor().solana_client.send_and_confirm_transaction(&transaction)
+        self.get_client().solana_client.send_and_confirm_transaction(&transaction)
     }
 }

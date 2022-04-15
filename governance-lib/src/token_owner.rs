@@ -1,6 +1,6 @@
 use {
     crate::{
-        client::SplGovernanceInteractor,
+        client::Client,
         realm::Realm,
     },
     solana_sdk::{
@@ -30,19 +30,19 @@ pub struct TokenOwner<'a> {
 }
 
 impl<'a> TokenOwner<'a> {
-    fn get_interactor(&self) -> &SplGovernanceInteractor<'a> {self.realm.interactor}
+    fn get_client(&self) -> &Client<'a> {self.realm.client}
 
     pub fn set_voter_weight_record_address(&mut self, voter_weight_record_address: Option<Pubkey>) {
         self.voter_weight_record_address = voter_weight_record_address;
     }
 
     pub fn set_delegate(&self, authority: &Keypair, new_delegate: &Option<Pubkey>) -> ClientResult<Signature> {
-        let payer = self.get_interactor().payer;
+        let payer = self.get_client().payer;
 
         let transaction: Transaction = Transaction::new_signed_with_payer(
             &[
                 set_governance_delegate(
-                    &self.get_interactor().spl_governance_program_address,
+                    &self.get_client().spl_governance_program_address,
                     &authority.pubkey(),
                     &self.realm.address,
                     &self.realm.community_mint,
@@ -55,11 +55,11 @@ impl<'a> TokenOwner<'a> {
                 payer,
                 authority,
             ],
-            self.get_interactor().solana_client.get_latest_blockhash().unwrap(),
+            self.get_client().solana_client.get_latest_blockhash().unwrap(),
         );
 
         println!("Transaction: {:?}", transaction);
 
-        self.get_interactor().solana_client.send_and_confirm_transaction(&transaction)
+        self.get_client().solana_client.send_and_confirm_transaction(&transaction)
     }
 }

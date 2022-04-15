@@ -1,6 +1,6 @@
 use {
     crate::{
-        client::SplGovernanceInteractor,
+        client::Client,
         realm::Realm,
     },
     solana_sdk::{
@@ -22,15 +22,15 @@ use {
 
 #[derive(Debug)]
 pub struct AddinVesting<'a> {
-    interactor: &'a SplGovernanceInteractor<'a>,
+    client: &'a Client<'a>,
     pub program_id: Pubkey,
 }
 
 
 impl<'a> AddinVesting<'a> {
-    pub fn new(interactor: &'a SplGovernanceInteractor, program_id: Pubkey) -> Self {
+    pub fn new(client: &'a Client, program_id: Pubkey) -> Self {
         AddinVesting {
-            interactor,
+            client,
             program_id,
         }
     }
@@ -61,7 +61,7 @@ impl<'a> AddinVesting<'a> {
             &source_token_authority,
             source_token_account,
             vesting_owner,
-            &self.interactor.payer.pubkey(),
+            &self.client.payer.pubkey(),
             schedules,
         )
     }
@@ -76,9 +76,9 @@ impl<'a> AddinVesting<'a> {
             &source_token_authority,
             source_token_account,
             vesting_owner,
-            &self.interactor.payer.pubkey(),
+            &self.client.payer.pubkey(),
             schedules,
-            &realm.interactor.spl_governance_program_address,
+            &realm.client.spl_governance_program_address,
             &realm.address,
             &realm.community_mint,
         )
@@ -92,13 +92,13 @@ impl<'a> AddinVesting<'a> {
                 &realm.community_mint,
             );
 
-        if !self.interactor.account_exists(&max_voter_weight_record_pubkey) {
+        if !self.client.account_exists(&max_voter_weight_record_pubkey) {
             let setup_max_voter_weight_record_instruction: Instruction =
                 instruction::setup_max_voter_weight_record(
                     &self.program_id,
                     &realm.address,
                     &realm.community_mint,
-                    &self.interactor.payer.pubkey(),
+                    &self.client.payer.pubkey(),
                 );
             
             let transaction: Transaction =
@@ -106,14 +106,14 @@ impl<'a> AddinVesting<'a> {
                     &[
                         setup_max_voter_weight_record_instruction,
                     ],
-                    Some(&self.interactor.payer.pubkey()),
+                    Some(&self.client.payer.pubkey()),
                     &[
-                        self.interactor.payer,
+                        self.client.payer,
                     ],
-                    self.interactor.solana_client.get_latest_blockhash().unwrap(),
+                    self.client.solana_client.get_latest_blockhash().unwrap(),
                 );
             
-            self.interactor.solana_client.send_and_confirm_transaction(&transaction)
+            self.client.solana_client.send_and_confirm_transaction(&transaction)
                 .map_err(|_|())?;
         }
         Ok(max_voter_weight_record_pubkey)
@@ -126,14 +126,14 @@ impl<'a> AddinVesting<'a> {
                 &realm.community_mint,
                 token_owner);
 
-        if !self.interactor.account_exists(&voter_weight_record_pubkey) {
+        if !self.client.account_exists(&voter_weight_record_pubkey) {
             let setup_voter_weight_record_instruction: Instruction =
                 spl_governance_addin_fixed_weights::instruction::setup_voter_weight_record(
                     &self.program_id,
                     &realm.address,
                     &realm.data.community_mint,
                     token_owner,
-                    &self.interactor.payer.pubkey(),
+                    &self.client.payer.pubkey(),
                 );
             
             let transaction: Transaction =
@@ -141,14 +141,14 @@ impl<'a> AddinVesting<'a> {
                     &[
                         setup_voter_weight_record_instruction,
                     ],
-                    Some(&self.interactor.payer.pubkey()),
+                    Some(&self.client.payer.pubkey()),
                     &[
-                        self.interactor.payer,
+                        self.client.payer,
                     ],
-                    self.interactor.solana_client.get_latest_blockhash().unwrap(),
+                    self.client.solana_client.get_latest_blockhash().unwrap(),
                 );
             
-            self.interactor.solana_client.send_and_confirm_transaction(&transaction).unwrap();
+            self.client.solana_client.send_and_confirm_transaction(&transaction).unwrap();
         }
         Ok(voter_weight_record_pubkey)
     }*/
