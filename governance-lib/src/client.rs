@@ -32,8 +32,6 @@ pub struct Client<'a> {
     pub url: String,
     pub payer: &'a Keypair,
     pub solana_client: RpcClient,
-    pub spl_governance_program_address: Pubkey,
-    pub spl_governance_voter_weight_addin_address: Pubkey,
 }
 
 impl<'a> fmt::Debug for Client<'a> {
@@ -41,8 +39,6 @@ impl<'a> fmt::Debug for Client<'a> {
         f.debug_struct("Client")
             .field("url", &self.url)
             .field("payer", &self.payer.pubkey())
-            .field("program", &self.spl_governance_program_address)
-            .field("addin", &self.spl_governance_voter_weight_addin_address)
             .finish()
     }
 }
@@ -54,9 +50,17 @@ impl<'a> Client<'a> {
             url: url.to_string(),
             solana_client: RpcClient::new_with_commitment(url.to_string(),CommitmentConfig::confirmed()),
             payer,
-            spl_governance_program_address: program_address,
-            spl_governance_voter_weight_addin_address: addin_address,
         }
+    }
+
+    pub fn send_and_confirm_transaction_with_payer_only(
+            &self,
+            instructions: &[Instruction],
+    ) -> Result<Signature, ClientError> {
+        self.send_and_confirm_transaction::<[&dyn solana_sdk::signature::Signer;0]>(
+                instructions,
+                &[],
+            )
     }
 
     pub fn send_and_confirm_transaction<T: Signers>(
@@ -64,6 +68,8 @@ impl<'a> Client<'a> {
             instructions: &[Instruction],
             signing_keypairs: &T,
     ) -> Result<Signature, ClientError> {
+        println!("Instructions: {:?}", instructions);
+
         let mut transaction: Transaction =
             Transaction::new_with_payer(
                 instructions,
@@ -134,82 +140,6 @@ impl<'a> Client<'a> {
     pub fn account_exists(&self, address: &Pubkey) -> bool {
         self.solana_client.get_account(address).is_ok()
     }
-    pub fn get_realm_address(&self, name: &str) -> Pubkey {
-        get_realm_address(&self.spl_governance_program_address, name)
-    }
-    pub fn get_realm_v2(&self, realm_name: &str) -> Result<RealmV2,()> {
-        let realm_pubkey: Pubkey = self.get_realm_address(realm_name);
-
-        self.solana_client.get_account_data(&realm_pubkey)
-            .map_err(|_|())
-            .and_then(|data|{
-                let mut data_slice: &[u8] = &data;
-                RealmV2::deserialize(&mut data_slice).map_err(|_|())
-
-            })
-    }
-//    pub fn get_voter_weight_record(&self, voter_weight_record_pubkey: &Pubkey) -> VoterWeightRecord {
-//        let mut dt: &[u8] = &self.solana_client.get_account_data(voter_weight_record_pubkey).unwrap();
-//        VoterWeightRecord::deserialize(&mut dt).unwrap()
-//    }
-//    pub fn get_max_voter_weight_record(&self, max_voter_weight_record_pubkey: &Pubkey) -> MaxVoterWeightRecord {
-//        let mut dt: &[u8] = &self.solana_client.get_account_data(max_voter_weight_record_pubkey).unwrap();
-//        MaxVoterWeightRecord::deserialize(&mut dt).unwrap()
-//    }
-
-    pub fn create_realm(&'a self, realm_authority: &'a Keypair, community_mint_pubkey: &Pubkey, addin_opt: Option<Pubkey>, realm_name: &str) -> Result<Realm<'a>,ClientError> {
-        let realm_pubkey: Pubkey = self.get_realm_address(realm_name);
-
-        if !self.account_exists(&realm_pubkey) {
-            let realm_authority_pubkey: Pubkey = realm_authority.pubkey();
-
-            let create_realm_instruction: Instruction =
-                create_realm(
-                    &self.spl_governance_program_address,
-                    &realm_authority_pubkey,
-                    community_mint_pubkey,
-                    &self.payer.pubkey(),
-                    None,
-                    addin_opt,
-                    addin_opt,
-                    realm_name.to_string(),
-                    MIN_COMMUNITY_WEIGHT_TO_CREATE_GOVERNANCE,
-                    //MintMaxVoteWeightSource::SupplyFraction(10_000_000_000),
-                    MintMaxVoteWeightSource::FULL_SUPPLY_FRACTION,
-                );
-            
-            let transaction: Transaction =
-                Transaction::new_signed_with_payer(
-                    &[
-                        create_realm_instruction,
-                    ],
-                    Some(&self.payer.pubkey()),
-                    &[
-                        self.payer,
-                    ],
-                    self.solana_client.get_latest_blockhash().unwrap(),
-                );
-            
-            self.solana_client.send_and_confirm_transaction(&transaction)?;
-        }
-
-        Ok(
-            Realm {
-                //authority: realm_authority,
-                client: self,
-                address: realm_pubkey,
-                community_mint: *community_mint_pubkey,
-                data: self.get_realm_v2(realm_name).unwrap(),
-                //max_voter_weight_addin_address: addin_opt,
-                // voter_weight_addin_address: addin_opt,
-                //max_voter_weight_record_address: RefCell::new(None),
-                _settings: RefCell::new(RealmSettings {
-                        max_voter_weight_record_address: addin_opt,
-                    }),
-            }
-        )
-    }
-
 
 /*    pub fn _add_signatory(&self, realm: &Realm, _governance: &Governance, proposal: &Proposal, token_owner: &TokenOwner) -> Result<Signature,ClientError> {
         let realm_authority_pubkey: Pubkey = realm.authority.pubkey();

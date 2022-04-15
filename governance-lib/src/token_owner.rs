@@ -12,7 +12,10 @@ use {
     },
     spl_governance::{
         state::token_owner_record::TokenOwnerRecordV2,
-        instruction::set_governance_delegate,
+        instruction::{
+            create_token_owner_record,
+            set_governance_delegate,
+        },
     },
     solana_client::{
         client_error::{ClientError, Result as ClientResult},
@@ -25,7 +28,6 @@ pub struct TokenOwner<'a> {
     pub realm: &'a Realm<'a>,
     pub token_owner: Pubkey,
     pub token_owner_record_address: Pubkey,
-    pub token_owner_record: TokenOwnerRecordV2,
     pub voter_weight_record_address: Option<Pubkey>,
 }
 
@@ -36,30 +38,40 @@ impl<'a> TokenOwner<'a> {
         self.voter_weight_record_address = voter_weight_record_address;
     }
 
+    pub fn get_data(&self) -> ClientResult<Option<TokenOwnerRecordV2>> {
+        self.realm.client.get_account_data::<TokenOwnerRecordV2>(
+                &self.realm.program_id,
+                &self.token_owner_record_address
+            )
+    }
+
+    pub fn create_token_owner_record(&self) -> ClientResult<Signature> {
+        self.realm.client.send_and_confirm_transaction_with_payer_only(
+                &[
+                    create_token_owner_record(
+                        &self.realm.program_id,
+                        &self.realm.address,
+                        &self.token_owner,
+                        &self.realm.community_mint,
+                        &self.realm.client.payer.pubkey(),
+                    ),
+                ],
+            )
+    }
+
     pub fn set_delegate(&self, authority: &Keypair, new_delegate: &Option<Pubkey>) -> ClientResult<Signature> {
-        let payer = self.get_client().payer;
-
-        let transaction: Transaction = Transaction::new_signed_with_payer(
-            &[
-                set_governance_delegate(
-                    &self.get_client().spl_governance_program_address,
-                    &authority.pubkey(),
-                    &self.realm.address,
-                    &self.realm.community_mint,
-                    &self.token_owner,
-                    new_delegate,
-                ),
-            ],
-            Some(&payer.pubkey()),
-            &[
-                payer,
-                authority,
-            ],
-            self.get_client().solana_client.get_latest_blockhash().unwrap(),
-        );
-
-        println!("Transaction: {:?}", transaction);
-
-        self.get_client().solana_client.send_and_confirm_transaction(&transaction)
+        self.realm.client.send_and_confirm_transaction(
+                &[
+                    set_governance_delegate(
+                        &self.realm.program_id,
+                        &authority.pubkey(),
+                        &self.realm.address,
+                        &self.realm.community_mint,
+                        &self.token_owner,
+                        new_delegate,
+                    ),
+                ],
+                &[authority],
+            )
     }
 }

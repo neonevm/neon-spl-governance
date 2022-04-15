@@ -72,7 +72,7 @@ impl<'a> AddinFixedWeights<'a> {
                 spl_governance_addin_fixed_weights::instruction::setup_voter_weight_record(
                     &self.program_id,
                     &realm.address,
-                    &realm.data.community_mint,
+                    &realm.community_mint,
                     token_owner,
                     &self.client.payer.pubkey(),
                 );
