@@ -5,18 +5,14 @@ use {
     },
     solana_sdk::{
         pubkey::Pubkey,
-        signer::{Signer, keypair::Keypair},
+        signer::Signer,
         instruction::Instruction,
-        transaction::Transaction,
         program_error::ProgramError,
     },
     spl_governance_addin_vesting::{
         state::VestingSchedule,
         instruction::{deposit, deposit_with_realm},
         voter_weight::get_voter_weight_record_address,
-    },
-    solana_client::{
-        client_error::ClientError,
     },
 };
 
@@ -46,12 +42,12 @@ impl<'a> AddinVesting<'a> {
     pub fn get_voter_weight_record_address(&self, owner: &Pubkey, realm: &Realm) -> Pubkey {
         get_voter_weight_record_address(
                 &self.program_id,
-                &realm.address,
+                &realm.realm_address,
                 &realm.community_mint,
                 owner)
     }
 
-    pub fn deposit(&self, source_token_authority: &Pubkey, source_token_account: &Pubkey,
+    pub fn deposit_instruction(&self, source_token_authority: &Pubkey, source_token_account: &Pubkey,
             vesting_owner: &Pubkey, vesting_token_account: &Pubkey, schedules: Vec<VestingSchedule>) -> Result<Instruction, ProgramError>
     {
         deposit(
@@ -79,7 +75,7 @@ impl<'a> AddinVesting<'a> {
             &self.client.payer.pubkey(),
             schedules,
             &realm.program_id,
-            &realm.address,
+            &realm.realm_address,
             &realm.community_mint,
         )
     }

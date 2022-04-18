@@ -29,7 +29,7 @@ impl<'a> AddinFixedWeights<'a> {
         use spl_governance_addin_fixed_weights::instruction;
         let (max_voter_weight_record_pubkey,_): (Pubkey,u8) = instruction::get_max_voter_weight_address(
                 &self.program_id,
-                &realm.address,
+                &realm.realm_address,
                 &realm.community_mint,
             );
 
@@ -37,7 +37,7 @@ impl<'a> AddinFixedWeights<'a> {
             let setup_max_voter_weight_record_instruction: Instruction =
                 instruction::setup_max_voter_weight_record(
                     &self.program_id,
-                    &realm.address,
+                    &realm.realm_address,
                     &realm.community_mint,
                     &self.client.payer.pubkey(),
                 );
@@ -63,7 +63,7 @@ impl<'a> AddinFixedWeights<'a> {
     pub fn setup_voter_weight_record(&self, realm: &Realm, token_owner: &Pubkey) -> Result<Pubkey,()> {
         let (voter_weight_record_pubkey,_): (Pubkey,u8) = spl_governance_addin_fixed_weights::instruction::get_voter_weight_address(
                 &self.program_id,
-                &realm.address,
+                &realm.realm_address,
                 &realm.community_mint,
                 token_owner);
 
@@ -71,7 +71,7 @@ impl<'a> AddinFixedWeights<'a> {
             let setup_voter_weight_record_instruction: Instruction =
                 spl_governance_addin_fixed_weights::instruction::setup_voter_weight_record(
                     &self.program_id,
-                    &realm.address,
+                    &realm.realm_address,
                     &realm.community_mint,
                     token_owner,
                     &self.client.payer.pubkey(),

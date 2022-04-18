@@ -1,11 +1,8 @@
 use {
     crate::{
-        client::Client,
         realm::Realm,
     },
     solana_sdk::{
-        instruction::Instruction,
-        transaction::Transaction,
         signer::{Signer, keypair::Keypair},
         pubkey::Pubkey,
         signature::Signature,
@@ -18,21 +15,32 @@ use {
         },
     },
     solana_client::{
-        client_error::{ClientError, Result as ClientResult},
+        client_error::Result as ClientResult,
     },
-    std::cell::RefCell,
+    std::fmt,
 };
 
 #[derive(Debug)]
 pub struct TokenOwner<'a> {
     pub realm: &'a Realm<'a>,
-    pub token_owner: Pubkey,
+    pub token_owner_address: Pubkey,
     pub token_owner_record_address: Pubkey,
     pub voter_weight_record_address: Option<Pubkey>,
 }
 
+impl<'a> fmt::Display for TokenOwner<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("TokenOwner")
+            .field("client", self.realm.client)
+            .field("realm", &self.realm.realm_address)
+            .field("token_owner", &self.token_owner_address)
+            .field("token_owner_record", &self.token_owner_record_address)
+            .field("voter_weight_record", &self.voter_weight_record_address)
+            .finish()
+    }
+}
+
 impl<'a> TokenOwner<'a> {
-    fn get_client(&self) -> &Client<'a> {self.realm.client}
 
     pub fn set_voter_weight_record_address(&mut self, voter_weight_record_address: Option<Pubkey>) {
         self.voter_weight_record_address = voter_weight_record_address;
@@ -50,8 +58,8 @@ impl<'a> TokenOwner<'a> {
                 &[
                     create_token_owner_record(
                         &self.realm.program_id,
-                        &self.realm.address,
-                        &self.token_owner,
+                        &self.realm.realm_address,
+                        &self.token_owner_address,
                         &self.realm.community_mint,
                         &self.realm.client.payer.pubkey(),
                     ),
@@ -65,9 +73,9 @@ impl<'a> TokenOwner<'a> {
                     set_governance_delegate(
                         &self.realm.program_id,
                         &authority.pubkey(),
-                        &self.realm.address,
+                        &self.realm.realm_address,
                         &self.realm.community_mint,
-                        &self.token_owner,
+                        &self.token_owner_address,
                         new_delegate,
                     ),
                 ],
