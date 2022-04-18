@@ -4,12 +4,9 @@ use {
         token_owner::TokenOwner,
         governance::Governance,
     },
-    borsh::BorshDeserialize,
     solana_sdk::{
-        borsh::try_from_slice_unchecked,
         pubkey::Pubkey,
         instruction::Instruction,
-        transaction::Transaction,
         signer::{Signer, keypair::Keypair},
         signature::Signature,
     },
@@ -18,13 +15,10 @@ use {
             enums::MintMaxVoteWeightSource,
             realm::{RealmV2, SetRealmAuthorityAction, get_realm_address},
             realm_config::{RealmConfigAccount, get_realm_config_address},
-            token_owner_record::{TokenOwnerRecordV2, get_token_owner_record_address},
-            governance::{GovernanceConfig, GovernanceV2, get_governance_address},
+            token_owner_record::get_token_owner_record_address,
+            governance::get_governance_address,
         },
         instruction::{
-            create_token_owner_record,
-            create_governance,
-            create_mint_governance,
             set_realm_config,
             set_realm_authority,
             create_realm,
@@ -64,7 +58,7 @@ pub struct Realm<'a> {
     pub client: &'a Client<'a>,
     pub program_id: Pubkey,
     pub realm_name: String,
-    pub address: Pubkey,
+    pub realm_address: Pubkey,
     pub community_mint: Pubkey,
     pub _settings: RefCell<RealmSettings>,
 }
@@ -76,7 +70,7 @@ impl<'a> Realm<'a> {
             client,
             program_id: *program_id,
             realm_name: realm_name.to_string(),
-            address: get_realm_address(program_id, realm_name),
+            realm_address: get_realm_address(program_id, realm_name),
             community_mint: *community_mint,
             _settings: RefCell::new(RealmSettings::default()),
         }
@@ -86,7 +80,7 @@ impl<'a> Realm<'a> {
     pub fn settings_mut(&self) -> RefMut<RealmSettings> {self._settings.borrow_mut()}
 
     pub fn get_data(&self) -> Result<Option<RealmV2>, ClientError> {
-        self.client.get_account_data::<RealmV2>(&self.program_id, &self.address)
+        self.client.get_account_data::<RealmV2>(&self.program_id, &self.realm_address)
     }
 
     pub fn create_realm(&self, realm_authority: &'a Keypair, voter_weight_addin: Option<Pubkey>, max_voter_weight_addin: Option<Pubkey>) -> Result<Signature, ClientError> {
@@ -111,12 +105,12 @@ impl<'a> Realm<'a> {
     pub fn token_owner_record<'b:'a>(&'b self, token_owner: &Pubkey) -> TokenOwner<'a> {
         let token_owner_record_address: Pubkey = get_token_owner_record_address(
                 &self.program_id,
-                &self.address,
+                &self.realm_address,
                 &self.community_mint, token_owner
             );
         TokenOwner {
             realm: self,
-            token_owner: *token_owner,
+            token_owner_address: *token_owner,
             token_owner_record_address,
             voter_weight_record_address: None,
         }
@@ -125,25 +119,25 @@ impl<'a> Realm<'a> {
     pub fn governance<'b:'a>(&'b self, governed_account: &Pubkey) -> Governance<'a> {
         let governance_address: Pubkey = get_governance_address(
                 &self.program_id,
-                &self.address,
+                &self.realm_address,
                 governed_account,
             );
         Governance {
             realm: self,
-            address: governance_address,
+            governance_address,
             governed_account: *governed_account,
         }
     }
 
     pub fn get_realm_config(&self) -> Result<Option<RealmConfigAccount>,ClientError> {
-        let realm_config_address = get_realm_config_address(&self.program_id, &self.address);
+        let realm_config_address = get_realm_config_address(&self.program_id, &self.realm_address);
         self.client.get_account_data::<RealmConfigAccount>(&self.program_id, &realm_config_address)
     }
 
     pub fn set_realm_config_instruction(&self, realm_authority: &Pubkey, realm_config: &RealmConfig) -> Instruction {
         set_realm_config(
             &self.program_id,
-            &self.address,
+            &self.realm_address,
             realm_authority,
             realm_config.council_token_mint,
             &self.client.payer.pubkey(),
@@ -169,7 +163,7 @@ impl<'a> Realm<'a> {
     pub fn set_realm_authority_instruction(&self, realm_authority: &Pubkey, new_realm_authority: Option<&Pubkey>, action: SetRealmAuthorityAction) -> Instruction {
         set_realm_authority(
             &self.program_id,
-            &self.address,
+            &self.realm_address,
             &realm_authority,
             new_realm_authority,
             action

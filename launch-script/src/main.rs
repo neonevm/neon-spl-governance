@@ -76,8 +76,8 @@ const VOTERS_KEY_FILE_PATH: [&str;5] = [
 // const REALM_NAME: &str = "Test Realm";
 const REALM_NAME: &str = "Test_Realm_9";
 // const REALM_NAME: &str = "Test Realm 6";
-const PROPOSAL_NAME: &str = "Proposal To Vote";
-const PROPOSAL_DESCRIPTION: &str = "proposal_description";
+//const PROPOSAL_NAME: &str = "Token Genesis Event";
+//const PROPOSAL_DESCRIPTION: &str = "proposal_description";
 
 fn main() {
 
@@ -110,11 +110,7 @@ fn main() {
         voter_keypairs.push(keypair);
     }
 
-    let client = Client::new(
-            "http://localhost:8899",
-            program_id,
-            voter_weight_addin_pubkey,
-            &payer_keypair);
+    let client = Client::new("http://localhost:8899", &payer_keypair);
     // let client = Client::new("https://api.devnet.solana.com", program_id, voter_weight_addin_pubkey);
 
     let mint = client.get_account_data_pack::<spl_token::state::Mint>(&spl_token::id(), &community_pubkey).unwrap();
@@ -147,7 +143,7 @@ fn main() {
             ).unwrap();
     }
     println!("{:?}", realm);
-    println!("Realm Pubkey: {}", realm.address); //client.get_realm_address(REALM_NAME));
+    println!("Realm Pubkey: {}", realm.realm_address); //client.get_realm_address(REALM_NAME));
 
     let fixed_weight_addin = AddinFixedWeights::new(&client, voter_weight_addin_pubkey);
     let result = fixed_weight_addin.setup_max_voter_weight_record(&realm);
@@ -195,6 +191,7 @@ fn main() {
                 gov_config,
             ).unwrap();
     }
+    println!("{}", governance);
     println!("{:?}", governance);
 
     // STEP 2: Pass Token and Realm under governance
@@ -206,19 +203,19 @@ fn main() {
                 spl_token::instruction::set_authority(
                     &spl_token::id(),
                     &community_pubkey,
-                    Some(&governance.address),
+                    Some(&governance.governance_address),
                     spl_token::instruction::AuthorityType::MintTokens,
                     &creator_keypair.pubkey(),
                     &[],
                 ).unwrap()
             );
     }
-    let realm_data = client.get_account_data::<spl_governance::state::realm::RealmV2>(&program_id, &realm.address).unwrap().unwrap();
+    let realm_data = client.get_account_data::<spl_governance::state::realm::RealmV2>(&program_id, &realm.realm_address).unwrap().unwrap();
     if realm_data.authority == Some(creator_keypair.pubkey()) {
         instructions.push(
                 realm.set_realm_authority_instruction(
                     &creator_keypair.pubkey(),
-                    Some(&governance.address),
+                    Some(&governance.governance_address),
                     SetRealmAuthorityAction::SetChecked,
                 )
             );
@@ -246,8 +243,8 @@ fn main() {
     proposal.create_proposal(
             &creator_keypair,
             &token_owners[0],
-            &format!("{} {}", PROPOSAL_NAME, proposal_number),
-            PROPOSAL_DESCRIPTION,
+            &format!("{} {}", "Token Genesis Event", proposal_number),
+            "Proposal for Token Genesis Event (mint tokens and distribute it)",
         ).unwrap();
     println!("{:?}", proposal);
 
@@ -255,11 +252,11 @@ fn main() {
     // println!("Add signatory {:?}", result);
     
     let governance_token_account = spl_associated_token_account::get_associated_token_address_with_program_id(
-                        &governance.address,
+                        &governance.governance_address,
                         &community_pubkey,
                         &spl_token::id(),
                     );
-    println!("Governance address: {}", governance.address);
+    println!("Governance address: {}", governance.governance_address);
     println!("Governance token account: {}", governance_token_account);
     if !client.account_exists(&governance_token_account) {
         let transaction: Transaction = 
@@ -267,7 +264,7 @@ fn main() {
                 &[
                     spl_associated_token_account::create_associated_token_account(
                         &payer_keypair.pubkey(),
-                        &governance.address,
+                        &governance.governance_address,
                         &community_pubkey,
                     ),
                 ],
@@ -291,7 +288,7 @@ fn main() {
                     &spl_token::id(),
                     &community_pubkey,
                     &governance_token_account,
-                    &governance.address, &[],
+                    &governance.governance_address, &[],
                     total_amount,
                 ).unwrap().into(),
             ],
@@ -331,7 +328,7 @@ fn main() {
                     0, (i+1).try_into().unwrap(), 0,
                     vec![
                         vesting_addin.deposit_with_realm_instruction(
-                            &governance.address,          // source_token_authority
+                            &governance.governance_address,          // source_token_authority
                             &governance_token_account,    // source_token_account
                             &owner,                       // vesting_owner
                             &vesting_token_account,       // vesting_token_account
@@ -353,7 +350,7 @@ fn main() {
         0, (DISTRIBUTION_LIST.len()+1).try_into().unwrap(), 0,
         vec![
             realm.set_realm_config_instruction(
-                &governance.address,       // we already passed realm under governance
+                &governance.governance_address,       // we already passed realm under governance
                 &RealmConfig {
                     council_token_mint: None,
                     community_voter_weight_addin: Some(vesting_addin_pubkey),
@@ -406,7 +403,7 @@ fn main() {
     // ===================================================================================
     realm.settings_mut().max_voter_weight_record_address = None;
     for (ref mut token_owner) in token_owners.iter_mut() {
-        let token_owner_pubkey = token_owner.token_owner;
+        let token_owner_pubkey = token_owner.token_owner_address;
         let voter_weight_record = vesting_addin.get_voter_weight_record_address(&token_owner_pubkey, &realm);
         token_owner.set_voter_weight_record_address(Some(voter_weight_record));
     }
@@ -419,7 +416,7 @@ fn main() {
             &creator_keypair,
             &token_owners[0],
             "Deploy EVM",
-            PROPOSAL_DESCRIPTION,
+            "Deploy EVM and configure governance to control it",
         ).unwrap();
     println!("{:?}", proposal);
 

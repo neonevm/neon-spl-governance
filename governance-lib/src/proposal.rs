@@ -4,20 +4,17 @@ use {
         governance::Governance,
         token_owner::TokenOwner,
     },
-    borsh::BorshDeserialize,
     solana_sdk::{
         pubkey::Pubkey,
         instruction::{AccountMeta, Instruction},
-        transaction::Transaction,
         signer::{Signer, keypair::Keypair},
         signature::Signature,
-        program_error::ProgramError,
     },
     spl_governance::{
         state::{
             enums::{ProposalState, TransactionExecutionStatus},
             vote_record::{Vote, VoteChoice},
-            proposal::{ProposalV2, VoteType, get_proposal_address},
+            proposal::{ProposalV2, VoteType},
             proposal_transaction::{ProposalTransactionV2, InstructionData, get_proposal_transaction_address},
         },
         instruction::{
@@ -31,22 +28,33 @@ use {
     },
     solana_client::{
         client_error::{ClientError, Result as ClientResult},
-        rpc_config::RpcSendTransactionConfig,
     },
+    std::fmt,
 };
 
 #[derive(Debug)]
 pub struct Proposal<'a> {
     pub governance: &'a Governance<'a>,
     pub proposal_index: u32,
-    pub address: Pubkey,
+    pub proposal_address: Pubkey,
+}
+
+impl<'a> fmt::Display for Proposal<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Proposal")
+            .field("client", self.governance.realm.client)
+            .field("governance", &self.governance.governance_address)
+            .field("proposal_index", &self.proposal_index)
+            .field("proposal_address", &self.proposal_address)
+            .finish()
+    }
 }
 
 impl<'a> Proposal<'a> {
     fn get_client(&self) -> &Client<'a> {self.governance.get_client()}
 
     pub fn get_data(&self) -> ClientResult<Option<ProposalV2>> {
-        self.governance.realm.client.get_account_data::<ProposalV2>(&self.governance.realm.program_id, &self.address)
+        self.governance.realm.client.get_account_data::<ProposalV2>(&self.governance.realm.program_id, &self.proposal_address)
     }
 
     pub fn get_state(&self) -> Result<ProposalState,ClientError> {
@@ -58,13 +66,13 @@ impl<'a> Proposal<'a> {
                 &[
                     create_proposal(
                         &self.governance.realm.program_id,
-                        &self.governance.address,
+                        &self.governance.governance_address,
                         &token_owner.token_owner_record_address,
                         &create_authority.pubkey(),
                         &self.governance.realm.client.payer.pubkey(),
                         token_owner.voter_weight_record_address,
     
-                        &self.governance.realm.address,
+                        &self.governance.realm.realm_address,
                         proposal_name.to_string(),
                         proposal_description.to_string(),
                         &self.governance.realm.community_mint,
@@ -81,13 +89,12 @@ impl<'a> Proposal<'a> {
     pub fn get_proposal_transaction_address(&self, option_index: u8, index: u16) -> Pubkey {
         get_proposal_transaction_address(
                 &self.governance.realm.program_id,
-                &self.address,
+                &self.proposal_address,
                 &option_index.to_le_bytes(),
                 &index.to_le_bytes())
     }
 
     pub fn get_proposal_transaction_data(&self, option_index: u8, index: u16) -> ClientResult<Option<ProposalTransactionV2>> {
-        let transaction_pubkey: Pubkey = self.get_proposal_transaction_address(option_index, index);
         self.governance.realm.client.get_account_data::<ProposalTransactionV2>(
                 &self.governance.realm.program_id,
                 &self.get_proposal_transaction_address(option_index, index))
@@ -98,8 +105,8 @@ impl<'a> Proposal<'a> {
     pub fn insert_transaction_instruction(&self, authority: &Pubkey, token_owner: &TokenOwner, option_index: u8, index: u16, hold_up_time: u32, instructions: Vec<InstructionData>) -> Instruction {
         insert_transaction(
             &self.governance.realm.program_id,
-            &self.governance.address,
-            &self.address,
+            &self.governance.governance_address,
+            &self.proposal_address,
             &token_owner.token_owner_record_address,
             authority,
             &self.governance.realm.client.payer.pubkey(),
@@ -132,7 +139,7 @@ impl<'a> Proposal<'a> {
                 &[
                     remove_transaction(
                         &self.governance.realm.program_id,
-                        &self.address,
+                        &self.proposal_address,
                         &token_owner.token_owner_record_address,
                         &authority.pubkey(),
                         &self.get_proposal_transaction_address(option_index, index),
@@ -149,7 +156,7 @@ impl<'a> Proposal<'a> {
 
         while let Some(proposal_transaction) = self.get_proposal_transaction_data(option_index, index)? {
             if proposal_transaction.execution_status == TransactionExecutionStatus::None {
-                println!("Execute proposal transaction: {} {} =====================", option_index, index);
+                //println!("Execute proposal transaction: {} {} =====================", option_index, index);
                 signatures.push(self._execute_transaction(&proposal_transaction)?);
             }
             index += 1;
@@ -163,33 +170,32 @@ impl<'a> Proposal<'a> {
     }
 
     fn _execute_transaction(&self, proposal_transaction: &ProposalTransactionV2) -> ClientResult<Signature> {
-        let payer = self.get_client().payer;
-        println!("Proposal transaction: {:?}", proposal_transaction);
+        //println!("Proposal transaction: {:?}", proposal_transaction);
         let mut accounts = vec!();
         for instruction in &proposal_transaction.instructions {
             accounts.push(AccountMeta::new_readonly(instruction.program_id, false));
             accounts.extend(instruction.accounts.iter()
                     .map(|a| if a.is_writable {
-                         AccountMeta::new(a.pubkey, a.is_signer && a.pubkey != self.governance.address)
+                         AccountMeta::new(a.pubkey, a.is_signer && a.pubkey != self.governance.governance_address)
                      } else {
-                         AccountMeta::new_readonly(a.pubkey, a.is_signer && a.pubkey != self.governance.address)
+                         AccountMeta::new_readonly(a.pubkey, a.is_signer && a.pubkey != self.governance.governance_address)
                      }));
         }
 
-        println!("Governance: {}", self.governance.address);
-        println!("Proposal: {}", self.address);
-        println!("Execute transaction with accounts {:?}", accounts);
+        //println!("Governance: {}", self.governance.governance_address);
+        //println!("Proposal: {}", self.proposal_address);
+        //println!("Execute transaction with accounts {:?}", accounts);
 
         self.governance.realm.client.send_and_confirm_transaction_with_payer_only(
                 &[
                     execute_transaction(
                         &self.governance.realm.program_id,
-                        &self.governance.address,
-                        &self.address,
+                        &self.governance.governance_address,
+                        &self.proposal_address,
                         &self.get_proposal_transaction_address(
                                 proposal_transaction.option_index,
                                 proposal_transaction.transaction_index),
-                        &self.governance.address,   // Dummy account to call execute_transaction (bug in instruction.rs implementation)
+                        &self.governance.governance_address,   // Dummy account to call execute_transaction (bug in instruction.rs implementation)
                         &accounts,
                     ),
                 ]
@@ -201,9 +207,9 @@ impl<'a> Proposal<'a> {
                 &[
                     sign_off_proposal(
                         &self.governance.realm.program_id,
-                        &self.governance.realm.address,
-                        &self.governance.address,
-                        &self.address,
+                        &self.governance.realm.realm_address,
+                        &self.governance.governance_address,
+                        &self.proposal_address,
                         &sign_authority.pubkey(),
                         Some(&token_owner.token_owner_record_address),
                     ),
@@ -231,9 +237,9 @@ impl<'a> Proposal<'a> {
                 &[
                     cast_vote(
                         &self.governance.realm.program_id,
-                        &self.governance.realm.address,
-                        &self.governance.address,
-                        &self.address,
+                        &self.governance.realm.realm_address,
+                        &self.governance.governance_address,
+                        &self.proposal_address,
                         &proposal_owner.token_owner_record_address,
                         &voter.token_owner_record_address,
                         &voter_authority.pubkey(),

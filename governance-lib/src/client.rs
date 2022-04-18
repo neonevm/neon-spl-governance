@@ -1,5 +1,4 @@
 use {
-    crate::realm::{Realm, RealmSettings},
     borsh::BorshDeserialize,
     solana_sdk::{
         borsh::try_from_slice_unchecked,
@@ -12,21 +11,13 @@ use {
         signature::Signature,
         program_pack::{Pack, IsInitialized},
     },
-    std::{cell::RefCell, fmt},
-    spl_governance::{
-        state::{
-            enums::MintMaxVoteWeightSource,
-            realm::{RealmV2, get_realm_address},
-        },
-        instruction::create_realm,
-    },
+    std::fmt,
     solana_client::{
+        rpc_config::RpcSendTransactionConfig,
         rpc_client::RpcClient,
         client_error::ClientError,
     },
 };
-
-const MIN_COMMUNITY_WEIGHT_TO_CREATE_GOVERNANCE: u64 = 1;
 
 pub struct Client<'a> {
     pub url: String,
@@ -43,9 +34,18 @@ impl<'a> fmt::Debug for Client<'a> {
     }
 }
 
+impl<'a> fmt::Display for Client<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Client")
+            .field("url", &self.url)
+            .field("payer", &self.payer.pubkey())
+            .finish()
+    }
+}
+
 impl<'a> Client<'a> {
 
-    pub fn new(url: &str, program_address: Pubkey, addin_address: Pubkey, payer: &'a Keypair) -> Self {
+    pub fn new(url: &str, payer: &'a Keypair) -> Self {
         Client {
             url: url.to_string(),
             solana_client: RpcClient::new_with_commitment(url.to_string(),CommitmentConfig::confirmed()),
@@ -68,8 +68,6 @@ impl<'a> Client<'a> {
             instructions: &[Instruction],
             signing_keypairs: &T,
     ) -> Result<Signature, ClientError> {
-        println!("Instructions: {:?}", instructions);
-
         let mut transaction: Transaction =
             Transaction::new_with_payer(
                 instructions,
@@ -80,7 +78,10 @@ impl<'a> Client<'a> {
         transaction.partial_sign(&[self.payer], blockhash);
         transaction.sign(signing_keypairs, blockhash);
         
-        self.solana_client.send_and_confirm_transaction(&transaction)
+        //self.solana_client.send_and_confirm_transaction(&transaction)
+        self.solana_client.send_and_confirm_transaction_with_spinner_and_config(&transaction, 
+                self.solana_client.commitment(),
+                RpcSendTransactionConfig {skip_preflight: true, ..RpcSendTransactionConfig::default()})
     }
 
     pub fn get_account_data_pack<T: Pack + IsInitialized>(
