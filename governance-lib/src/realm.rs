@@ -1,6 +1,6 @@
 use {
     crate::{
-        client::Client,
+        client::{Client, ClientResult},
         token_owner::TokenOwner,
         governance::Governance,
     },
@@ -79,11 +79,11 @@ impl<'a> Realm<'a> {
     pub fn settings(&self) -> Ref<RealmSettings> {self._settings.borrow()}
     pub fn settings_mut(&self) -> RefMut<RealmSettings> {self._settings.borrow_mut()}
 
-    pub fn get_data(&self) -> Result<Option<RealmV2>, ClientError> {
-        self.client.get_account_data::<RealmV2>(&self.program_id, &self.realm_address)
+    pub fn get_data(&self) -> ClientResult<Option<RealmV2>> {
+        self.client.get_account_data_borsh::<RealmV2>(&self.program_id, &self.realm_address)
     }
 
-    pub fn create_realm(&self, realm_authority: &'a Keypair, voter_weight_addin: Option<Pubkey>, max_voter_weight_addin: Option<Pubkey>) -> Result<Signature, ClientError> {
+    pub fn create_realm(&self, realm_authority: &'a Keypair, voter_weight_addin: Option<Pubkey>, max_voter_weight_addin: Option<Pubkey>) -> ClientResult<Signature> {
         self.client.send_and_confirm_transaction_with_payer_only(
             &[
                 create_realm(
@@ -129,9 +129,9 @@ impl<'a> Realm<'a> {
         }
     }
 
-    pub fn get_realm_config(&self) -> Result<Option<RealmConfigAccount>,ClientError> {
+    pub fn get_realm_config(&self) -> ClientResult<Option<RealmConfigAccount>> {
         let realm_config_address = get_realm_config_address(&self.program_id, &self.realm_address);
-        self.client.get_account_data::<RealmConfigAccount>(&self.program_id, &realm_config_address)
+        self.client.get_account_data_borsh::<RealmConfigAccount>(&self.program_id, &realm_config_address)
     }
 
     pub fn set_realm_config_instruction(&self, realm_authority: &Pubkey, realm_config: &RealmConfig) -> Instruction {
@@ -148,7 +148,7 @@ impl<'a> Realm<'a> {
         )
     }
 
-    pub fn set_realm_config(&self, realm_authority: &Keypair, realm_config: &RealmConfig) -> Result<Signature,ClientError> {
+    pub fn set_realm_config(&self, realm_authority: &Keypair, realm_config: &RealmConfig) -> ClientResult<Signature> {
         self.client.send_and_confirm_transaction(
                 &[
                     self.set_realm_config_instruction(
@@ -169,7 +169,7 @@ impl<'a> Realm<'a> {
             action
         )
     }
-    pub fn set_realm_authority(&self, realm_authority: &Keypair, new_realm_authority: Option<&Pubkey>, action: SetRealmAuthorityAction) -> Result<Signature,ClientError> {
+    pub fn set_realm_authority(&self, realm_authority: &Keypair, new_realm_authority: Option<&Pubkey>, action: SetRealmAuthorityAction) -> ClientResult<Signature> {
         self.client.send_and_confirm_transaction(
                 &[
                     self.set_realm_authority_instruction(

@@ -1,6 +1,6 @@
 use {
     crate::{
-        client::Client,
+        client::{Client, ClientResult},
         governance::Governance,
         token_owner::TokenOwner,
     },
@@ -25,9 +25,6 @@ use {
             execute_transaction,
             create_proposal,
         },
-    },
-    solana_client::{
-        client_error::{ClientError, Result as ClientResult},
     },
     std::fmt,
 };
@@ -54,10 +51,10 @@ impl<'a> Proposal<'a> {
     fn get_client(&self) -> &Client<'a> {self.governance.get_client()}
 
     pub fn get_data(&self) -> ClientResult<Option<ProposalV2>> {
-        self.governance.realm.client.get_account_data::<ProposalV2>(&self.governance.realm.program_id, &self.proposal_address)
+        self.governance.realm.client.get_account_data_borsh::<ProposalV2>(&self.governance.realm.program_id, &self.proposal_address)
     }
 
-    pub fn get_state(&self) -> Result<ProposalState,ClientError> {
+    pub fn get_state(&self) -> ClientResult<ProposalState> {
         self.get_data().map(|v| v.unwrap().state)
     }
 
@@ -95,7 +92,7 @@ impl<'a> Proposal<'a> {
     }
 
     pub fn get_proposal_transaction_data(&self, option_index: u8, index: u16) -> ClientResult<Option<ProposalTransactionV2>> {
-        self.governance.realm.client.get_account_data::<ProposalTransactionV2>(
+        self.governance.realm.client.get_account_data_borsh::<ProposalTransactionV2>(
                 &self.governance.realm.program_id,
                 &self.get_proposal_transaction_address(option_index, index))
     }
