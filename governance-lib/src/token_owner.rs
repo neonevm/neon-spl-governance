@@ -1,10 +1,12 @@
 use {
     crate::{
         realm::Realm,
+        client::ClientResult,
     },
     solana_sdk::{
         signer::{Signer, keypair::Keypair},
         pubkey::Pubkey,
+        instruction::Instruction,
         signature::Signature,
     },
     spl_governance::{
@@ -13,9 +15,6 @@ use {
             create_token_owner_record,
             set_governance_delegate,
         },
-    },
-    solana_client::{
-        client_error::Result as ClientResult,
     },
     std::fmt,
 };
@@ -47,22 +46,26 @@ impl<'a> TokenOwner<'a> {
     }
 
     pub fn get_data(&self) -> ClientResult<Option<TokenOwnerRecordV2>> {
-        self.realm.client.get_account_data::<TokenOwnerRecordV2>(
+        self.realm.client.get_account_data_borsh::<TokenOwnerRecordV2>(
                 &self.realm.program_id,
                 &self.token_owner_record_address
             )
     }
 
+    pub fn create_token_owner_record_instruction(&self) -> Instruction {
+        create_token_owner_record(
+            &self.realm.program_id,
+            &self.realm.realm_address,
+            &self.token_owner_address,
+            &self.realm.community_mint,
+            &self.realm.client.payer.pubkey(),
+        )
+    }
+
     pub fn create_token_owner_record(&self) -> ClientResult<Signature> {
         self.realm.client.send_and_confirm_transaction_with_payer_only(
                 &[
-                    create_token_owner_record(
-                        &self.realm.program_id,
-                        &self.realm.realm_address,
-                        &self.token_owner_address,
-                        &self.realm.community_mint,
-                        &self.realm.client.payer.pubkey(),
-                    ),
+                    self.create_token_owner_record_instruction(),
                 ],
             )
     }

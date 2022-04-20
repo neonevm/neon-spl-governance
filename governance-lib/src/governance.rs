@@ -1,6 +1,6 @@
 use {
     crate::{
-        client::Client,
+        client::{Client, ClientResult},
         realm::Realm,
         token_owner::TokenOwner,
         proposal::Proposal,
@@ -21,9 +21,6 @@ use {
             create_mint_governance,
             set_governance_config
         },
-    },
-    solana_client::{
-        client_error::Result as ClientResult,
     },
     std::fmt,
 };
@@ -50,27 +47,32 @@ impl<'a> Governance<'a> {
     pub fn get_client(&self) -> &Client<'a> {self.realm.client}
 
     pub fn get_data(&self) -> ClientResult<Option<GovernanceV2>> {
-        self.realm.client.get_account_data::<GovernanceV2>(&self.realm.program_id, &self.governance_address)
+        self.realm.client.get_account_data_borsh::<GovernanceV2>(&self.realm.program_id, &self.governance_address)
     }
 
     pub fn get_proposals_count(&self) -> u32 {
         self.get_data().unwrap().unwrap().proposals_count
     }
 
+    pub fn create_governance_instruction(&self, creator: &Pubkey, token_owner: &TokenOwner,
+            gov_config: GovernanceConfig) -> Instruction {
+        create_governance(
+            &self.realm.program_id,
+            &self.realm.realm_address,
+            Some(&self.governed_account),
+            &token_owner.token_owner_record_address,
+            &self.realm.client.payer.pubkey(),
+            &creator,                               // realm_authority OR token_owner authority
+            token_owner.voter_weight_record_address,
+            gov_config,
+        )
+    }
+
     pub fn create_governance(&self, create_authority: &Keypair, token_owner: &TokenOwner,
             gov_config: GovernanceConfig) -> ClientResult<Signature> {
         self.realm.client.send_and_confirm_transaction(
                 &[
-                    create_governance(
-                        &self.realm.program_id,
-                        &self.realm.realm_address,
-                        Some(&self.governed_account),
-                        &token_owner.token_owner_record_address,
-                        &self.realm.client.payer.pubkey(),
-                        &create_authority.pubkey(),       // realm_authority OR token_owner authority
-                        token_owner.voter_weight_record_address,
-                        gov_config,
-                    ),
+                    self.create_governance_instruction(&create_authority.pubkey(), token_owner, gov_config),
                 ],
                 &[create_authority]
             )

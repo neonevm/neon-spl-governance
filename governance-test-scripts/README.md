@@ -7,9 +7,9 @@ solana-keygen new -f -o governance-test-scripts/community_mint.keypair --no-bip3
 
 solana config set -u http://localhost:8899
 solana airdrop 1000 artifacts/payer.keypair
-solana program deploy -k artifacts/payer.keypair solana-program-library/target/deploy/spl_governance.so
-solana program deploy -k artifacts/payer.keypair target/deploy/spl_governance_addin_fixed_weights.so
-solana program deploy -k artifacts/payer.keypair target/deploy/spl_governance_addin_vesting.so
+solana program deploy -k artifacts/payer.keypair --upgrade-authority artifacts/creator.keypair solana-program-library/target/deploy/spl_governance.so
+solana program deploy -k artifacts/payer.keypair --upgrade-authority artifacts/creator.keypair target/deploy/spl_governance_addin_fixed_weights.so
+solana program deploy -k artifacts/payer.keypair --upgrade-authority artifacts/creator.keypair target/deploy/spl_governance_addin_vesting.so
 ```
 
 

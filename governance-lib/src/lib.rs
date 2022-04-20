@@ -1,5 +1,5 @@
 pub mod client;
-
+pub mod errors;
 pub mod realm;
 pub mod governance;
 pub mod proposal;

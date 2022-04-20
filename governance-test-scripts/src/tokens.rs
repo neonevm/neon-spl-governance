@@ -6,6 +6,7 @@ use solana_sdk::{
         Signer,
         keypair::{ Keypair },
     },
+    signature::Signature,
     program_pack::{ Pack },
 };
 
@@ -16,16 +17,27 @@ use solana_client::{
     rpc_client::RpcClient,
 };
 
-pub fn create_mint(client: &RpcClient, payer: &Keypair, mint_keypair: &Keypair,
-        mint_authority: &Pubkey, freeze_authority: Option<&Pubkey>, decimals: u8) -> Result<Pubkey,ClientError>
+use governance_lib::{
+    client::{Client, ClientResult},
+};
+
+pub fn get_mint_data(client: &Client, mint: &Pubkey) -> ClientResult<Option<Mint>> {
+    client.get_account_data_pack::<Mint>(&spl_token::id(), mint)
+}
+
+pub fn get_account_data(client: &Client, account: &Pubkey) -> ClientResult<Option<Account>> {
+    client.get_account_data_pack::<Account>(&spl_token::id(), account)
+}
+
+pub fn create_mint(client: &Client, mint_keypair: &Keypair, mint_authority: &Pubkey,
+        freeze_authority: Option<&Pubkey>, decimals: u8) -> ClientResult<Signature>
 {
-    let transaction: Transaction = 
-        Transaction::new_signed_with_payer(
+    client.send_and_confirm_transaction(
             &[
                 solana_sdk::system_instruction::create_account(
-                    &payer.pubkey(),
+                    &client.payer.pubkey(),
                     &mint_keypair.pubkey(),
-                    client.get_minimum_balance_for_rent_exemption(Mint::LEN).unwrap(),
+                    client.solana_client.get_minimum_balance_for_rent_exemption(Mint::LEN)?,
                     Mint::LEN as u64,
                     &spl_token::id(),
                 ),
@@ -37,16 +49,8 @@ pub fn create_mint(client: &RpcClient, payer: &Keypair, mint_keypair: &Keypair,
                     decimals
                 ).unwrap(),
             ],
-            Some(&payer.pubkey()),
-            &[
-                mint_keypair,
-                payer,
-            ],
-            client.get_latest_blockhash()?,
-        );
-
-    client.send_and_confirm_transaction(&transaction)?;
-    Ok(mint_keypair.pubkey())
+            &[mint_keypair],
+        )
 }
 
 /*

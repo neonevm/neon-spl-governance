@@ -1,21 +1,25 @@
 use {
+    crate::errors::GovernanceLibError,
     borsh::BorshDeserialize,
     solana_sdk::{
+        account_utils::StateMut,
         borsh::try_from_slice_unchecked,
         commitment_config::CommitmentConfig,
         pubkey::Pubkey,
-        instruction::Instruction,
+        instruction::{AccountMeta, Instruction},
         transaction::Transaction,
         signer::{Signer, keypair::Keypair},
         signers::Signers,
         signature::Signature,
         program_pack::{Pack, IsInitialized},
+        bpf_loader, bpf_loader_deprecated,
+        bpf_loader_upgradeable::{self, UpgradeableLoaderState},
+        loader_upgradeable_instruction::UpgradeableLoaderInstruction,
     },
     std::fmt,
     solana_client::{
         rpc_config::RpcSendTransactionConfig,
         rpc_client::RpcClient,
-        client_error::ClientError,
     },
 };
 
@@ -24,6 +28,8 @@ pub struct Client<'a> {
     pub payer: &'a Keypair,
     pub solana_client: RpcClient,
 }
+
+pub type ClientResult<T> = std::result::Result<T, GovernanceLibError>;
 
 impl<'a> fmt::Debug for Client<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -56,7 +62,7 @@ impl<'a> Client<'a> {
     pub fn send_and_confirm_transaction_with_payer_only(
             &self,
             instructions: &[Instruction],
-    ) -> Result<Signature, ClientError> {
+    ) -> ClientResult<Signature> {
         self.send_and_confirm_transaction::<[&dyn solana_sdk::signature::Signer;0]>(
                 instructions,
                 &[],
@@ -67,7 +73,7 @@ impl<'a> Client<'a> {
             &self,
             instructions: &[Instruction],
             signing_keypairs: &T,
-    ) -> Result<Signature, ClientError> {
+    ) -> ClientResult<Signature> {
         let mut transaction: Transaction =
             Transaction::new_with_payer(
                 instructions,
@@ -81,29 +87,29 @@ impl<'a> Client<'a> {
         //self.solana_client.send_and_confirm_transaction(&transaction)
         self.solana_client.send_and_confirm_transaction_with_spinner_and_config(&transaction, 
                 self.solana_client.commitment(),
-                RpcSendTransactionConfig {skip_preflight: true, ..RpcSendTransactionConfig::default()})
+                RpcSendTransactionConfig {skip_preflight: true, ..RpcSendTransactionConfig::default()}).map_err(|e| e.into())
     }
 
     pub fn get_account_data_pack<T: Pack + IsInitialized>(
             &self,
             owner_program_id: &Pubkey,
             account_key: &Pubkey,
-    ) -> Result<Option<T>, ClientError> {
+    ) -> ClientResult<Option<T>> {
         let account_info = &self.solana_client.get_account_with_commitment(
                 &account_key, self.solana_client.commitment())?.value;
 
         if let Some(account_info) = account_info {
             if account_info.data.is_empty() {
-                panic!("Account {} is empty", account_key);
+                return Err(GovernanceLibError::StateError(*account_key, "Account is empty".to_string()));
             }
             if account_info.owner != *owner_program_id {
-                panic!("Invalid account owner for {}: expected {}, actual {}",
-                        account_key, owner_program_id, account_info.owner);
+                return Err(GovernanceLibError::StateError(*account_key,
+                        format!("Invalid account owner: expect {}, actual {}", owner_program_id, account_info.owner)));
             }
         
             let account: T = T::unpack(&account_info.data).unwrap(); //try_from_slice_unchecked(&account_info.data).unwrap();
             if !account.is_initialized() {
-                panic!("Unitialized account {}", account_key);
+                return Err(GovernanceLibError::StateError(*account_key, "Uninitialized account".to_string()));
             }
             Ok(Some(account))
         } else {
@@ -111,30 +117,112 @@ impl<'a> Client<'a> {
         }
     }
 
-    pub fn get_account_data<T: BorshDeserialize + IsInitialized>(
+    pub fn get_account_data_borsh<T: BorshDeserialize + IsInitialized>(
             &self,
             owner_program_id: &Pubkey,
             account_key: &Pubkey,
-    ) -> Result<Option<T>, ClientError> {
+    ) -> ClientResult<Option<T>> {
         let account_info = &self.solana_client.get_account_with_commitment(
                 &account_key, self.solana_client.commitment())?.value;
 
         if let Some(account_info) = account_info {
             if account_info.data.is_empty() {
-                panic!("Account {} is empty", account_key);
+                return Err(GovernanceLibError::StateError(*account_key, "Account is empty".to_string()));
             }
             if account_info.owner != *owner_program_id {
-                panic!("Invalid account owner for {}: expected {}, actual {}",
-                        account_key, owner_program_id, account_info.owner);
+                return Err(GovernanceLibError::StateError(*account_key,
+                        format!("Invalid account owner: expect {}, actual {}", owner_program_id, account_info.owner)));
             }
         
             let account: T = try_from_slice_unchecked(&account_info.data).unwrap();
             if !account.is_initialized() {
-                panic!("Unitialized account {}", account_key);
+                return Err(GovernanceLibError::StateError(*account_key, "Uninitialized account".to_string()));
             }
             Ok(Some(account))
         } else {
             Ok(None)
+        }
+    }
+
+    pub fn get_program_upgrade_authority(
+            &self,
+            program_id: &Pubkey,
+    ) -> ClientResult<Option<Pubkey>> {
+        let programdata_address = self.get_program_data_address(&program_id)?;
+        let buffer_account = &self.solana_client.get_account(&programdata_address)?;
+        if let Ok(UpgradeableLoaderState::ProgramData {upgrade_authority_address, ..}) = buffer_account.state() {
+            Ok(upgrade_authority_address)
+        } else {
+            return Err(GovernanceLibError::StateError(programdata_address, "Invalid associated PDA".to_string()));
+        }
+    }
+
+    pub fn get_program_data_address(
+            &self,
+            program_id: &Pubkey,
+    ) -> ClientResult<Pubkey> {
+        let program_info = &self.solana_client.get_account(&program_id)?;
+
+        if program_info.owner == bpf_loader_upgradeable::id() {
+            if let Ok(UpgradeableLoaderState::Program {programdata_address}) = program_info.state() {
+                Ok(programdata_address)
+            } else {
+                return Err(GovernanceLibError::StateError(*program_id, "Account is not upgradeable".to_string()));
+            }
+        } else {
+            return Err(GovernanceLibError::StateError(*program_id, "Unable to load program data: invalid owner".to_string()));
+        }
+    }
+
+    pub fn set_program_upgrade_authority_instruction(
+            &self,
+            program_id: &Pubkey,
+            upgrade_authority: &Pubkey,
+            new_upgrade_authority: Option<&Pubkey>,
+    ) -> ClientResult<Instruction> {
+        let program_data_address = self.get_program_data_address(program_id)?;
+        let mut accounts = vec![
+            AccountMeta::new(program_data_address, false),
+            AccountMeta::new_readonly(*upgrade_authority, true),
+        ];
+        if let Some(new_upgrade_authority) = new_upgrade_authority {
+            accounts.push(AccountMeta::new_readonly(*new_upgrade_authority, false));
+        }
+    
+        Ok(Instruction::new_with_bincode(
+            bpf_loader_upgradeable::id(),
+            &UpgradeableLoaderInstruction::SetAuthority,
+            accounts,
+        ))
+    }
+
+    pub fn get_program_data(
+            &self,
+            program_id: &Pubkey,
+    ) -> ClientResult<Vec<u8>> {
+        let program_info = &self.solana_client.get_account(&program_id)?;
+
+        if program_info.owner == bpf_loader::id() || program_info.owner == bpf_loader_deprecated::id() {
+            Ok(program_info.data.clone())
+        } else if program_info.owner == bpf_loader_upgradeable::id() {
+            if let Ok(UpgradeableLoaderState::Program {programdata_address}) = program_info.state() {
+                let buffer_account = &self.solana_client.get_account(&programdata_address)?;
+                if let Ok(UpgradeableLoaderState::ProgramData {..}) = buffer_account.state() {
+                    let offset = UpgradeableLoaderState::programdata_data_offset().unwrap_or(0);
+                    let program_data = &buffer_account.data[offset..];
+                    Ok(program_data.to_vec())
+                } else {
+                    return Err(GovernanceLibError::StateError(programdata_address, "Invalid associated PDA".to_string()));
+                }
+            } else if let Ok(UpgradeableLoaderState::Buffer {..}) = program_info.state() {
+                let offset = UpgradeableLoaderState::buffer_data_offset().unwrap_or(0);
+                let program_data = &program_info.data[offset..];
+                Ok(program_data.to_vec())
+            } else {
+                return Err(GovernanceLibError::StateError(*program_id, "Account is not upgradeable".to_string()));
+            }
+        } else {
+            return Err(GovernanceLibError::StateError(*program_id, "Unable to load program data: invalid owner".to_string()));
         }
     }
 
@@ -142,7 +230,7 @@ impl<'a> Client<'a> {
         self.solana_client.get_account(address).is_ok()
     }
 
-/*    pub fn _add_signatory(&self, realm: &Realm, _governance: &Governance, proposal: &Proposal, token_owner: &TokenOwner) -> Result<Signature,ClientError> {
+/*    pub fn _add_signatory(&self, realm: &Realm, _governance: &Governance, proposal: &Proposal, token_owner: &TokenOwner) -> Result<Signature,GovernanceLibError> {
         let realm_authority_pubkey: Pubkey = realm.authority.pubkey();
         // let signatory_record_address = get_signatory_record_address(&self.spl_governance_program_address, &proposal.address, &token_owner.authority.pubkey());
 

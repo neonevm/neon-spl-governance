@@ -5,6 +5,8 @@ use cfg_if::cfg_if;
 macro_rules! voter_weight_array {
     ($identifier:ident, [ $(($value_pubkey:expr,$value_weight:expr),)* ]) => {
         /// Voter Weight List
+        #[no_mangle]
+        #[used]
         pub static $identifier: [(::solana_program::pubkey::Pubkey,u64); [$(($value_pubkey,$value_weight),)*].len()] = [
             $((::solana_program::pubkey!($value_pubkey),$value_weight),)*
         ];
