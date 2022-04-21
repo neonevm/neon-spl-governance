@@ -8,7 +8,7 @@ use solana_sdk::pubkey::{Pubkey, PubkeyError};
 //use solana_sdk::signer::SignerError as SolanaSignerError;
 use solana_sdk::decode_error::DecodeError;
 use solana_sdk::program_option::COption;
-//use solana_sdk::program_error::ProgramError as SolanaProgramError;
+use solana_sdk::program_error::ProgramError as SolanaProgramError;
 use solana_client::client_error::ClientError as SolanaClientError;
 //use solana_client::tpu_client::TpuSenderError as SolanaTpuSenderError;
 use thiserror::Error;
@@ -48,6 +48,12 @@ pub enum StateError {
 
     #[error("Invalid token account owner {1:?} for {0:?}")]
     InvalidTokenAccountOwner(Pubkey,Pubkey),
+
+    #[error("Invalid proposal_index")]
+    InvalidProposalIndex,
+
+    #[error("Invalid proposal transaction {0:?}")]
+    InvalidProposalTransaction(u16),
 }
 
 /// Errors that may be returned by the neon-cli program.
@@ -59,10 +65,10 @@ pub enum ScriptError {
 //    /// Std IO Error
 //    #[error("Std I/O error. {0:?}")]
 //    StdIoError(std::io::Error),
-//
-//    /// Solana Client Error
-//    #[error("Solana program error. {0:?}")]
-//    ProgramError(SolanaProgramError),
+
+    /// Solana Client Error
+    #[error("Solana program error. {0:?}")]
+    ProgramError(SolanaProgramError),
 
     /// Solana Client Error
     #[error("Solana client error. {0:?}")]
@@ -209,12 +215,12 @@ impl From<PubkeyError> for ScriptError {
     }
 }
 
-//impl From<SolanaProgramError> for ScriptError {
-//    fn from(e: SolanaProgramError) -> ScriptError {
-//        ScriptError::ProgramError(e)
-//    }
-//}
-//
+impl From<SolanaProgramError> for ScriptError {
+    fn from(e: SolanaProgramError) -> ScriptError {
+        ScriptError::ProgramError(e)
+    }
+}
+
 //impl From<SolanaSignerError> for ScriptError {
 //    fn from(e: SolanaSignerError) -> ScriptError {
 //        ScriptError::SignerError(e)

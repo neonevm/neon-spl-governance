@@ -58,26 +58,35 @@ impl<'a> Proposal<'a> {
         self.get_data().map(|v| v.unwrap().state)
     }
 
+    pub fn create_proposal_instruction(&self, create_authority: &Pubkey, token_owner: &TokenOwner, proposal_name: &str, proposal_description: &str) -> Instruction {
+        create_proposal(
+                &self.governance.realm.program_id,
+                &self.governance.governance_address,
+                &token_owner.token_owner_record_address,
+                &create_authority,
+                &self.governance.realm.client.payer.pubkey(),
+                token_owner.voter_weight_record_address,
+
+                &self.governance.realm.realm_address,
+                proposal_name.to_string(),
+                proposal_description.to_string(),
+                &self.governance.realm.community_mint,
+                VoteType::SingleChoice,
+                vec!["Yes".to_string()],
+                true,
+                self.proposal_index,
+            )
+    }
+
     pub fn create_proposal(&self, create_authority: &Keypair, token_owner: &TokenOwner, proposal_name: &str, proposal_description: &str) -> ClientResult<Signature> {
         self.governance.realm.client.send_and_confirm_transaction(
                 &[
-                    create_proposal(
-                        &self.governance.realm.program_id,
-                        &self.governance.governance_address,
-                        &token_owner.token_owner_record_address,
-                        &create_authority.pubkey(),
-                        &self.governance.realm.client.payer.pubkey(),
-                        token_owner.voter_weight_record_address,
-    
-                        &self.governance.realm.realm_address,
-                        proposal_name.to_string(),
-                        proposal_description.to_string(),
-                        &self.governance.realm.community_mint,
-                        VoteType::SingleChoice,
-                        vec!["Yes".to_string()],
-                        true,
-                        self.proposal_index,
-                    )
+                    self.create_proposal_instruction(
+                            &create_authority.pubkey(),
+                            token_owner,
+                            proposal_name,
+                            proposal_description
+                        ),
                 ],
                 &[create_authority],
             )
