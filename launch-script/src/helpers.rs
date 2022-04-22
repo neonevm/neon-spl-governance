@@ -1,7 +1,6 @@
 use crate::{
     errors::{StateError, ScriptError},
 };
-use colored::*;
 use solana_sdk::{
     signer::{
         Signer,

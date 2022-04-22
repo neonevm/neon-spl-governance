@@ -26,15 +26,11 @@ use {
         },
     },
     spl_governance_addin_api::max_voter_weight::MaxVoterWeightRecord,
-    solana_client::{
-        client_error::ClientError,
-    },
     std::cell::{RefCell, Ref, RefMut},
 };
 
-use solana_account_decoder::{UiDataSliceConfig, UiAccountEncoding};
+use solana_account_decoder::UiAccountEncoding;
 use solana_client::{
-    rpc_client::RpcClient,
     rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig},
     rpc_filter::{MemcmpEncodedBytes, RpcFilterType, Memcmp},
 };
