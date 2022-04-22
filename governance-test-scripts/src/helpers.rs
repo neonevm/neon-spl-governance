@@ -186,7 +186,7 @@ impl<'a> TransactionCollector<'a> {
     }
 
     pub fn execute_transaction(&self) -> Result<Option<Signature>,ScriptError> {
-        if self.setup {
+        if self.setup && !self.instructions.is_empty() {
             let result = if self.signers.is_empty() {
                 self.client.send_and_confirm_transaction_with_payer_only(&self.instructions)
             } else {

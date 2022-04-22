@@ -62,9 +62,9 @@ pub enum ScriptError {
     #[error("Std error {0:?}")]
     StdError(Box<dyn std::error::Error>),
 
-//    /// Std IO Error
-//    #[error("Std I/O error. {0:?}")]
-//    StdIoError(std::io::Error),
+    /// Std IO Error
+    #[error("Std I/O error. {0:?}")]
+    StdIoError(std::io::Error),
 
     /// Solana Client Error
     #[error("Solana program error. {0:?}")]
@@ -179,11 +179,11 @@ pub enum ScriptError {
     }
 }*/
 
-//impl From<std::io::Error> for ScriptError {
-//    fn from(e: std::io::Error) -> ScriptError {
-//        ScriptError::StdIoError(e)
-//    }
-//}
+impl From<std::io::Error> for ScriptError {
+    fn from(e: std::io::Error) -> ScriptError {
+        ScriptError::StdIoError(e)
+    }
+}
 
 impl From<Box<dyn std::error::Error>> for ScriptError {
     fn from(e: Box<dyn std::error::Error>) -> ScriptError {

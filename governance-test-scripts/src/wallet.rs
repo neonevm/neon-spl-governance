@@ -7,23 +7,18 @@ use {
             keypair::{Keypair, read_keypair_file},
         },
     },
+    std::fs,
 };
 
-const GOVERNANCE_KEY_FILE_PATH:         &str = "solana-program-library/target/deploy/spl_governance-keypair.json";
-const VOTER_WEIGHT_ADDIN_KEY_FILE_PATH: &str = "target/deploy/spl_governance_addin_fixed_weights-keypair.json";
-const VESTING_ADDIN_KEY_FILE_PATH:      &str = "target/deploy/spl_governance_addin_vesting-keypair.json";
-const COMMUTINY_MINT_KEY_FILE_PATH:     &str = "governance-test-scripts/community_mint.keypair";
-const GOVERNED_MINT_KEY_FILE_PATH:      &str = "governance-test-scripts/governance.keypair";
-const PAYER_KEY_FILE_PATH:   &str = "artifacts/payer.keypair";
-const CREATOR_KEY_FILE_PATH: &str = "artifacts/creator.keypair";
-
-const VOTERS_KEY_FILE_PATH: [&str;5] = [
-    "artifacts/voter1.keypair",
-    "artifacts/voter2.keypair",
-    "artifacts/voter3.keypair",
-    "artifacts/voter4.keypair",
-    "artifacts/voter5.keypair",
-];
+const GOVERNANCE_KEY_FILE_PATH:             &str = "solana-program-library/target/deploy/spl_governance-keypair.json";
+const VOTER_WEIGHT_ADDIN_KEY_FILE_PATH:     &str = "target/deploy/spl_governance_addin_fixed_weights-keypair.json";
+const VESTING_ADDIN_KEY_FILE_PATH:          &str = "target/deploy/spl_governance_addin_vesting-keypair.json";
+const COMMUTINY_MINT_KEY_FILE_PATH:         &str = "governance-test-scripts/community_mint.keypair";
+const GOVERNED_MINT_KEY_FILE_PATH:          &str = "governance-test-scripts/governance.keypair";
+const PAYER_KEY_FILE_PATH:                  &str = "artifacts/payer.keypair";
+const CREATOR_KEY_FILE_PATH:                &str = "artifacts/creator.keypair";
+const CREATOR_TOKEN_OWNER_KEY_FILE_PATH:    &str = "artifacts/creator_token_owner.keypair";
+const VOTERS_KEY_FILE_DIR:                  &str = "artifacts/voters/";
 
 pub struct Wallet {
     pub governance_program_id: Pubkey,
@@ -36,6 +31,7 @@ pub struct Wallet {
 
     pub payer_keypair: Keypair,
     pub creator_keypair: Keypair,
+    pub creator_token_owner_keypair: Keypair,
     pub voter_keypairs: Vec<Keypair>,
 }
 
@@ -53,10 +49,11 @@ impl Wallet {
 
             payer_keypair: read_keypair_file(PAYER_KEY_FILE_PATH)?,
             creator_keypair: read_keypair_file(CREATOR_KEY_FILE_PATH)?,
+            creator_token_owner_keypair: read_keypair_file(CREATOR_TOKEN_OWNER_KEY_FILE_PATH)?,
             voter_keypairs: {
                 let mut voter_keypairs = vec!();
-                for file in VOTERS_KEY_FILE_PATH.iter() {
-                    voter_keypairs.push(read_keypair_file(file)?);
+                for file in fs::read_dir(VOTERS_KEY_FILE_DIR)? {
+                    voter_keypairs.push(read_keypair_file(file?.path())?);
                 }
                 voter_keypairs
             },
@@ -73,6 +70,7 @@ impl Wallet {
 
         println!("Payer Pubkey:            {}", self.payer_keypair.pubkey());
         println!("Creator Pubkey:          {}", self.creator_keypair.pubkey());
+        println!("Creator token owner:     {}", self.creator_token_owner_keypair.pubkey());
         println!("Voter pubkeys:");
         for (i, ref keypair) in self.voter_keypairs.iter().enumerate() {
             println!("\t{}: {}", i, keypair.pubkey());
