@@ -79,11 +79,6 @@ impl<'a> AddinFixedWeights<'a> {
     }
 
     pub fn setup_voter_weight_record_instruction(&self, realm: &Realm, token_owner: &Pubkey) -> Instruction {
-        let (voter_weight_record_pubkey,_): (Pubkey,u8) = spl_governance_addin_fixed_weights::instruction::get_voter_weight_address(
-                &self.program_id,
-                &realm.realm_address,
-                &realm.community_mint,
-                token_owner);
         spl_governance_addin_fixed_weights::instruction::setup_voter_weight_record(
             &self.program_id,
             &realm.realm_address,

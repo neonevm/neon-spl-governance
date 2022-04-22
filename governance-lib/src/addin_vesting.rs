@@ -1,6 +1,6 @@
 use {
     crate::{
-        client::{Client, ClientResult},
+        client::Client,
         realm::Realm,
     },
     solana_sdk::{

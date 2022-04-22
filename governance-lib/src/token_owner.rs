@@ -28,9 +28,8 @@ use {
     std::fmt,
     std::cell::{RefCell, Ref, RefMut},
 };
-use solana_account_decoder::{UiDataSliceConfig, UiAccountEncoding};
+use solana_account_decoder::UiAccountEncoding;
 use solana_client::{
-    rpc_client::RpcClient,
     rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig},
     rpc_filter::{MemcmpEncodedBytes, RpcFilterType, Memcmp},
 };

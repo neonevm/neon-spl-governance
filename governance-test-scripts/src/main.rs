@@ -2,10 +2,9 @@ mod errors;
 mod tokens;
 mod wallet;
 mod helpers;
-mod token_distribution;
 
 use crate::{
-    tokens::{get_mint_data, get_account_data, create_mint, create_mint_instructions},
+    tokens::{get_mint_data, get_account_data, create_mint_instructions},
     errors::{StateError, ScriptError},
     wallet::Wallet,
     helpers::{
@@ -14,16 +13,12 @@ use crate::{
         ProposalTransactionInserter,
     },
 };
-use colored::*;
 use solana_sdk::{
     pubkey::Pubkey,
     signer::{
         Signer,
-        keypair::{Keypair, read_keypair_file},
+        keypair::Keypair,
     },
-    instruction::Instruction,
-    transaction::Transaction,
-    signature::Signature,
     system_instruction,
     rent::Rent,
 };
@@ -36,50 +31,27 @@ use spl_governance::{
             VoteTipping,
             ProposalState,
         },
-        governance::{
-            GovernanceConfig,
-            GovernanceV2,
-        },
+        governance::GovernanceConfig,
         realm::SetRealmAuthorityAction,
-        proposal_transaction::InstructionData,
     },
 };
 use clap::{
-    crate_description, crate_name, crate_version, value_t, 
+    crate_description, crate_name, crate_version,
     App, AppSettings, Arg, SubCommand,
 };
 
-//use spl_governance_addin_fixed_weights::{
-//    instruction::{
-//        get_max_voter_weight_address,
-//        get_voter_weight_address,
-//    }
-//};
-
 use spl_governance_addin_vesting::state::VestingSchedule;
 
-// mod tokens;
-
 use governance_lib::{
-    client::{Client, ClientResult},
+    client::Client,
     realm::{RealmConfig, Realm},
-    governance::Governance,
     proposal::Proposal,
-    token_owner::TokenOwner,
     addin_fixed_weights::AddinFixedWeights,
     addin_vesting::AddinVesting,
 };
-use question::{Answer, Question};
 use solana_sdk::pubkey;
 
-use crate::token_distribution::DISTRIBUTION_LIST;
-const ADDITIONAL_SUPPLY: u64 = 10_000_000;
-
-// const REALM_NAME: &str = "Test Realm";
 const REALM_NAME: &str = "Test_Realm_9";
-// const REALM_NAME: &str = "Test Realm 6";
-//const PROPOSAL_NAME: &str = "Token Genesis Event";
-//const PROPOSAL_DESCRIPTION: &str = "proposal_description";
 
 enum ExtraTokenAccountOwner {
     MainGovernance,
@@ -93,7 +65,7 @@ struct ExtraTokenAccount {
     pub name: &'static str,
 }
 
-const extra_token_accounts: [ExtraTokenAccount;3] = [
+const EXTRA_TOKEN_ACCOUNTS: [ExtraTokenAccount;3] = [
     ExtraTokenAccount {owner: ExtraTokenAccountOwner::MainGovernance, amount: 5_000_000, name: "Tresuary"},
     ExtraTokenAccount {owner: ExtraTokenAccountOwner::MainGovernance, amount: 5_000_000, name: "Some funds"},
     ExtraTokenAccount {owner: ExtraTokenAccountOwner::Key(pubkey!("rDeo4nZPE2aWpBkqFXBH8ygh1cD63nEKZPiDrpmQad6")), amount: 1_000_000, name: "IDO pool"},
@@ -166,14 +138,13 @@ fn process_environment(wallet: &Wallet, client: &Client, setup: bool, verbose: b
 
     // -------------------- Create accounts for token_owner --------------------
     let voter_list = fixed_weight_addin.get_voter_list()?;
-    let total_voter_weight = voter_list.iter().map(|item| item.weight).sum::<u64>();
     for (i, voter_weight) in voter_list.iter().enumerate() {
         let token_owner_record = realm.token_owner_record(&voter_weight.voter);
         let seed: String = format!("{}_vesting_{}", REALM_NAME, i);
         let vesting_token_account = Pubkey::create_with_seed(&wallet.creator_keypair.pubkey(), &seed, &spl_token::id())?;
 
         executor.check_and_create_object(&seed, token_owner_record.get_data()?,
-            |d| {
+            |_| {
                 // TODO check that all accounts needed to this owner created correctly
                 Ok(None)
             },
@@ -207,7 +178,7 @@ fn process_environment(wallet: &Wallet, client: &Client, setup: bool, verbose: b
     }
 
     // -------------------- Create extra token accounts ------------------------
-    for token_account in extra_token_accounts.iter() {
+    for token_account in EXTRA_TOKEN_ACCOUNTS.iter() {
         let seed: String = format!("{}_account_{}", REALM_NAME, token_account.name);
         let token_account_address = Pubkey::create_with_seed(&wallet.creator_keypair.pubkey(), &seed, &spl_token::id())?;
         let token_account_owner = match token_account.owner {
@@ -297,7 +268,7 @@ fn process_environment(wallet: &Wallet, client: &Client, setup: bool, verbose: b
         };
 
     executor.check_and_create_object("Governance", governance.get_data()?,
-        |d| {Ok(None)},
+        |_| {Ok(None)},
         || {
             let transaction = client.create_transaction(
                 &[
@@ -421,12 +392,10 @@ fn setup_proposal_tge(wallet: &Wallet, client: &Client, proposal_index: Option<u
     if proposal_number > governance_proposal_count {return Err(StateError::InvalidProposalIndex.into());}
     println!("Use {} for proposal_index", proposal_number);
 
-    let mut proposal_transaction_count: u16 = 0;
-    let hold_up_time = 0;
     let proposal: Proposal = governance.proposal(proposal_number);
     
     executor.check_and_create_object("Proposal TGE", proposal.get_data()?,
-        |d| {Ok(None)},
+        |_| {Ok(None)},
         || {
             let transaction = client.create_transaction(
                 &[
@@ -476,7 +445,7 @@ fn setup_proposal_tge(wallet: &Wallet, client: &Client, proposal_index: Option<u
 
     let voter_list = fixed_weight_addin.get_voter_list()?;
     let total_amount = voter_list.iter().map(|v| v.weight).sum::<u64>() +
-                       extra_token_accounts.iter().map(|v| v.amount).sum::<u64>();
+                       EXTRA_TOKEN_ACCOUNTS.iter().map(|v| v.amount).sum::<u64>();
 
     transaction_inserter.insert_transaction_checked(
             "Mint tokens",
@@ -513,7 +482,7 @@ fn setup_proposal_tge(wallet: &Wallet, client: &Client, proposal_index: Option<u
             )?;
     }
 
-    for token_account in extra_token_accounts.iter() {
+    for token_account in EXTRA_TOKEN_ACCOUNTS.iter() {
         let seed: String = format!("{}_account_{}", REALM_NAME, token_account.name);
         let token_account_address = Pubkey::create_with_seed(&wallet.creator_keypair.pubkey(), &seed, &spl_token::id())?;
 
@@ -570,9 +539,6 @@ fn setup_proposal_tge(wallet: &Wallet, client: &Client, proposal_index: Option<u
 fn finalize_vote_proposal(wallet: &Wallet, client: &Client, proposal_index: Option<u32>, verbose: bool) -> Result<(), ScriptError> {
     let realm = Realm::new(&client, &wallet.governance_program_id, REALM_NAME, &wallet.community_pubkey);
     realm.update_max_voter_weight_record_address()?;
-
-    let fixed_weight_addin = AddinFixedWeights::new(&client, wallet.fixed_weight_addin_id);
-    let vesting_addin = AddinVesting::new(&client, wallet.vesting_addin_id);
     let governance = realm.governance(&wallet.governed_account_pubkey);
 
     let creator_token_owner = realm.token_owner_record(&wallet.creator_token_owner_keypair.pubkey());
@@ -588,7 +554,7 @@ fn finalize_vote_proposal(wallet: &Wallet, client: &Client, proposal_index: Opti
         return Err(StateError::InvalidProposalIndex.into());
     }
 
-    proposal.finalize_vote(&wallet.creator_keypair, &creator_token_owner)?;
+    proposal.finalize_vote(&creator_token_owner)?;
 
     Ok(())
 }
@@ -596,9 +562,6 @@ fn finalize_vote_proposal(wallet: &Wallet, client: &Client, proposal_index: Opti
 fn sign_off_proposal(wallet: &Wallet, client: &Client, proposal_index: Option<u32>, verbose: bool) -> Result<(), ScriptError> {
     let realm = Realm::new(&client, &wallet.governance_program_id, REALM_NAME, &wallet.community_pubkey);
     realm.update_max_voter_weight_record_address()?;
-
-    let fixed_weight_addin = AddinFixedWeights::new(&client, wallet.fixed_weight_addin_id);
-    let vesting_addin = AddinVesting::new(&client, wallet.vesting_addin_id);
     let governance = realm.governance(&wallet.governed_account_pubkey);
 
     let creator_token_owner = realm.token_owner_record(&wallet.creator_token_owner_keypair.pubkey());
@@ -625,7 +588,7 @@ fn approve_proposal(wallet: &Wallet, client: &Client, proposal_index: Option<u32
     let realm = Realm::new(&client, &wallet.governance_program_id, REALM_NAME, &wallet.community_pubkey);
     realm.update_max_voter_weight_record_address()?;
 
-    let mut creator_token_owner = realm.token_owner_record(&wallet.creator_token_owner_keypair.pubkey());
+    let creator_token_owner = realm.token_owner_record(&wallet.creator_token_owner_keypair.pubkey());
     creator_token_owner.update_voter_weight_record_address()?;
 
     let governance = realm.governance(&wallet.governed_account_pubkey);

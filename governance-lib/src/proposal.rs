@@ -207,7 +207,7 @@ impl<'a> Proposal<'a> {
             )
     }
 
-    pub fn finalize_vote(&self, sign_authority: &Keypair, token_owner: &TokenOwner) -> ClientResult<Signature> {
+    pub fn finalize_vote(&self, creator_token_owner: &TokenOwner) -> ClientResult<Signature> {
         self.governance.realm.client.send_and_confirm_transaction_with_payer_only(
                 &[
                     finalize_vote(
@@ -215,7 +215,7 @@ impl<'a> Proposal<'a> {
                         &self.governance.realm.realm_address,
                         &self.governance.governance_address,
                         &self.proposal_address,
-                        &token_owner.token_owner_record_address,
+                        &creator_token_owner.token_owner_record_address,
                         &self.governance.realm.community_mint,
                         self.governance.realm.settings().max_voter_weight_record_address,
                     ),

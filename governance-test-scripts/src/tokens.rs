@@ -1,7 +1,6 @@
 use solana_sdk::{
     pubkey::{ Pubkey },
     instruction::{ Instruction },
-    transaction::{ Transaction },
     signer::{
         Signer,
         keypair::{ Keypair },
@@ -11,11 +10,6 @@ use solana_sdk::{
 };
 
 use spl_token::state::{ Account, Mint };
-
-use solana_client::{
-    client_error::ClientError,
-    rpc_client::RpcClient,
-};
 
 use governance_lib::{
     client::{Client, ClientResult},
