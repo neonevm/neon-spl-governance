@@ -1,0 +1,39 @@
+[package]
+name = "maintenance"
+version = "0.1.0"
+description = "Maintenance Program"
+authors = ["NeonLabs Maintainers <maintainers@neonlabs.org>"]
+repository = "https://github.com/neonlabsorg/neon-spl-governance/maintenance/program"
+license = "Apache-2.0"
+edition = "2021"
+
+[features]
+no-entrypoint = []
+test-bpf = []
+
+[dependencies]
+arrayref = "0.3.6"
+bincode = "1.3.2"
+borsh = "0.9.1"
+num-derive = "0.3"
+num-traits = "0.2"
+serde = "1.0.127"
+serde_derive = "1.0.103"
+solana-program = "1.9.9"
+spl-token = { path = "../../solana-program-library/token/program", version = "3.3", features = [ "no-entrypoint" ] }
+spl-governance-tools= { path = "../../solana-program-library/governance/tools", version = "0.1.2" }
+thiserror = "1.0"
+
+
+#[dev-dependencies]
+#assert_matches = "1.5.0"
+#base64 = "0.13"
+#proptest = "1.0"
+#solana-program-test = "1.9.9"
+#solana-sdk = "1.9.9"
+#spl-governance-test-sdk = { version = "0.1.2" }
+hex = "0.4"
+
+
+[lib]
+crate-type = ["cdylib", "lib"]
