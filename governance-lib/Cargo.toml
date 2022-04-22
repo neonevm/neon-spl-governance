@@ -8,10 +8,12 @@ edition = "2021"
 [dependencies]
 solana-sdk = "1.9"
 solana-client = "1.9"
+solana-account-decoder = "1.9"
 borsh = "0.9.1"
 goblin = "0.4.2"
 log = "0.4.11"
 thiserror = "1.0"
+bs58 = "0.4.0"
 spl-token = { version = "3.3", path = "../solana-program-library/token/program", features = [ "no-entrypoint" ] }
 spl-associated-token-account = "1"
 spl-governance = { version = "2.2", path = "../solana-program-library/governance/program" }

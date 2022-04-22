@@ -20,6 +20,7 @@ use {
         instruction::{
             cast_vote,
             sign_off_proposal,
+            finalize_vote,
             insert_transaction,
             remove_transaction,
             execute_transaction,
@@ -65,7 +66,7 @@ impl<'a> Proposal<'a> {
                 &token_owner.token_owner_record_address,
                 &create_authority,
                 &self.governance.realm.client.payer.pubkey(),
-                token_owner.voter_weight_record_address,
+                token_owner.get_voter_weight_record_address(),
 
                 &self.governance.realm.realm_address,
                 proposal_name.to_string(),
@@ -105,8 +106,6 @@ impl<'a> Proposal<'a> {
                 &self.governance.realm.program_id,
                 &self.get_proposal_transaction_address(option_index, index))
     }
-
-//    pub fn finalize_vote(&self, sign_authority: &Keypair, token_owner: &TokenOwner) -> ClientResult<Signature>;
 
     pub fn insert_transaction_instruction(&self, authority: &Pubkey, token_owner: &TokenOwner, option_index: u8, index: u16, hold_up_time: u32, instructions: Vec<InstructionData>) -> Instruction {
         insert_transaction(
@@ -208,6 +207,22 @@ impl<'a> Proposal<'a> {
             )
     }
 
+    pub fn finalize_vote(&self, sign_authority: &Keypair, token_owner: &TokenOwner) -> ClientResult<Signature> {
+        self.governance.realm.client.send_and_confirm_transaction_with_payer_only(
+                &[
+                    finalize_vote(
+                        &self.governance.realm.program_id,
+                        &self.governance.realm.realm_address,
+                        &self.governance.governance_address,
+                        &self.proposal_address,
+                        &token_owner.token_owner_record_address,
+                        &self.governance.realm.community_mint,
+                        self.governance.realm.settings().max_voter_weight_record_address,
+                    ),
+                ],
+            )
+    }
+
     pub fn sign_off_proposal(&self, sign_authority: &Keypair, token_owner: &TokenOwner) -> ClientResult<Signature> {
         self.governance.realm.client.send_and_confirm_transaction(
                 &[
@@ -251,7 +266,7 @@ impl<'a> Proposal<'a> {
                         &voter_authority.pubkey(),
                         &self.governance.realm.community_mint,
                         &payer.pubkey(),
-                        voter.voter_weight_record_address,
+                        voter.get_voter_weight_record_address(),
                         self.governance.realm.settings().max_voter_weight_record_address,
                         vote,
                     ),

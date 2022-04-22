@@ -1,9 +1,11 @@
 use {
     crate::{
+        errors::GovernanceLibError,
         client::{Client, ClientResult},
         token_owner::TokenOwner,
         governance::Governance,
     },
+    borsh::{BorshSchema,BorshSerialize},
     solana_sdk::{
         pubkey::Pubkey,
         instruction::Instruction,
@@ -15,7 +17,6 @@ use {
             enums::MintMaxVoteWeightSource,
             realm::{RealmV2, SetRealmAuthorityAction, get_realm_address},
             realm_config::{RealmConfigAccount, get_realm_config_address},
-            token_owner_record::get_token_owner_record_address,
             governance::get_governance_address,
         },
         instruction::{
@@ -24,10 +25,21 @@ use {
             create_realm,
         },
     },
+    spl_governance_addin_api::max_voter_weight::MaxVoterWeightRecord,
     solana_client::{
         client_error::ClientError,
     },
     std::cell::{RefCell, Ref, RefMut},
+};
+
+use solana_account_decoder::{UiDataSliceConfig, UiAccountEncoding};
+use solana_client::{
+    rpc_client::RpcClient,
+    rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig},
+    rpc_filter::{MemcmpEncodedBytes, RpcFilterType, Memcmp},
+};
+use solana_sdk::{
+    commitment_config::CommitmentConfig,
 };
 
 const MIN_COMMUNITY_WEIGHT_TO_CREATE_GOVERNANCE: u64 = 1;
@@ -79,6 +91,52 @@ impl<'a> Realm<'a> {
     pub fn settings(&self) -> Ref<RealmSettings> {self._settings.borrow()}
     pub fn settings_mut(&self) -> RefMut<RealmSettings> {self._settings.borrow_mut()}
 
+    pub fn update_max_voter_weight_record_address(&self) -> Result<Option<Pubkey>,GovernanceLibError> {
+        #[derive(BorshSchema,BorshSerialize)]
+        struct MaxVoterWeightFilterData {
+            pub account_discriminator: [u8; 8],
+            pub realm: Pubkey,
+            pub governing_token_mint: Pubkey,
+        }
+
+        let max_voter_weight_record_address = match self.get_realm_config()? {
+            Some(RealmConfigAccount {max_community_voter_weight_addin: Some(max_voter_weight_addin),..}) => {
+                let filter = MaxVoterWeightFilterData {
+                    account_discriminator: MaxVoterWeightRecord::ACCOUNT_DISCRIMINATOR,
+                    realm: self.realm_address,
+                    governing_token_mint: self.community_mint,
+                };
+
+                let config = RpcProgramAccountsConfig {
+                    filters: Some(vec![
+                        RpcFilterType::Memcmp(Memcmp {
+                            offset: 0,
+                            bytes: MemcmpEncodedBytes::Base58(bs58::encode(filter.try_to_vec()?).into_string()),
+                            encoding: None,
+                        }),
+                    ]),
+                    account_config: RpcAccountInfoConfig {
+                        encoding: Some(UiAccountEncoding::Base64),
+                        data_slice: None,
+                        commitment: Some(CommitmentConfig::confirmed()),
+                    },
+                    with_context: Some(false),
+                };
+                let accounts = self.client.solana_client.get_program_accounts_with_config(
+                    &max_voter_weight_addin,
+                    config,
+                )?;
+                if accounts.is_empty() {
+                    return Err(GovernanceLibError::StateError(max_voter_weight_addin, "Missed max_voter_weight_record".to_string()));
+                }
+                Some(accounts[0].0)
+            },
+            _ => {None},
+        };
+        self.settings_mut().max_voter_weight_record_address = max_voter_weight_record_address;
+        return Ok(max_voter_weight_record_address)
+    }
+
     pub fn get_data(&self) -> ClientResult<Option<RealmV2>> {
         self.client.get_account_data_borsh::<RealmV2>(&self.program_id, &self.realm_address)
     }
@@ -111,17 +169,7 @@ impl<'a> Realm<'a> {
     }
 
     pub fn token_owner_record<'b:'a>(&'b self, token_owner: &Pubkey) -> TokenOwner<'a> {
-        let token_owner_record_address: Pubkey = get_token_owner_record_address(
-                &self.program_id,
-                &self.realm_address,
-                &self.community_mint, token_owner
-            );
-        TokenOwner {
-            realm: self,
-            token_owner_address: *token_owner,
-            token_owner_record_address,
-            voter_weight_record_address: None,
-        }
+        TokenOwner::new(self, token_owner)
     }
 
     pub fn governance<'b:'a>(&'b self, governed_account: &Pubkey) -> Governance<'a> {
