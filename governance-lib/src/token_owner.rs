@@ -70,17 +70,21 @@ impl<'a> TokenOwner<'a> {
             )
     }
 
+    pub fn set_delegate_instruction(&self, authority: &Pubkey, new_delegate: &Option<Pubkey>) -> Instruction {
+        set_governance_delegate(
+            &self.realm.program_id,
+            &authority,
+            &self.realm.realm_address,
+            &self.realm.community_mint,
+            &self.token_owner_address,
+            new_delegate,
+        )
+    }
+
     pub fn set_delegate(&self, authority: &Keypair, new_delegate: &Option<Pubkey>) -> ClientResult<Signature> {
         self.realm.client.send_and_confirm_transaction(
                 &[
-                    set_governance_delegate(
-                        &self.realm.program_id,
-                        &authority.pubkey(),
-                        &self.realm.realm_address,
-                        &self.realm.community_mint,
-                        &self.token_owner_address,
-                        new_delegate,
-                    ),
+                    self.set_delegate_instruction(&authority.pubkey(), new_delegate),
                 ],
                 &[authority],
             )
