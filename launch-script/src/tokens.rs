@@ -29,6 +29,27 @@ pub fn get_account_data(client: &Client, account: &Pubkey) -> ClientResult<Optio
     client.get_account_data_pack::<Account>(&spl_token::id(), account)
 }
 
+pub fn create_mint_instructions(client: &Client, mint_pubkey: &Pubkey, mint_authority: &Pubkey,
+        freeze_authority: Option<&Pubkey>, decimals: u8) -> ClientResult<Vec<Instruction>>
+{
+    Ok([
+        solana_sdk::system_instruction::create_account(
+            &client.payer.pubkey(),
+            &mint_pubkey,
+            client.solana_client.get_minimum_balance_for_rent_exemption(Mint::LEN)?,
+            Mint::LEN as u64,
+            &spl_token::id(),
+        ),
+        spl_token::instruction::initialize_mint(
+            &spl_token::id(),
+            &mint_pubkey,
+            mint_authority,
+            freeze_authority,
+            decimals
+        ).unwrap(),
+    ].to_vec())
+}
+
 pub fn create_mint(client: &Client, mint_keypair: &Keypair, mint_authority: &Pubkey,
         freeze_authority: Option<&Pubkey>, decimals: u8) -> ClientResult<Signature>
 {

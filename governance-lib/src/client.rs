@@ -59,6 +59,41 @@ impl<'a> Client<'a> {
         }
     }
 
+    pub fn send_transaction(&self, transaction: &Transaction) -> ClientResult<Signature> {
+        //self.solana_client.send_and_confirm_transaction(&transaction)
+        self.solana_client.send_and_confirm_transaction_with_spinner_and_config(&transaction, 
+                self.solana_client.commitment(),
+                RpcSendTransactionConfig {skip_preflight: true, ..RpcSendTransactionConfig::default()}).map_err(|e| e.into())
+    }
+
+    pub fn create_transaction_with_payer_only(
+            &self,
+            instructions: &[Instruction],
+    ) -> ClientResult<Transaction> {
+        self.create_transaction::<[&dyn solana_sdk::signature::Signer;0]>(
+                instructions,
+                &[],
+            )
+    }
+
+    pub fn create_transaction<T: Signers>(
+            &self,
+            instructions: &[Instruction],
+            signing_keypairs: &T,
+    ) -> ClientResult<Transaction> {
+        let mut transaction: Transaction =
+            Transaction::new_with_payer(
+                instructions,
+                Some(&self.payer.pubkey()),
+            );
+
+        let blockhash = self.solana_client.get_latest_blockhash().unwrap();
+        transaction.partial_sign(&[self.payer], blockhash);
+        transaction.sign(signing_keypairs, blockhash);
+
+        Ok(transaction)
+    }
+
     pub fn send_and_confirm_transaction_with_payer_only(
             &self,
             instructions: &[Instruction],
