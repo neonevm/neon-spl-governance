@@ -63,7 +63,7 @@ impl<'a> Governance<'a> {
             &token_owner.token_owner_record_address,
             &self.realm.client.payer.pubkey(),
             &creator,                               // realm_authority OR token_owner authority
-            token_owner.voter_weight_record_address,
+            token_owner.get_voter_weight_record_address(),
             gov_config,
         )
     }
@@ -90,7 +90,7 @@ impl<'a> Governance<'a> {
                         &token_owner.token_owner_record_address,
                         &self.realm.client.payer.pubkey(),
                         &create_authority.pubkey(),       // realm_authority OR token_owner authority
-                        token_owner.voter_weight_record_address,
+                        token_owner.get_voter_weight_record_address(),
                         gov_config,
                         transfer_mint_authorities,
                     ),
