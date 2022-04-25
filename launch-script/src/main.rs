@@ -2,6 +2,7 @@ mod errors;
 mod tokens;
 mod wallet;
 mod helpers;
+mod msig;
 
 use crate::{
     tokens::{get_mint_data, get_account_data, create_mint_instructions},
@@ -45,42 +46,152 @@ use spl_governance_addin_vesting::state::VestingSchedule;
 use governance_lib::{
     client::Client,
     realm::{RealmConfig, Realm},
+    governance::Governance,
     proposal::Proposal,
     addin_fixed_weights::AddinFixedWeights,
     addin_vesting::AddinVesting,
 };
 use solana_sdk::pubkey;
 
-const REALM_NAME: &str = "Test_Realm_9";
+const REALM_NAME: &str = "NEON";
 
-enum ExtraTokenAccountOwner {
+#[derive(Debug)]
+enum AccountOwner {
     MainGovernance,
     EmergencyGovernance,
+    MultiSig(&'static str),
     Key(Pubkey),
 }
 
 struct ExtraTokenAccount {
-    pub owner: ExtraTokenAccountOwner,
+    pub owner: AccountOwner,
     pub amount: u64,
     pub name: &'static str,
 }
 
-const EXTRA_TOKEN_ACCOUNTS: [ExtraTokenAccount;3] = [
-    ExtraTokenAccount {owner: ExtraTokenAccountOwner::MainGovernance, amount: 5_000_000, name: "Tresuary"},
-    ExtraTokenAccount {owner: ExtraTokenAccountOwner::MainGovernance, amount: 5_000_000, name: "Some funds"},
-    ExtraTokenAccount {owner: ExtraTokenAccountOwner::Key(pubkey!("rDeo4nZPE2aWpBkqFXBH8ygh1cD63nEKZPiDrpmQad6")), amount: 1_000_000, name: "IDO pool"},
+const TOKEN_MULT:u64 = u64::pow(10, 9);
+
+const EXTRA_TOKEN_ACCOUNTS: &[ExtraTokenAccount] = &[
+    ExtraTokenAccount {owner: AccountOwner::MainGovernance, amount: 210_000_000 * TOKEN_MULT, name: "Treasury"},
+    ExtraTokenAccount {owner: AccountOwner::Key(pubkey!("rDeo4nZPE2aWpBkqFXBH8ygh1cD63nEKZPiDrpmQad6")), amount: 80_000_000 * TOKEN_MULT, name: "IDO pool"},
 ];
 
+#[derive(Debug)]
+enum Lockup {
+    NotAcceptable,
+    NoLockup,
+    For4Years,
+    For1Year_1YearLinear,
+}
 
+#[derive(Debug)]
+struct MultiSig {
+    pub name: &'static str,
+    pub threshold: u16,
+    pub amounts: &'static [(Lockup,u64,)],
+    pub signers: &'static [AccountOwner],
+}
+
+const MULTI_SIGS: &[MultiSig] = &[
+    MultiSig {name: "Neon", threshold: 2,
+        amounts: &[],
+        signers: &[
+            AccountOwner::Key(pubkey!("BU6N2Z68JPXLf247iYnHUTUv1B7p8AFWGTYkcjfeSwY8")),
+            AccountOwner::Key(pubkey!("ExKNgQwQs5AnWsCjjsPWTRwfdQiRxsAxw24e1Agx2Eyt")),
+            AccountOwner::Key(pubkey!("3aEJcS8EFBbbGgEBUjF1Q7gKhtJpana6WMvmBShZubx8")),
+        ],
+    },
+    MultiSig {name: "DAO", threshold: 3,
+        amounts: &[(Lockup::NoLockup, 290_000_000)],
+        signers: &[
+            AccountOwner::MultiSig("Neon"),
+            // TODO: add Jump!
+            AccountOwner::Key(pubkey!("EYYPcCewaYKhEtA7NymW83En8it7PmaxDiDqVEaDPMea")),
+            AccountOwner::Key(pubkey!("3iUcSzLktUYS6QAw3KpMnW49dsPWZEa6xcsHvKhVbT9K")),
+            AccountOwner::Key(pubkey!("H229HcLU1L3TuxirinzKjkoutpyuhb1MYpmFJeN5uz8t")),
+        ],
+    },
+/*    MultiSig {name: "1", threshold: 2,
+        amounts: &[(Lockup::NoLockup, 188_762_400)],
+        signers: &[
+            AccountOwner::Key(pubkey!("BU6N2Z68JPXLf247iYnHUTUv1B7p8AFWGTYkcjfeSwY8")),
+            AccountOwner::Key(pubkey!("6tAoNNAB6sXMbt8phMjr46noQ5T18GnnkBftWcw1HfCW")),
+            AccountOwner::Key(pubkey!("EsyJ9wzg2VTCCfHmnyi7ePE9LU368iVCrEd4LZeDYMzJ")),
+        ],
+    },
+    MultiSig {name: "2", threshold: 2,
+        amounts: &[(Lockup::For4Years, 60_000_000)],
+        signers: &[
+            AccountOwner::Key(pubkey!("BU6N2Z68JPXLf247iYnHUTUv1B7p8AFWGTYkcjfeSwY8")),
+            AccountOwner::Key(pubkey!("H3cAYot4UJuY1jQhn8FtpeP4fHia3SXtvuKYaov7KMA9")),
+            AccountOwner::Key(pubkey!("8ZjncH1eKhJMmwqymWwPEAEaPjTSt91R1gMwx2bMyZqC")),
+        ],
+    },
+    MultiSig {name: "4", threshold: 2,
+        amounts: &[(Lockup::For1Year_1YearLinear, 7_500_000), (Lockup::For1Year_1YearLinear, 3_750_000)],
+        signers: &[
+            AccountOwner::Key(pubkey!("BU6N2Z68JPXLf247iYnHUTUv1B7p8AFWGTYkcjfeSwY8")),
+            AccountOwner::Key(pubkey!("2Smf7Kyskf3VXUKUB16GVgCizW4qDhvRREGCLcHt7bJV")),
+            AccountOwner::Key(pubkey!("EwNeN5ixjqNmBNGbVKDHd1iipStGhMC9u5yGsq7zsw6L")),
+        ],
+    },
+    MultiSig {name: "5", threshold: 2,
+        amounts: &[(Lockup::For1Year_1YearLinear, 1_000_000), (Lockup::For1Year_1YearLinear, 142_700_000)],
+        signers: &[
+            AccountOwner::Key(pubkey!("BU6N2Z68JPXLf247iYnHUTUv1B7p8AFWGTYkcjfeSwY8")),
+            AccountOwner::Key(pubkey!("C16ojhtyjzqenxHcg9hNjhAwZhdLJrCBKavfc4gqa1v3")),
+            AccountOwner::Key(pubkey!("4vdhzpPYPABJe9WvZA8pFzdbzYaHrj7yNwDQmjBCtts5")),
+        ],
+    },*/
+];
+
+fn get_account_owner_pubkey(wallet: &Wallet, client: &Client, account_owner: &AccountOwner) -> Result<Pubkey, ScriptError> {
+    match account_owner {
+        AccountOwner::MainGovernance => unreachable!(),
+        AccountOwner::EmergencyGovernance => unreachable!(),
+        AccountOwner::MultiSig(msig_name) => {
+            // TODO Check that 'msig_name' exists in MULTI_SIGS
+            let seed: String = format!("MSIG_{}", msig_name);
+            let msig_mint = Pubkey::create_with_seed(&wallet.creator_keypair.pubkey(), &seed, &spl_token::id())?;
+            let msig_realm = Realm::new(&client, &wallet.governance_program_id, &seed, &msig_mint);
+            let msig_governance = msig_realm.governance(&msig_mint);
+            Ok(msig_governance.governance_address)
+        },
+        AccountOwner::Key(pubkey) => {
+            Ok(*pubkey)
+        }
+    }
+}
 
 fn process_environment(wallet: &Wallet, client: &Client, setup: bool, verbose: bool) -> Result<(), ScriptError> {
+    let executor = TransactionExecutor {client, setup, verbose};
 
     let realm = Realm::new(&client, &wallet.governance_program_id, REALM_NAME, &wallet.community_pubkey);
     let fixed_weight_addin = AddinFixedWeights::new(&client, wallet.fixed_weight_addin_id);
     let vesting_addin = AddinVesting::new(&client, wallet.vesting_addin_id);
     let governance = realm.governance(&wallet.governed_account_pubkey);
 
-    let executor = TransactionExecutor {client, setup, verbose};
+    let vesting_amount = {
+        let voter_list = fixed_weight_addin.get_voter_list()?;
+        voter_list.iter().map(|v| v.weight).sum::<u64>()
+    };
+    let extra_amount = EXTRA_TOKEN_ACCOUNTS.iter().map(|v| v.amount).sum::<u64>();
+    let total_amount = vesting_amount + extra_amount;
+
+    println!("Vesting: {}.{:09}, extra: {}.{:09}, total: {}.{:09}",
+            vesting_amount/TOKEN_MULT, vesting_amount%TOKEN_MULT,
+            extra_amount/TOKEN_MULT, extra_amount%TOKEN_MULT,
+            total_amount/TOKEN_MULT, total_amount%TOKEN_MULT);
+
+    let msig_total_amounts = MULTI_SIGS.iter().map(|v| v.amounts.iter().map(|u| u.1).sum::<u64>()).sum::<u64>();
+    println!("MULTI_SIGS total amount: {}", msig_total_amounts);
+    for msig in MULTI_SIGS {
+        let msig_signers = msig.signers.into_iter()
+                .map(|v| get_account_owner_pubkey(wallet, client, v))
+                .collect::<Result<Vec<_>,ScriptError>>()?;
+        msig::setup_msig(wallet, client, &executor, msig.name, msig.threshold, &msig_signers)?; 
+    }
+
     // ----------- Check or create community mint ----------------------
     executor.check_and_create_object("Mint", get_mint_data(client, &wallet.community_pubkey)?,
         |d| {
@@ -97,7 +208,7 @@ fn process_environment(wallet: &Wallet, client: &Client, setup: bool, verbose: b
                         &wallet.community_keypair.pubkey(),
                         &wallet.creator_keypair.pubkey(),
                         None,
-                        6,
+                        9,
                     )?,
                 &[&wallet.community_keypair],
             )?;
@@ -182,9 +293,10 @@ fn process_environment(wallet: &Wallet, client: &Client, setup: bool, verbose: b
         let seed: String = format!("{}_account_{}", REALM_NAME, token_account.name);
         let token_account_address = Pubkey::create_with_seed(&wallet.creator_keypair.pubkey(), &seed, &spl_token::id())?;
         let token_account_owner = match token_account.owner {
-            ExtraTokenAccountOwner::MainGovernance => {governance.governance_address},
-            ExtraTokenAccountOwner::EmergencyGovernance => {governance.governance_address},
-            ExtraTokenAccountOwner::Key(pubkey) => {pubkey},
+            AccountOwner::MainGovernance => {governance.governance_address},
+            AccountOwner::EmergencyGovernance => {governance.governance_address},
+            AccountOwner::Key(pubkey) => {pubkey},
+            AccountOwner::MultiSig(_) => unreachable!(), // TODO cover MultiSig value
         };
         println!("Extra token account '{}' {}", token_account.name, token_account_address);
 

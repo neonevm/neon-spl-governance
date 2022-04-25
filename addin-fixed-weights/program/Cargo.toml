@@ -10,6 +10,7 @@ edition = "2021"
 [features]
 no-entrypoint = []
 test-bpf = []
+mainnet = []
 
 [dependencies]
 arrayref = "0.3.6"

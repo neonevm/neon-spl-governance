@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "addin-fixed-weights/program",
+    "addin-fixed-weights/mainnet",
     "addin-vesting/program",
     "addin-vesting/cli",
     "governance-test-scripts",
