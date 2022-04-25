@@ -54,6 +54,9 @@ pub enum StateError {
 
     #[error("Invalid proposal transaction {0:?}")]
     InvalidProposalTransaction(u16),
+
+    #[error("Missing addin keypair for {0:?}")]
+    MissingAddinKeypair(String),
 }
 
 /// Errors that may be returned by the neon-cli program.

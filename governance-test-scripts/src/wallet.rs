@@ -7,7 +7,10 @@ use {
             keypair::{Keypair, read_keypair_file},
         },
     },
-    std::fs,
+    std::{
+        collections::HashMap,
+        fs,
+    },
 };
 
 const GOVERNANCE_KEY_FILE_PATH:             &str = "solana-program-library/target/deploy/spl_governance-keypair.json";
@@ -73,7 +76,7 @@ impl Wallet {
         println!("Creator token owner:     {}", self.creator_token_owner_keypair.pubkey());
         println!("Voter pubkeys:");
         for (i, ref keypair) in self.voter_keypairs.iter().enumerate() {
-            println!("\t{}: {}", i, keypair.pubkey());
+            println!("\t{} {}", i, keypair.pubkey());
         }
     }
 }
