@@ -30,6 +30,18 @@ macro_rules! println_item {
     }
 }
 
+macro_rules! println_correct {
+    ($format:literal, $($item:expr),*) => {
+        println!(concat!("\x1b[32m", $format, "\x1b[0m"), $($item),*);
+    }
+}
+
+macro_rules! println_update {
+    ($format:literal, $($item:expr),*) => {
+        println!(concat!("\x1b[33m", $format, "\x1b[0m"), $($item),*);
+    }
+}
+
 macro_rules! println_error {
     ($format:literal, $($item:expr),*) => {
         println!(concat!("\x1b[31m", $format, "\x1b[0m"), $($item),*);
@@ -54,14 +66,14 @@ impl<'a> TransactionExecutor<'a> {
             if self.verbose {println_item!("{}: {:?}", name, data);};
             match verify(&data) {
                 Ok(None) => {
-                    println!("{}: correct", name);
+                    println_correct!("{}: correct", name);
                 },
                 Ok(Some(transaction)) => {
                     if self.setup {
                         let result = self.client.send_transaction(&transaction);
                         match result {
                             Ok(signature) => {
-                                println!("{}: updated in trx {}", name, signature);
+                                println_update!("{}: updated in trx {}", name, signature);
                                 return Ok(Some(signature));
                             },
                             Err(error) => {
@@ -71,7 +83,7 @@ impl<'a> TransactionExecutor<'a> {
                         };
                     } else {
                         if self.verbose {println_item!("{}: {:?}", name, transaction);};
-                        println!("{}: will be updated", name);
+                        println_update!("{}: will be updated", name);
                     }
                 },
                 Err(error) => {
@@ -82,14 +94,14 @@ impl<'a> TransactionExecutor<'a> {
         } else {
             match create() {
                 Ok(None) => {
-                    println!("{}: missed ok", name);
+                    println_correct!("{}: missed ok", name);
                 },
                 Ok(Some(transaction)) => {
                     if self.setup {
                         let result = self.client.send_transaction(&transaction);
                         match result {
                             Ok(signature) => {
-                                println!("{}: created in trx {}", name, signature);
+                                println_update!("{}: created in trx {}", name, signature);
                                 return Ok(Some(signature));
                             },
                             Err(error) => {
@@ -99,7 +111,7 @@ impl<'a> TransactionExecutor<'a> {
                         };
                     } else {
                         if self.verbose {println_item!("{}: {:?}", name, transaction);};
-                        println!("{}: will be created", name);
+                        println_update!("{}: will be created", name);
                     }
                 },
                 Err(error) => {
@@ -151,11 +163,11 @@ impl<'a> TransactionCollector<'a> {
             if self.verbose {println_item!("{}: {:?}", name, data);};
             match verify(&data) {
                 Ok(None) => {
-                    println!("{}: correct", name);
+                    println_correct!("{}: correct", name);
                 },
                 Ok(Some((instructions,signers,))) => {
                     if self.verbose {println_item!("{}: {:?}", name, instructions);};
-                    println!("{}: update instructions was added", name);
+                    println_update!("{}: update instructions was added", name);
                     self.instructions.extend(instructions);
                     self.add_signers(signers);
                 },
@@ -167,11 +179,11 @@ impl<'a> TransactionCollector<'a> {
         } else {
             match create() {
                 Ok(None) => {
-                    println!("{}: missed ok", name);
+                    println_correct!("{}: missed ok", name);
                 },
                 Ok(Some((instructions,signers,))) => {
                     if self.verbose {println_item!("{}: {:?}", name, instructions);};
-                    println!("{}: create instructions was added", name);
+                    println_update!("{}: create instructions was added", name);
                     self.instructions.extend(instructions);
                     self.add_signers(signers);
                 },
@@ -193,7 +205,7 @@ impl<'a> TransactionCollector<'a> {
             };
             match result {
                 Ok(signature) => {
-                    println!("{}: processed in trx {}", self.name, signature);
+                    println_update!("{}: processed in trx {}", self.name, signature);
                     return Ok(Some(signature));
                 },
                 Err(error) => {
@@ -202,7 +214,7 @@ impl<'a> TransactionCollector<'a> {
                 }
             }
         } else {
-            println!("{}: no instructions for execute", self.name);
+            println_correct!("{}: no instructions for execute", self.name);
             Ok(None)
         }
     }
@@ -221,13 +233,24 @@ pub struct ProposalTransactionInserter<'a> {
 
 impl<'a> ProposalTransactionInserter<'a> {
     pub fn insert_transaction_checked(&mut self, name: &str, instructions: Vec<InstructionData>) -> Result<(), ScriptError> {
+        let mut extra_signers = vec!();
+        for instruction in &instructions {
+            extra_signers.extend(instruction.accounts.iter().filter(|a| a.is_signer && a.pubkey != self.proposal.governance.governance_address));
+        }
+        if !extra_signers.is_empty() {
+            let error = StateError::RequireAdditionalSigner(extra_signers[0].pubkey);
+            println_error!("Proposal transaction '{}'/{}: {:?}", name, self.proposal_transaction_index, error);
+            if self.setup {return Err(error.into());}
+        }
+
         if let Some(transaction_data) = self.proposal.get_proposal_transaction_data(0, self.proposal_transaction_index)? {
             if self.verbose {println_item!("Proposal transaction '{}'/{}: {:?}", name, self.proposal_transaction_index, transaction_data);};
             if transaction_data.instructions != instructions {
                 let error = StateError::InvalidProposalTransaction(self.proposal_transaction_index);
-                if self.setup {return Err(error.into())} else {println_error!("Proposal transaction '{}'/{}: {:?}", name, self.proposal_transaction_index, error);}
+                println_error!("Proposal transaction '{}'/{}: {:?}", name, self.proposal_transaction_index, error);
+                if self.setup {return Err(error.into())}
             } else {
-                println!("Proposal transaction '{}'/{} correct", name, self.proposal_transaction_index);
+                println_correct!("Proposal transaction '{}'/{} correct", name, self.proposal_transaction_index);
             }
         } else if self.setup {
             let signature = self.proposal.insert_transaction(
@@ -236,13 +259,11 @@ impl<'a> ProposalTransactionInserter<'a> {
                     0, self.proposal_transaction_index, self.hold_up_time,
                     instructions
                 )?;
-            println!("Proposal transaction '{}'/{} was inserted in trx: {}", name, self.proposal_transaction_index, signature);
+            println_update!("Proposal transaction '{}'/{} was inserted in trx: {}", name, self.proposal_transaction_index, signature);
         } else {
-            println!("Proposal transaction '{}'/{} will be inserted", name, self.proposal_transaction_index);
+            println_update!("Proposal transaction '{}'/{} will be inserted", name, self.proposal_transaction_index);
         }
         self.proposal_transaction_index += 1;
         Ok(())
     }
 }
-
-
