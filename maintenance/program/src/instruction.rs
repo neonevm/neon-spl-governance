@@ -23,7 +23,7 @@ pub enum MaintenanceInstruction {
     ///
     /// 0. `[]` Maintained program account
     /// 1. `[writable]` MaintenanceRecord
-    /// 2. `[signer]` Authority
+    /// 2. `[]` Authority
     /// 3. `[signer]` Payer
     /// 4. `[]` System
     CreateMaintenance { },
@@ -102,7 +102,7 @@ pub fn create_maintenance(
     let accounts = vec![
         AccountMeta::new_readonly(*address, false),
         AccountMeta::new(maintenance_record, false),
-        AccountMeta::new_readonly(*authority, true),
+        AccountMeta::new_readonly(*authority, false),
         AccountMeta::new_readonly(*payer, true),
         AccountMeta::new_readonly(system_program::id(), false),
     ];
