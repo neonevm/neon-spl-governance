@@ -5,7 +5,12 @@ mod helpers;
 mod msig;
 
 use crate::{
-    tokens::{get_mint_data, get_account_data, create_mint_instructions},
+    tokens::{
+        get_mint_data,
+        get_account_data,
+        create_mint_instructions,
+        assert_is_valid_account_data,
+    },
     errors::{StateError, ScriptError},
     wallet::Wallet,
     helpers::{
@@ -247,6 +252,43 @@ fn process_environment(wallet: &Wallet, client: &Client, setup: bool, verbose: b
     let max_voter_weight_record_address = fixed_weight_addin.setup_max_voter_weight_record(&realm).unwrap();
     realm.settings_mut().max_voter_weight_record_address = Some(max_voter_weight_record_address);
 
+    // ------------ Transfer tokens to Vesting-addin MaxVoterWeightRecord ------
+    {
+        let record_address = vesting_addin.get_max_voter_weight_record_address(&realm);
+        let record_length = vesting_addin.get_max_voter_weight_account_size();
+        let record_lamports = Rent::default().minimum_balance(record_length);
+        executor.check_and_create_object("Vesting max_voter_weight_record",
+            client.get_account(&record_address)?,
+            |v| {
+                if v.lamports < record_lamports {
+                    let transaction = client.create_transaction_with_payer_only(
+                        &[
+                            system_instruction::transfer(
+                                &wallet.payer_keypair.pubkey(),
+                                &record_address,
+                                record_lamports - v.lamports,
+                            ),
+                        ],
+                    )?;
+                    return Ok(Some(transaction))
+                }
+                Ok(None)
+            },
+            || {
+                let transaction = client.create_transaction_with_payer_only(
+                    &[
+                        system_instruction::transfer(
+                            &wallet.payer_keypair.pubkey(),
+                            &record_address,
+                            record_lamports,
+                        ),
+                    ],
+                )?;
+                Ok(Some(transaction))
+            }
+        )?;
+    }
+
     // -------------------- Create accounts for token_owner --------------------
     let voter_list = fixed_weight_addin.get_voter_list()?;
     for (i, voter_weight) in voter_list.iter().enumerate() {
@@ -280,6 +322,16 @@ fn process_environment(wallet: &Wallet, client: &Client, setup: bool, verbose: b
                             &wallet.community_pubkey,
                             &vesting_addin.find_vesting_account(&vesting_token_account),
                         ).unwrap(),
+                        system_instruction::transfer(         // Charge VestingRecord
+                            &wallet.payer_keypair.pubkey(),
+                            &vesting_addin.find_vesting_account(&vesting_token_account),
+                            Rent::default().minimum_balance(vesting_addin.get_vesting_account_size(1, true)),
+                        ),
+                        system_instruction::transfer(
+                            &wallet.payer_keypair.pubkey(),   // Charge VoterWeightRecord
+                            &vesting_addin.get_voter_weight_record_address(&voter_weight.voter, &realm),
+                            Rent::default().minimum_balance(vesting_addin.get_voter_weight_account_size()),
+                        ),
                     ],
                     &[&wallet.creator_keypair]
                 )?;
@@ -302,12 +354,8 @@ fn process_environment(wallet: &Wallet, client: &Client, setup: bool, verbose: b
 
         executor.check_and_create_object(&seed, get_account_data(client, &token_account_address)?,
             |d| {
-                if d.mint != wallet.community_pubkey {
-                    return Err(StateError::InvalidTokenAccountMint(token_account_address, d.mint).into());
-                }
-                if d.owner != token_account_owner {
-                    return Err(StateError::InvalidTokenAccountOwner(token_account_address, d.owner).into());
-                }
+                assert_is_valid_account_data(d, &token_account_address,
+                        &wallet.community_pubkey, &token_account_owner)?;
                 Ok(None)
             },
             || {
@@ -391,6 +439,33 @@ fn process_environment(wallet: &Wallet, client: &Client, setup: bool, verbose: b
                     ),
                 ],
                 &[&wallet.creator_keypair]
+            )?;
+            Ok(Some(transaction))
+        }
+    )?;
+
+    // --------- Create NEON associated token account -------------
+    let governance_token_account = spl_associated_token_account::get_associated_token_address_with_program_id(
+            &governance.governance_address, &wallet.community_pubkey, &spl_token::id());
+    println!("Governance address: {}", governance.governance_address);
+    println!("Governance token account: {}", governance_token_account);
+
+    executor.check_and_create_object("NEON-token governance account",
+        get_account_data(client, &governance_token_account)?,
+        |d| {
+            assert_is_valid_account_data(d, &governance_token_account,
+                    &wallet.community_pubkey, &governance.governance_address)?;
+            Ok(None)
+        },
+        || {
+            let transaction = client.create_transaction_with_payer_only(
+                &[
+                    spl_associated_token_account::create_associated_token_account(
+                        &wallet.payer_keypair.pubkey(),
+                        &governance.governance_address,
+                        &wallet.community_pubkey,
+                    ).into(),
+                ],
             )?;
             Ok(Some(transaction))
         }
@@ -542,19 +617,6 @@ fn setup_proposal_tge(wallet: &Wallet, client: &Client, proposal_index: Option<u
     println!("Governance address: {}", governance.governance_address);
     println!("Governance token account: {}", governance_token_account);
 
-    if !client.account_exists(&governance_token_account) {
-        transaction_inserter.insert_transaction_checked(
-                "Create associated NEON-token for governance",
-                vec![
-                    spl_associated_token_account::create_associated_token_account(
-                        &wallet.payer_keypair.pubkey(),
-                        &governance.governance_address,
-                        &wallet.community_pubkey,
-                    ).into(),
-                ],
-            )?;
-    }
-
     let voter_list = fixed_weight_addin.get_voter_list()?;
     let total_amount = voter_list.iter().map(|v| v.weight).sum::<u64>() +
                        EXTRA_TOKEN_ACCOUNTS.iter().map(|v| v.amount).sum::<u64>();
@@ -589,6 +651,7 @@ fn setup_proposal_tge(wallet: &Wallet, client: &Client, proposal_index: Option<u
                         &vesting_token_account,       // vesting_token_account
                         schedule,                     // schedule
                         &realm,                       // realm
+                        Some(governance.governance_address),  // payer
                     )?.into(),
                 ],
             )?;
@@ -623,7 +686,8 @@ fn setup_proposal_tge(wallet: &Wallet, client: &Client, proposal_index: Option<u
                         max_community_voter_weight_addin: None,
                         min_community_weight_to_create_governance: 1,            // TODO Verify parameters!
                         community_mint_max_vote_weight_source: MintMaxVoteWeightSource::FULL_SUPPLY_FRACTION,
-                    }
+                    },
+                    Some(governance.governance_address),  // payer
                 ).into(),
             ],
         )?;

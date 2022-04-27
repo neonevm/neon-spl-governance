@@ -186,13 +186,13 @@ impl<'a> Realm<'a> {
         self.client.get_account_data_borsh::<RealmConfigAccount>(&self.program_id, &realm_config_address)
     }
 
-    pub fn set_realm_config_instruction(&self, realm_authority: &Pubkey, realm_config: &RealmConfig) -> Instruction {
+    pub fn set_realm_config_instruction(&self, realm_authority: &Pubkey, realm_config: &RealmConfig, payer: Option<Pubkey>) -> Instruction {
         set_realm_config(
             &self.program_id,
             &self.realm_address,
             realm_authority,
             realm_config.council_token_mint,
-            &self.client.payer.pubkey(),
+            &payer.unwrap_or(self.client.payer.pubkey()),
             realm_config.community_voter_weight_addin,
             realm_config.max_community_voter_weight_addin,
             realm_config.min_community_weight_to_create_governance,
@@ -206,6 +206,7 @@ impl<'a> Realm<'a> {
                     self.set_realm_config_instruction(
                             &realm_authority.pubkey(),
                             realm_config,
+                            None,   // default payer
                         ),
                 ],
                 &[realm_authority],
