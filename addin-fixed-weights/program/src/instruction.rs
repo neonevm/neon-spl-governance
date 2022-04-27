@@ -21,6 +21,18 @@ pub enum VoterWeightAddinInstruction {
     /// 4. `[signer]` Payer
     /// 5. `[]` System
     SetupVoterWeightRecord { },
+    /// Sets up VoterWeightRecord owned by the program
+    ///
+    /// 0. `[]` Realm account
+    /// 1. `[]` Governing Token mint
+    /// 2. `[]` Governing token owner
+    /// 3. `[writable]` VoterWeightRecord
+    /// 4. `[signer]` Payer
+    SetPartialVoting {
+        #[allow(dead_code)]
+    /// Vote Percentage, 10000 = 100%
+        vote_percentage: u16,
+    },
     /// Sets up MaxVoterWeightRecord owned by the program
     ///
     /// 0. `[]` Realm account
@@ -67,6 +79,37 @@ pub fn setup_voter_weight_record(
     ];
 
     let instruction = VoterWeightAddinInstruction::SetupVoterWeightRecord { };
+
+    Instruction {
+        program_id: *program_id,
+        accounts,
+        data: instruction.try_to_vec().unwrap(),
+    }
+}
+
+/// Creates SetPartialVoting instruction
+#[allow(clippy::too_many_arguments)]
+pub fn set_partial_voting(
+    program_id: &Pubkey,
+    // Accounts
+    realm: &Pubkey,
+    governing_token_mint: &Pubkey,
+    governing_token_owner: &Pubkey,
+    payer: &Pubkey,
+    vote_percentage: u16,
+) -> Instruction {
+
+    let (voter_weight_record, _): (Pubkey, u8) = get_voter_weight_address(program_id, realm, governing_token_mint, governing_token_owner);
+
+    let accounts = vec![
+        AccountMeta::new_readonly(*realm, false),
+        AccountMeta::new_readonly(*governing_token_mint, false),
+        AccountMeta::new_readonly(*governing_token_owner, true),
+        AccountMeta::new(voter_weight_record, false),
+        AccountMeta::new_readonly(*payer, true),
+    ];
+
+    let instruction = VoterWeightAddinInstruction::SetPartialVoting { vote_percentage };
 
     Instruction {
         program_id: *program_id,
