@@ -57,6 +57,9 @@ pub enum StateError {
 
     #[error("Missing addin keypair for {0:?}")]
     MissingAddinKeypair(String),
+
+    #[error("Proposal transaction require additional signer {0:?}")]
+    RequireAdditionalSigner(Pubkey),
 }
 
 /// Errors that may be returned by the neon-cli program.
