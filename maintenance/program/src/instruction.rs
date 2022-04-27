@@ -32,7 +32,6 @@ pub enum MaintenanceInstruction {
     ///
     /// 0. `[writable]` MaintenanceRecord
     /// 1. `[signer]` Authority
-    /// 2. `[signer]` Payer
     SetDelegates {
         #[allow(dead_code)]
         delegate: Vec<Pubkey>,
@@ -42,7 +41,6 @@ pub enum MaintenanceInstruction {
     ///
     /// 0. `[writable]` MaintenanceRecord
     /// 1. `[signer]` Authority
-    /// 2. `[signer]` Payer
     SetCodeHashes {
         #[allow(dead_code)]
         hashes: Vec<Hash>,
@@ -58,7 +56,7 @@ pub enum MaintenanceInstruction {
     /// 5. `[writable]` Upgrade buffer account
     /// 6. `[]` MaintenanceRecord
     /// 7. `[signer]` Authority
-    /// 8. `[signer]` Payer
+    /// 8. `[writable]` Spill account
     Upgrade { },
 
     /// Revokes Authority from the program
@@ -69,14 +67,14 @@ pub enum MaintenanceInstruction {
     /// 3. `[]` MaintenanceRecord
     /// 4. `[signer]` Authority
     /// 5. `[]` New Authority
-    /// 6. `[signer]` Payer
     SetAuthority { },
 
     /// Closes MaintenanceRecord owned by the program
     ///
     /// 0. `[writable]` MaintenanceRecord
-    /// 1. `[writable]` Spill destination
-    /// 2. `[]` Maintained program data account
+    /// 1. `[]` Maintained program data account
+    /// 2. `[signer]` Authority
+    /// 3. `[writable]` Spill destination
     CloseMaintenance { },
 }
 
@@ -88,7 +86,6 @@ pub fn get_maintenance_record_address(program_id: &Pubkey, maintenance: &Pubkey)
 }
 
 /// Creates 'Create Maintenance' instruction
-#[allow(clippy::too_many_arguments)]
 pub fn create_maintenance(
     program_id: &Pubkey,
     // Accounts
@@ -117,14 +114,12 @@ pub fn create_maintenance(
 }
 
 /// Creates 'Set Delegate' instruction
-// #[allow(clippy::too_many_arguments)]
 pub fn set_delegate(
     program_id: &Pubkey,
     // Accounts
     address: &Pubkey,
     delegate: Vec<Pubkey>,
     authority: &Pubkey,
-    payer: &Pubkey,
 ) -> Instruction {
 
     let (maintenance_record, _): (Pubkey, u8) = get_maintenance_record_address(program_id, address);
@@ -132,7 +127,6 @@ pub fn set_delegate(
     let accounts = vec![
         AccountMeta::new(maintenance_record, false),
         AccountMeta::new_readonly(*authority, true),
-        AccountMeta::new_readonly(*payer, true),
     ];
 
     let instruction = MaintenanceInstruction::SetDelegates { delegate };
@@ -145,14 +139,12 @@ pub fn set_delegate(
 }
 
 /// Creates 'Set Code Hashes' instruction
-// #[allow(clippy::too_many_arguments)]
 pub fn set_code_hashes(
     program_id: &Pubkey,
     // Accounts
     address: &Pubkey,
     hashes: Vec<Hash>,
     authority: &Pubkey,
-    payer: &Pubkey,
 ) -> Instruction {
 
     let (maintenance_record, _): (Pubkey, u8) = get_maintenance_record_address(program_id, address);
@@ -160,7 +152,6 @@ pub fn set_code_hashes(
     let accounts = vec![
         AccountMeta::new(maintenance_record, false),
         AccountMeta::new_readonly(*authority, true),
-        AccountMeta::new_readonly(*payer, true),
     ];
 
     let instruction = MaintenanceInstruction::SetCodeHashes { hashes };
@@ -173,14 +164,13 @@ pub fn set_code_hashes(
 }
 
 /// Creates 'Set Authority' instruction
-#[allow(clippy::too_many_arguments)]
 pub fn upgrade(
     program_id: &Pubkey,
     // Accounts
     program_address: &Pubkey,
     authority: &Pubkey,
     buffer: &Pubkey,
-    payer: &Pubkey,
+    spill: &Pubkey,
 ) -> Instruction {
 
     let (programdata_address, _) = Pubkey::find_program_address(&[program_address.as_ref()], &bpf_loader_upgradeable::id());
@@ -195,7 +185,7 @@ pub fn upgrade(
         AccountMeta::new(*buffer, false),
         AccountMeta::new_readonly(maintenance_record, false),
         AccountMeta::new_readonly(*authority, true),
-        AccountMeta::new(*payer, true),
+        AccountMeta::new(*spill, false),
     ];
 
     let instruction = MaintenanceInstruction::Upgrade { };
@@ -208,14 +198,13 @@ pub fn upgrade(
 }
 
 /// Creates 'Set Authority' instruction
-#[allow(clippy::too_many_arguments)]
 pub fn set_authority(
     program_id: &Pubkey,
     // Accounts
     program_address: &Pubkey,
     authority: &Pubkey,
     new_authority: &Pubkey,
-    payer: &Pubkey,
+    // payer: &Pubkey,
 ) -> Instruction {
 
     let (programdata_address, _) = Pubkey::find_program_address(&[program_address.as_ref()], &bpf_loader_upgradeable::id());
@@ -228,7 +217,7 @@ pub fn set_authority(
         AccountMeta::new_readonly(maintenance_record, false),
         AccountMeta::new_readonly(*authority, true),
         AccountMeta::new_readonly(*new_authority, false),
-        AccountMeta::new(*payer, true),
+        // AccountMeta::new(*payer, true),
     ];
 
     let instruction = MaintenanceInstruction::SetAuthority { };
@@ -241,12 +230,12 @@ pub fn set_authority(
 }
 
 /// Creates 'Close Maintenance' instruction
-#[allow(clippy::too_many_arguments)]
 pub fn close_maintenance(
     program_id: &Pubkey,
     // Accounts
     program_address: &Pubkey,
-    destination: &Pubkey,
+    authority: &Pubkey,
+    spill: &Pubkey,
 ) -> Instruction {
 
     let (programdata_address, _) = Pubkey::find_program_address(&[program_address.as_ref()], &bpf_loader_upgradeable::id());
@@ -254,8 +243,9 @@ pub fn close_maintenance(
 
     let accounts = vec![
         AccountMeta::new(maintenance_record, false),
-        AccountMeta::new(*destination, false),
         AccountMeta::new_readonly(programdata_address, false),
+        AccountMeta::new_readonly(*authority, true),
+        AccountMeta::new(*spill, false),
     ];
 
     let instruction = MaintenanceInstruction::CloseMaintenance { };

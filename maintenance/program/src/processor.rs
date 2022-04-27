@@ -14,7 +14,7 @@ use solana_program::{
     msg,
     program::{ invoke_signed },
     program_error::ProgramError,
-    pubkey::{ Pubkey, PUBKEY_BYTES },
+    pubkey::{ Pubkey },
     rent::Rent,
     sysvar::Sysvar,
 };
@@ -123,13 +123,16 @@ pub fn process_set_delegates(
 
     let maintenance_record_info = next_account_info(account_info_iter)?; // 0
     let authority_info = next_account_info(account_info_iter)?; // 1
-    let _payer_info = next_account_info(account_info_iter)?; // 2
 
     if !authority_info.is_signer {
         return Err(MaintenanceError::MissingRequiredSigner.into());
     }
 
     let mut maintenance_record = get_account_data::<MaintenanceRecord>(program_id, maintenance_record_info)?;
+
+    if *authority_info.key != maintenance_record.authority {
+        return Err(MaintenanceError::WrongAuthority.into());
+    }
 
     maintenance_record.delegate = delegate;
     
@@ -148,13 +151,16 @@ pub fn process_set_code_hashes(
 
     let maintenance_record_info = next_account_info(account_info_iter)?; // 0
     let authority_info = next_account_info(account_info_iter)?; // 1
-    let _payer_info = next_account_info(account_info_iter)?; // 2
 
     if !authority_info.is_signer {
         return Err(MaintenanceError::MissingRequiredSigner.into());
     }
 
     let mut maintenance_record = get_account_data::<MaintenanceRecord>(program_id, maintenance_record_info)?;
+
+    if *authority_info.key != maintenance_record.authority {
+        return Err(MaintenanceError::WrongAuthority.into());
+    }
 
     maintenance_record.hashes = hashes;
     
@@ -178,7 +184,7 @@ pub fn process_upgrade(
     let upgrade_buffer_info = next_account_info(account_info_iter)?; // 5
     let maintenance_record_info = next_account_info(account_info_iter)?; // 6
     let authority_info = next_account_info(account_info_iter)?; // 7
-    let payer_info = next_account_info(account_info_iter)?; // 8
+    let spill_info = next_account_info(account_info_iter)?; // 8
 
     if !authority_info.is_signer {
         return Err(MaintenanceError::MissingRequiredSigner.into());
@@ -215,7 +221,7 @@ pub fn process_upgrade(
         maintained_program_info.key,
         upgrade_buffer_info.key,
         maintenance_record_info.key,
-        payer_info.key
+        spill_info.key
     );
 
     invoke_signed(
@@ -228,7 +234,7 @@ pub fn process_upgrade(
             maintained_program_data_info.clone(),
             upgrade_buffer_info.clone(),
             maintenance_record_info.clone(),
-            payer_info.clone()
+            spill_info.clone()
         ],
         &[&signers_seeds[..]],
     )?;
@@ -249,10 +255,15 @@ pub fn process_set_authority(
     let maintenance_record_info = next_account_info(account_info_iter)?; // 3
     let authority_info = next_account_info(account_info_iter)?; // 4
     let new_authority_info = next_account_info(account_info_iter)?; // 5
-    let payer_info = next_account_info(account_info_iter)?; // 6
 
     if !authority_info.is_signer {
         return Err(MaintenanceError::MissingRequiredSigner.into());
+    }
+
+    let maintenance_record = get_account_data::<MaintenanceRecord>(program_id, maintenance_record_info)?;
+
+    if *authority_info.key != maintenance_record.authority {
+        return Err(MaintenanceError::WrongAuthority.into());
     }
 
     let maintenance_seeds = get_maintenance_record_seeds(maintained_program_info.key);
@@ -276,7 +287,6 @@ pub fn process_set_authority(
             maintained_program_data_info.clone(),
             maintenance_record_info.clone(),
             new_authority_info.clone(),
-            payer_info.clone()
         ],
         &[&signers_seeds[..]],
     )?;
@@ -286,32 +296,47 @@ pub fn process_set_authority(
 
 /// Processes CloseMaintenance instruction
 pub fn process_close_maintenance(
-    _program_id: &Pubkey,
+    program_id: &Pubkey,
     accounts: &[AccountInfo],
 ) -> ProgramResult {
     let account_info_iter = &mut accounts.iter();
 
     let maintenance_record_info = next_account_info(account_info_iter)?; // 0
-    let destination_account_info = next_account_info(account_info_iter)?; // 1
-    let program_data_info = next_account_info(account_info_iter)?; // 5
+    let program_data_info = next_account_info(account_info_iter)?; // 1
+    let authority_info = next_account_info(account_info_iter)?; // 2
+    let spill_info = next_account_info(account_info_iter)?; // 3
 
-    if maintenance_record_info.key == destination_account_info.key {
+    if !authority_info.is_signer {
+        return Err(MaintenanceError::MissingRequiredSigner.into());
+    }
+
+    if maintenance_record_info.key == spill_info.key {
         return Err(ProgramError::InvalidAccountData);
     }
 
-    let program_authority: Pubkey = {
-        let program_data_offset: usize = UpgradeableLoaderState::programdata_data_offset().map_err(|_| MaintenanceError::BufferDataOffsetError )?;
-        let program_buffer: &[u8] = &program_data_info.data.borrow();
-        let upgrade_authority_data: &[u8] = program_buffer.get((program_data_offset-PUBKEY_BYTES)..program_data_offset).ok_or(MaintenanceError::BufferDataOffsetError)?;
-        Pubkey::try_from_slice(upgrade_authority_data).map_err(|_| MaintenanceError::AuthorityDeserializationError )?
-    };
+    let maintenance_record = get_account_data::<MaintenanceRecord>(program_id, maintenance_record_info)?;
+
+    if *authority_info.key != maintenance_record.authority {
+        return Err(MaintenanceError::WrongAuthority.into());
+    }
+
+    let upgradeable_loader_state: UpgradeableLoaderState =
+        bincode::deserialize(&program_data_info.data.borrow()).map_err(|_| ProgramError::from(MaintenanceError::AuthorityDeserializationError) )?;
+    
+    let program_authority: Pubkey = 
+        match upgradeable_loader_state {
+            UpgradeableLoaderState::ProgramData { slot: _, upgrade_authority_address } => 
+                upgrade_authority_address.ok_or(ProgramError::from(MaintenanceError::AuthorityDeserializationError))?,
+            _ => 
+                return Err(ProgramError::from(MaintenanceError::AuthorityDeserializationError)),
+        };
     // msg!("MAINTENANCE-INSTRUCTION: CLOSE MAINTENANCE program authority {:?}", program_authority);
 
     if *maintenance_record_info.key == program_authority {
         return Err(MaintenanceError::RecordMustBeInactive.into());
     }
 
-    dispose_account(maintenance_record_info, destination_account_info);
+    dispose_account(maintenance_record_info, spill_info);
 
     Ok(())
 }

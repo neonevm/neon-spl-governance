@@ -14,6 +14,9 @@ pub enum MaintenanceError {
     /// Missing Required Signer
     #[error("Missing Required Signer")]
     MissingRequiredSigner,
+    /// Wrong Authority
+    #[error("Wrong Authority")]
+    WrongAuthority,
     /// Buffer Data Offset Error
     #[error("Buffer Data Offset Error")]
     BufferDataOffsetError,

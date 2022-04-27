@@ -41,7 +41,7 @@ const MAINTAIN_AUTHORITY_KEY_FILE_PATH: &'static str = "../artifacts/voter1.keyp
 const NEW_MAINTAIN_AUTHORITY_KEY_FILE_PATH: &'static str = "../artifacts/voter2.keypair";
 const ADDIN_INITIAL_AUTHORITY_KEY_FILE_PATH: &'static str = "../artifacts/voter3.keypair";
 const ADDIN_KEY_FILE_PATH: &'static str = "../artifacts/addin-fixed-weights.keypair";
-const BUFFER_ADDRESS: &'static str = "8E321qArVoH3WtVA77o7Tu5MHoYqV8St1N1UGMGQhYr3";
+const BUFFER_ADDRESS: &'static str = "447xS9Kc6m1Dg8UEnyMFrnao5ZL82HTaq7UEjfLZDWEb";
 
 fn main() {
 
@@ -74,6 +74,9 @@ fn main() {
     let buffer_pubkey: Pubkey = Pubkey::from_str(BUFFER_ADDRESS).unwrap();
     println!("Buffer Address: {}", buffer_pubkey);
 
+    let balance = solana_client.get_balance(&maintain_authority_pubkey).unwrap();
+    println!("Payer Balance <before>: {}", balance);
+
     let create_maintenance_instruction: Instruction =
         create_maintenance(
             &maintenance_pubkey,
@@ -96,6 +99,9 @@ fn main() {
     
     let result = solana_client.send_and_confirm_transaction(&transaction);
     println!("Create Maintenance: \n{:?}", result);
+
+    let balance = solana_client.get_balance(&maintain_authority_pubkey).unwrap();
+    println!("Payer Balance <after>: {}", balance);
 
     let (maintenance_record_pubkey,_) = get_maintenance_record_address(&maintenance_pubkey, &maintained_addin_pubkey);
     println!("Maintenance Record Address: {}", maintenance_record_pubkey);
@@ -133,7 +139,6 @@ fn main() {
             &maintained_addin_pubkey,
             vec![new_maintain_authority_pubkey.clone()],
             &maintain_authority_pubkey,
-            &maintain_authority_pubkey,
         );
     
     let transaction: Transaction =
@@ -169,7 +174,6 @@ fn main() {
             &maintenance_pubkey,
             &maintained_addin_pubkey,
             vec![buffer_hash],
-            &maintain_authority_pubkey,
             &maintain_authority_pubkey,
         );
     
@@ -215,6 +219,9 @@ fn main() {
     let result = solana_client.send_and_confirm_transaction(&transaction);
     println!("Set Upgrade Buffer Authority to Maintenance Record: \n{:?}", result);
 
+    let balance = solana_client.get_balance(&maintain_authority_pubkey).unwrap();
+    println!("Spill Balance <before upgrade>: {}", balance);
+
     let upgrade_instruction: Instruction =
         upgrade(
             &maintenance_pubkey,
@@ -238,6 +245,9 @@ fn main() {
     
     let result = solana_client.send_and_confirm_transaction(&transaction);
     println!("Upgrade \n{:?}", result);
+
+    let balance = solana_client.get_balance(&maintain_authority_pubkey).unwrap();
+    println!("Spill Balance <after upgrade>: {}", balance);
 
     // let close_maintenance_instruction: Instruction =
     //     close_maintenance(
@@ -267,7 +277,7 @@ fn main() {
             &maintained_addin_pubkey,
             &maintain_authority_pubkey,
             &new_maintain_authority_pubkey,
-            &maintain_authority_pubkey,
+            // &maintain_authority_pubkey,
         );
     
     let transaction: Transaction =
@@ -289,10 +299,14 @@ fn main() {
     let maintenance_record = MaintenanceRecord::deserialize(&mut dt).unwrap();
     println!("{:?}", maintenance_record);
 
+    let balance = solana_client.get_balance(&maintain_authority_pubkey).unwrap();
+    println!("Spill Balance <before close>: {}", balance);
+
     let close_maintenance_instruction: Instruction =
         close_maintenance(
             &maintenance_pubkey,
             &maintained_addin_pubkey,
+            &maintain_authority_pubkey,
             &maintain_authority_pubkey,
         );
     
@@ -310,6 +324,9 @@ fn main() {
     
     let result = solana_client.send_and_confirm_transaction(&transaction);
     println!("Close Maintenance: \n{:?}", result);
+
+    let balance = solana_client.get_balance(&maintain_authority_pubkey).unwrap();
+    println!("Spill Balance <after close>: {}", balance);
 
     let set_upgrade_authority_instruction = set_upgrade_authority(
         &maintained_addin_pubkey,
