@@ -179,6 +179,7 @@ pub fn setup_msig(wallet: &Wallet, client: &Client, executor: &TransactionExecut
                             &vesting_token_account,            // vesting_token_account
                             schedule,                          // schedule
                             &msig_realm,                       // realm
+                            None,                              // default payer
                         )?.into(),
                     ],
                     &[&wallet.creator_keypair],

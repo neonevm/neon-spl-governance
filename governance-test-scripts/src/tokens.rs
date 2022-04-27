@@ -1,3 +1,4 @@
+use crate::errors::StateError;
 use solana_sdk::{
     pubkey::{ Pubkey },
     instruction::{ Instruction },
@@ -21,6 +22,16 @@ pub fn get_mint_data(client: &Client, mint: &Pubkey) -> ClientResult<Option<Mint
 
 pub fn get_account_data(client: &Client, account: &Pubkey) -> ClientResult<Option<Account>> {
     client.get_account_data_pack::<Account>(&spl_token::id(), account)
+}
+
+pub fn assert_is_valid_account_data(d: &Account, address: &Pubkey, mint: &Pubkey, owner: &Pubkey) -> Result<(),StateError> {
+    if d.mint != *mint {
+        return Err(StateError::InvalidTokenAccountMint(*address, d.mint));
+    }
+    if d.owner != *owner {
+        return Err(StateError::InvalidTokenAccountOwner(*address, d.owner));
+    }
+    Ok(())
 }
 
 pub fn create_mint_instructions(client: &Client, mint_pubkey: &Pubkey, mint_authority: &Pubkey,

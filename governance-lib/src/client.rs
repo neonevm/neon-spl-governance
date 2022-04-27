@@ -2,6 +2,7 @@ use {
     crate::errors::GovernanceLibError,
     borsh::BorshDeserialize,
     solana_sdk::{
+        account::Account,
         account_utils::StateMut,
         borsh::try_from_slice_unchecked,
         commitment_config::CommitmentConfig,
@@ -125,15 +126,18 @@ impl<'a> Client<'a> {
                 RpcSendTransactionConfig {skip_preflight: true, ..RpcSendTransactionConfig::default()}).map_err(|e| e.into())
     }
 
+    pub fn get_account(&self, account_key: &Pubkey) -> ClientResult<Option<Account>> {
+        let account_info = self.solana_client.get_account_with_commitment(
+                &account_key, self.solana_client.commitment())?.value;
+        Ok(account_info)
+    }
+
     pub fn get_account_data_pack<T: Pack + IsInitialized>(
             &self,
             owner_program_id: &Pubkey,
             account_key: &Pubkey,
     ) -> ClientResult<Option<T>> {
-        let account_info = &self.solana_client.get_account_with_commitment(
-                &account_key, self.solana_client.commitment())?.value;
-
-        if let Some(account_info) = account_info {
+        if let Some(account_info) = self.get_account(account_key)? {
             if account_info.data.is_empty() {
                 return Err(GovernanceLibError::StateError(*account_key, "Account is empty".to_string()));
             }
@@ -157,10 +161,7 @@ impl<'a> Client<'a> {
             owner_program_id: &Pubkey,
             account_key: &Pubkey,
     ) -> ClientResult<Option<T>> {
-        let account_info = &self.solana_client.get_account_with_commitment(
-                &account_key, self.solana_client.commitment())?.value;
-
-        if let Some(account_info) = account_info {
+        if let Some(account_info) = self.get_account(account_key)? {
             if account_info.data.is_empty() {
                 return Err(GovernanceLibError::StateError(*account_key, "Account is empty".to_string()));
             }
