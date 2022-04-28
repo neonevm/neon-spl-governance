@@ -204,7 +204,6 @@ pub fn set_authority(
     program_address: &Pubkey,
     authority: &Pubkey,
     new_authority: &Pubkey,
-    // payer: &Pubkey,
 ) -> Instruction {
 
     let (programdata_address, _) = Pubkey::find_program_address(&[program_address.as_ref()], &bpf_loader_upgradeable::id());
@@ -217,7 +216,6 @@ pub fn set_authority(
         AccountMeta::new_readonly(maintenance_record, false),
         AccountMeta::new_readonly(*authority, true),
         AccountMeta::new_readonly(*new_authority, false),
-        // AccountMeta::new(*payer, true),
     ];
 
     let instruction = MaintenanceInstruction::SetAuthority { };
