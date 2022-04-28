@@ -99,7 +99,7 @@ impl<'a> AddinFixedWeights<'a> {
         Ok(voter_weight_record_pubkey)
     }
 
-    pub fn set_voter_weight_partial_voting_fixed(&self, realm: &Realm, token_owner: &Keypair, percentage: u16) -> Result<Pubkey,()> {
+    pub fn set_vote_percentage_fixed(&self, realm: &Realm, token_owner: &Keypair, percentage: u16) -> Result<Pubkey,()> {
         let (voter_weight_record_pubkey,_): (Pubkey,u8) = spl_governance_addin_fixed_weights::instruction::get_voter_weight_address(
                 &self.program_id,
                 &realm.address,
@@ -108,12 +108,13 @@ impl<'a> AddinFixedWeights<'a> {
 
         if self.interactor.account_exists(&voter_weight_record_pubkey) {
             let set_partial_voting_instruction: Instruction =
-                spl_governance_addin_fixed_weights::instruction::set_partial_voting(
+                spl_governance_addin_fixed_weights::instruction::set_vote_percentage_with_realm(
                     &self.program_id,
+                    &self.interactor.spl_governance_program_address,
                     &realm.address,
                     &realm.data.community_mint,
                     &token_owner.pubkey(),
-                    &self.interactor.payer.pubkey(),
+                    &token_owner.pubkey(),
                     percentage,
                 );
             

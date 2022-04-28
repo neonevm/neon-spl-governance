@@ -52,7 +52,7 @@ const VOTERS_KEY_FILE_PATH: [&str;5] = [
 ];
 
 // const REALM_NAME: &str = "Test Realm";
-const REALM_NAME: &str = "Test_Realm_3";
+const REALM_NAME: &str = "Test_Realm_4";
 // const REALM_NAME: &str = "Test Realm 6";
 const PROPOSAL_NAME: &str = "Proposal To Vote";
 const PROPOSAL_DESCRIPTION: &str = "proposal_description";
@@ -111,7 +111,7 @@ fn main() {
         println!("Token Owner {} \n{:?}, voter_weight_record: {}", i, token_owner, voter_weight_record);
         token_owners.push(token_owner);
         if i == 2 {
-            let result = fixed_weight_addin.set_voter_weight_partial_voting_fixed(&realm, &keypair, 5000);
+            let result = fixed_weight_addin.set_vote_percentage_fixed(&realm, &keypair, 5000);
             println!("{:?}", result);
         }
     }

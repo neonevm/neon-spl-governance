@@ -16,7 +16,7 @@ pub enum VoterWeightAddinError {
     WrongTokenOwner,
     /// Wrong Voter Weight Record Ownership
     #[error("Wrong Voter Weight Record Ownership")]
-    WrongVoterWeightRecordOwnerShip,
+    WrongVoterWeightRecordOwnership,
     /// Missing Required Signer
     #[error("Missing Required Signer")]
     MissingRequiredSigner,

@@ -6,6 +6,7 @@ use solana_program::{
     pubkey::Pubkey,
     system_program,
 };
+use spl_governance::state::token_owner_record::get_token_owner_record_address;
 
 /// Instructions supported by the VoterWeight addin program
 /// This program is a mock program used by spl-governance for testing and not real addin
@@ -23,12 +24,14 @@ pub enum VoterWeightAddinInstruction {
     SetupVoterWeightRecord { },
     /// Sets up VoterWeightRecord owned by the program
     ///
-    /// 0. `[]` Realm account
-    /// 1. `[]` Governing Token mint
-    /// 2. `[]` Governing token owner
-    /// 3. `[writable]` VoterWeightRecord
-    /// 4. `[signer]` Payer
-    SetPartialVoting {
+    /// 0. `[]` The Governance program account
+    /// 1. `[]` Realm account
+    /// 2. `[]` Governing Token mint
+    /// 3. `[]` Governing token owner
+    /// 4. `[signer]` Authority account
+    /// 5. `[]` Governing Owner Record. PDA seeds (governance program): ['governance', realm, token_mint, token_owner]
+    /// 6. `[writable]` VoterWeightRecord
+    SetVoterPercentage {
         #[allow(dead_code)]
     /// Vote Percentage, 10000 = 100%
         vote_percentage: u16,
@@ -89,27 +92,31 @@ pub fn setup_voter_weight_record(
 
 /// Creates SetPartialVoting instruction
 #[allow(clippy::too_many_arguments)]
-pub fn set_partial_voting(
+pub fn set_vote_percentage_with_realm(
     program_id: &Pubkey,
+    governance_id: &Pubkey,
     // Accounts
     realm: &Pubkey,
     governing_token_mint: &Pubkey,
     governing_token_owner: &Pubkey,
-    payer: &Pubkey,
+    authority: &Pubkey,
     vote_percentage: u16,
 ) -> Instruction {
 
+    let token_owner_record = get_token_owner_record_address(governance_id, realm, governing_token_mint, governing_token_owner);
     let (voter_weight_record, _): (Pubkey, u8) = get_voter_weight_address(program_id, realm, governing_token_mint, governing_token_owner);
 
     let accounts = vec![
+        AccountMeta::new_readonly(*governance_id, false),
         AccountMeta::new_readonly(*realm, false),
         AccountMeta::new_readonly(*governing_token_mint, false),
-        AccountMeta::new_readonly(*governing_token_owner, true),
+        AccountMeta::new_readonly(*governing_token_owner, false),
+        AccountMeta::new_readonly(*authority, true),
+        AccountMeta::new_readonly(token_owner_record, false),
         AccountMeta::new(voter_weight_record, false),
-        AccountMeta::new_readonly(*payer, true),
     ];
 
-    let instruction = VoterWeightAddinInstruction::SetPartialVoting { vote_percentage };
+    let instruction = VoterWeightAddinInstruction::SetVoterPercentage { vote_percentage };
 
     Instruction {
         program_id: *program_id,
