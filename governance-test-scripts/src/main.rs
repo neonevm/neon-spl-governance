@@ -37,7 +37,7 @@ use governance_lib::{
     addin_fixed_weights::AddinFixedWeights,
 };
 
-const GOVERNANCE_KEY_FILE_PATH: &str = "../solana-program-library/target/deploy/spl_governance-keypair.json";
+const GOVERNANCE_KEY_FILE_PATH: &str = "../artifacts/spl_governance-keypair.json";
 const VOTER_WEIGHT_ADDIN_KEY_FILE_PATH: &str = "../artifacts/addin-fixed-weights.keypair";
 const COMMUTINY_MINT_KEY_FILE_PATH: &str = "../governance-test-scripts/community_mint.keypair";
 const GOVERNED_MINT_KEY_FILE_PATH: &str = "../governance-test-scripts/governance.keypair";
