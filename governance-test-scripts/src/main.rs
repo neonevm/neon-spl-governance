@@ -38,7 +38,7 @@ use governance_lib::{
 };
 
 const GOVERNANCE_KEY_FILE_PATH: &str = "../solana-program-library/target/deploy/spl_governance-keypair.json";
-const VOTER_WEIGHT_ADDIN_KEY_FILE_PATH: &str = "../target/deploy/spl_governance_addin_fixed_weights-keypair.json";
+const VOTER_WEIGHT_ADDIN_KEY_FILE_PATH: &str = "../artifacts/addin-fixed-weights.keypair";
 const COMMUTINY_MINT_KEY_FILE_PATH: &str = "../governance-test-scripts/community_mint.keypair";
 const GOVERNED_MINT_KEY_FILE_PATH: &str = "../governance-test-scripts/governance.keypair";
 const PAYER_KEY_FILE_PATH: &str = "../artifacts/payer.keypair";
@@ -111,7 +111,7 @@ fn main() {
         println!("Token Owner {} \n{:?}, voter_weight_record: {}", i, token_owner, voter_weight_record);
         token_owners.push(token_owner);
         if i == 2 {
-            let result = fixed_weight_addin.set_voter_weight_partial_voting_fixed(&realm, &keypair, 5000).unwrap();
+            let result = fixed_weight_addin.set_voter_weight_partial_voting_fixed(&realm, &keypair, 5000);
             println!("{:?}", result);
         }
     }
