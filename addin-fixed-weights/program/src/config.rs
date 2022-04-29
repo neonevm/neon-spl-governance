@@ -154,9 +154,9 @@ cfg_if! {
                 ("tstnGPJyiQMUJqZxqvK4857xeWp7ZrczqZwsf4SB7R8",     2_000_000 * TOKEN_MULT),
                 ("tstPSu5sHGrZQraZ3Ef8MFmeSfKWxQSwQQviv7cYWwb",     1_440_000 * TOKEN_MULT),
                 ("11111111111111111111111111111111",              168_247_600 * TOKEN_MULT),
-                ("D3wCDKMbwPkSrdzrngBA6yAnNxEUuCNhKzN6ab5WUtMk",   60_000_000 * TOKEN_MULT),
-                ("9Fng45apVeSsmUdVoAnXbkqcs4vyQgWh3jkYQGQAXTpv",   11_250_000 * TOKEN_MULT),
-                ("6oPw4ud7meKUEckU3dk3UZL2WMiU8hNVbb6HkTmE9yJF",  143_700_000 * TOKEN_MULT),
+                ("5WQAibFaBMk6fwrYBtQeeQSKmAoZYFupJy8sUVFVtvTv",   60_000_000 * TOKEN_MULT),
+                ("E8KvcV9so2MXuRcVztksN9RbqudGZ8GRGrThN8nDx6rf",   11_250_000 * TOKEN_MULT),
+                ("Do7nrT2pVmQnqtxDNLMwk792FKPz1oybuJQbrjfQZLvf",  143_700_000 * TOKEN_MULT),
             ]
         );
     

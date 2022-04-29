@@ -1002,7 +1002,8 @@ fn main() {
     let wallet = Wallet::new().unwrap();
     wallet.display();
 
-    let client = Client::new("http://localhost:8899", &wallet.payer_keypair);
+    //let client = Client::new("http://localhost:8899", &wallet.payer_keypair);
+    let client = Client::new("https://api.devnet.solana.com", &wallet.payer_keypair);
 
     let send_trx: bool = matches.is_present("send_trx");
     let verbose: bool = matches.is_present("verbose");
