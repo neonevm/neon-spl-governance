@@ -34,13 +34,13 @@ pub enum VoterWeightAddinInstruction {
 
 /// Get VoterVeightRecord account address and bump seed
 pub fn get_voter_weight_address(program_id: &Pubkey, realm: &Pubkey, governing_token_mint: &Pubkey, governing_token_owner: &Pubkey) -> (Pubkey, u8) {
-    let seeds: &[&[u8]] = &[b"voter_weight", &realm.to_bytes(), &governing_token_mint.to_bytes(), &governing_token_owner.to_bytes()];
+    let seeds: &[&[u8]] = &[b"voter-weight-record", &realm.to_bytes(), &governing_token_mint.to_bytes(), &governing_token_owner.to_bytes()];
     Pubkey::find_program_address(seeds, program_id)
 }
 
 /// Get MaxVoterVeightRecord account address and bump seed
 pub fn get_max_voter_weight_address(program_id: &Pubkey, realm: &Pubkey, governing_token_mint: &Pubkey) -> (Pubkey, u8) {
-    let seeds: &[&[u8]] = &[b"max_voter_weight", &realm.to_bytes(), &governing_token_mint.to_bytes()];
+    let seeds: &[&[u8]] = &[b"max-voter-weight-record", &realm.to_bytes(), &governing_token_mint.to_bytes()];
     Pubkey::find_program_address(seeds, program_id)
 }
 
