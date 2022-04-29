@@ -5,7 +5,10 @@ use {
     },
     solana_sdk::{
         pubkey::Pubkey,
-        signer::Signer,
+        signer::{
+            Signer,
+            keypair::Keypair,
+        },
         instruction::Instruction,
         transaction::Transaction,
     },
@@ -57,6 +60,7 @@ impl<'a> AddinFixedWeights<'a> {
             self.interactor.solana_client.send_and_confirm_transaction(&transaction)
                 .map_err(|_|())?;
         }
+
         Ok(max_voter_weight_record_pubkey)
     }
 
@@ -91,6 +95,46 @@ impl<'a> AddinFixedWeights<'a> {
             
             self.interactor.solana_client.send_and_confirm_transaction(&transaction).unwrap();
         }
+        
+        Ok(voter_weight_record_pubkey)
+    }
+
+    pub fn set_vote_percentage_fixed(&self, realm: &Realm, token_owner: &Keypair, percentage: u16) -> Result<Pubkey,()> {
+        let (voter_weight_record_pubkey,_): (Pubkey,u8) = spl_governance_addin_fixed_weights::instruction::get_voter_weight_address(
+                &self.program_id,
+                &realm.address,
+                &realm.community_mint,
+                &token_owner.pubkey());
+
+        if self.interactor.account_exists(&voter_weight_record_pubkey) {
+            let set_partial_voting_instruction: Instruction =
+                spl_governance_addin_fixed_weights::instruction::set_vote_percentage_with_realm(
+                    &self.program_id,
+                    &realm.data.community_mint,
+                    &token_owner.pubkey(),
+                    &token_owner.pubkey(),
+                    &self.interactor.spl_governance_program_address,
+                    &realm.address,
+                    percentage,
+                );
+            
+            let transaction: Transaction =
+                Transaction::new_signed_with_payer(
+                    &[
+                        set_partial_voting_instruction,
+                    ],
+                    Some(&self.interactor.payer.pubkey()),
+                    &[
+                        self.interactor.payer,
+                        token_owner,
+                    ],
+                    self.interactor.solana_client.get_latest_blockhash().unwrap(),
+                );
+            
+            self.interactor.solana_client.send_and_confirm_transaction(&transaction)
+                .map_err(|_|())?;
+        }
+        
         Ok(voter_weight_record_pubkey)
     }
 }

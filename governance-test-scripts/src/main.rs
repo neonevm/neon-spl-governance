@@ -37,22 +37,22 @@ use governance_lib::{
     addin_fixed_weights::AddinFixedWeights,
 };
 
-const GOVERNANCE_KEY_FILE_PATH: &str = "solana-program-library/target/deploy/spl_governance-keypair.json";
-const VOTER_WEIGHT_ADDIN_KEY_FILE_PATH: &str = "target/deploy/spl_governance_addin_fixed_weights-keypair.json";
-const COMMUTINY_MINT_KEY_FILE_PATH: &str = "governance-test-scripts/community_mint.keypair";
-const GOVERNED_MINT_KEY_FILE_PATH: &str = "governance-test-scripts/governance.keypair";
-const PAYER_KEY_FILE_PATH: &str = "artifacts/payer.keypair";
+const GOVERNANCE_KEY_FILE_PATH: &str = "../artifacts/spl_governance-keypair.json";
+const VOTER_WEIGHT_ADDIN_KEY_FILE_PATH: &str = "../artifacts/addin-fixed-weights.keypair";
+const COMMUTINY_MINT_KEY_FILE_PATH: &str = "../governance-test-scripts/community_mint.keypair";
+const GOVERNED_MINT_KEY_FILE_PATH: &str = "../governance-test-scripts/governance.keypair";
+const PAYER_KEY_FILE_PATH: &str = "../artifacts/payer.keypair";
 
 const VOTERS_KEY_FILE_PATH: [&str;5] = [
-    "artifacts/voter1.keypair",
-    "artifacts/voter2.keypair",
-    "artifacts/voter3.keypair",
-    "artifacts/voter4.keypair",
-    "artifacts/voter5.keypair",
+    "../artifacts/voter1.keypair",
+    "../artifacts/voter2.keypair",
+    "../artifacts/voter3.keypair",
+    "../artifacts/voter4.keypair",
+    "../artifacts/voter5.keypair",
 ];
 
 // const REALM_NAME: &str = "Test Realm";
-const REALM_NAME: &str = "Test_Realm_4";
+const REALM_NAME: &str = "Test_Realm_3";
 // const REALM_NAME: &str = "Test Realm 6";
 const PROPOSAL_NAME: &str = "Proposal To Vote";
 const PROPOSAL_DESCRIPTION: &str = "proposal_description";
@@ -110,6 +110,10 @@ fn main() {
         token_owner.set_voter_weight_record_address(Some(voter_weight_record));
         println!("Token Owner {} \n{:?}, voter_weight_record: {}", i, token_owner, voter_weight_record);
         token_owners.push(token_owner);
+        if i == 2 {
+            let result = fixed_weight_addin.set_vote_percentage_fixed(&realm, &keypair, 5000);
+            println!("{:?}", result);
+        }
     }
 
     let gov_config: GovernanceConfig =

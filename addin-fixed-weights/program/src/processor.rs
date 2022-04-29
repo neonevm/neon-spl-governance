@@ -11,11 +11,21 @@ use solana_program::{
     rent::Rent,
     sysvar::Sysvar,
 };
+use borsh::BorshSerialize;
+use spl_governance::state::{
+    token_owner_record::{
+        get_token_owner_record_address_seeds,
+        get_token_owner_record_data_for_seeds,
+    },
+};
 use spl_governance_addin_api::{
     max_voter_weight::MaxVoterWeightRecord,
     voter_weight::{VoterWeightRecord},
 };
-use spl_governance_tools::account::create_and_serialize_account_signed;
+use spl_governance_tools::account::{
+    get_account_data,
+    create_and_serialize_account_signed,
+};
 
 use crate::{
     error::VoterWeightAddinError,
@@ -37,6 +47,11 @@ pub fn process_instruction(
         VoterWeightAddinInstruction::SetupVoterWeightRecord { } => process_setup_voter_weight_record(
             program_id,
             accounts,
+        ),
+        VoterWeightAddinInstruction::SetVotePercentage { vote_percentage } => process_set_vote_percentage_with_realm(
+            program_id,
+            accounts,
+            vote_percentage,
         ),
         VoterWeightAddinInstruction::SetupMaxVoterWeightRecord { } => process_setup_max_voter_weight_record(
             program_id,
@@ -85,6 +100,58 @@ pub fn process_setup_voter_weight_record(
         system_info,
         &rent,
     )?;
+
+    Ok(())
+}
+
+/// Processes Set Delegate instruction
+pub fn process_set_vote_percentage_with_realm(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    vote_percentage: u16,
+) -> ProgramResult {
+    let account_info_iter = &mut accounts.iter();
+
+    let governing_token_mint_info = next_account_info(account_info_iter)?; // 0
+    let governing_token_owner_info = next_account_info(account_info_iter)?; // 1
+    let authority_info = next_account_info(account_info_iter)?; // 2
+    let governance_info = next_account_info(account_info_iter)?; // 3
+    let realm_info = next_account_info(account_info_iter)?; // 4
+    let token_owner_record_info = next_account_info(account_info_iter)?; // 5
+    let voter_weight_record_info = next_account_info(account_info_iter)?; // 6
+
+    let mut voter_weight_record = get_account_data::<VoterWeightRecord>(program_id, voter_weight_record_info)?;
+
+    if *realm_info.key != voter_weight_record.realm
+        || *governing_token_mint_info.key != voter_weight_record.governing_token_mint
+        || *governing_token_owner_info.key != voter_weight_record.governing_token_owner
+    {
+        return Err(VoterWeightAddinError::WrongVoterWeightRecordOwnership.into());
+    }
+
+    let owner_record_data = get_token_owner_record_data_for_seeds(
+        governance_info.key,
+        token_owner_record_info,
+        &get_token_owner_record_address_seeds(
+            realm_info.key,
+            governing_token_mint_info.key,
+            governing_token_owner_info.key,
+        ),
+    )?;
+    owner_record_data.assert_token_owner_or_delegate_is_signer(authority_info)?;
+
+    let voter_weight: u64 =
+        get_voter_weight_fixed(governing_token_owner_info.key)?;
+
+    let voter_weight: u64 =
+        (voter_weight as u128)
+            .checked_mul(vote_percentage.into()).ok_or(VoterWeightAddinError::OverflowVoterWeight)?
+            .checked_div(10000).ok_or(VoterWeightAddinError::OverflowVoterWeight)?
+            .try_into().map_err(|_| VoterWeightAddinError::OverflowVoterWeight)?;
+
+    voter_weight_record.voter_weight = voter_weight;
+    
+    voter_weight_record.serialize(&mut *voter_weight_record_info.data.borrow_mut())?;
 
     Ok(())
 }
