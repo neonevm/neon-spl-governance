@@ -52,7 +52,7 @@ const VOTERS_KEY_FILE_PATH: [&str;5] = [
 ];
 
 // const REALM_NAME: &str = "Test Realm";
-const REALM_NAME: &str = "Test_Realm_4";
+const REALM_NAME: &str = "Test_Realm_3";
 // const REALM_NAME: &str = "Test Realm 6";
 const PROPOSAL_NAME: &str = "Proposal To Vote";
 const PROPOSAL_DESCRIPTION: &str = "proposal_description";

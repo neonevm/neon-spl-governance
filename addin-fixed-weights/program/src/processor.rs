@@ -48,7 +48,7 @@ pub fn process_instruction(
             program_id,
             accounts,
         ),
-        VoterWeightAddinInstruction::SetVoterPercentage { vote_percentage } => process_set_vote_percentage_with_realm(
+        VoterWeightAddinInstruction::SetVotePercentage { vote_percentage } => process_set_vote_percentage_with_realm(
             program_id,
             accounts,
             vote_percentage,
@@ -112,11 +112,11 @@ pub fn process_set_vote_percentage_with_realm(
 ) -> ProgramResult {
     let account_info_iter = &mut accounts.iter();
 
-    let governance_info = next_account_info(account_info_iter)?; // 0
-    let realm_info = next_account_info(account_info_iter)?; // 1
-    let governing_token_mint_info = next_account_info(account_info_iter)?; // 2
-    let governing_token_owner_info = next_account_info(account_info_iter)?; // 3
-    let authority_info = next_account_info(account_info_iter)?; // 4
+    let governing_token_mint_info = next_account_info(account_info_iter)?; // 0
+    let governing_token_owner_info = next_account_info(account_info_iter)?; // 1
+    let authority_info = next_account_info(account_info_iter)?; // 2
+    let governance_info = next_account_info(account_info_iter)?; // 3
+    let realm_info = next_account_info(account_info_iter)?; // 4
     let token_owner_record_info = next_account_info(account_info_iter)?; // 5
     let voter_weight_record_info = next_account_info(account_info_iter)?; // 6
 
@@ -141,7 +141,10 @@ pub fn process_set_vote_percentage_with_realm(
     owner_record_data.assert_token_owner_or_delegate_is_signer(authority_info)?;
 
     let voter_weight: u64 =
-        (voter_weight_record.voter_weight as u128)
+        get_voter_weight_fixed(governing_token_owner_info.key)?;
+
+    let voter_weight: u64 =
+        (voter_weight as u128)
             .checked_mul(vote_percentage.into()).ok_or(VoterWeightAddinError::OverflowVoterWeight)?
             .checked_div(10000).ok_or(VoterWeightAddinError::OverflowVoterWeight)?
             .try_into().map_err(|_| VoterWeightAddinError::OverflowVoterWeight)?;

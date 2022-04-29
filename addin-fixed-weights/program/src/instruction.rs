@@ -13,6 +13,14 @@ use spl_governance::state::token_owner_record::get_token_owner_record_address;
 #[derive(Clone, Debug, PartialEq, BorshDeserialize, BorshSerialize, BorshSchema)]
 #[allow(clippy::large_enum_variant)]
 pub enum VoterWeightAddinInstruction {
+    /// Sets up MaxVoterWeightRecord owned by the program
+    ///
+    /// 0. `[]` Realm account
+    /// 1. `[]` Governing Token mint
+    /// 2. `[writable]` MaxVoterWeightRecord
+    /// 3. `[signer]` Payer
+    /// 4. `[]` System
+    SetupMaxVoterWeightRecord { },
     /// Sets up VoterWeightRecord owned by the program
     ///
     /// 0. `[]` Realm account
@@ -24,26 +32,18 @@ pub enum VoterWeightAddinInstruction {
     SetupVoterWeightRecord { },
     /// Sets up VoterWeightRecord owned by the program
     ///
-    /// 0. `[]` The Governance program account
-    /// 1. `[]` Realm account
-    /// 2. `[]` Governing Token mint
-    /// 3. `[]` Governing token owner
-    /// 4. `[signer]` Authority account
+    /// 0. `[]` Governing Token mint
+    /// 1. `[]` Governing token owner
+    /// 2. `[signer]` Authority account
+    /// 3. `[]` The Governance program account
+    /// 4. `[]` Realm account
     /// 5. `[]` Governing Owner Record. PDA seeds (governance program): ['governance', realm, token_mint, token_owner]
     /// 6. `[writable]` VoterWeightRecord
-    SetVoterPercentage {
+    SetVotePercentage {
         #[allow(dead_code)]
     /// Vote Percentage, 10000 = 100%
         vote_percentage: u16,
     },
-    /// Sets up MaxVoterWeightRecord owned by the program
-    ///
-    /// 0. `[]` Realm account
-    /// 1. `[]` Governing Token mint
-    /// 2. `[writable]` MaxVoterWeightRecord
-    /// 3. `[signer]` Payer
-    /// 4. `[]` System
-    SetupMaxVoterWeightRecord { },
 }
 
 
@@ -94,12 +94,12 @@ pub fn setup_voter_weight_record(
 #[allow(clippy::too_many_arguments)]
 pub fn set_vote_percentage_with_realm(
     program_id: &Pubkey,
-    governance_id: &Pubkey,
     // Accounts
-    realm: &Pubkey,
     governing_token_mint: &Pubkey,
     governing_token_owner: &Pubkey,
     authority: &Pubkey,
+    governance_id: &Pubkey,
+    realm: &Pubkey,
     vote_percentage: u16,
 ) -> Instruction {
 
@@ -107,16 +107,16 @@ pub fn set_vote_percentage_with_realm(
     let (voter_weight_record, _): (Pubkey, u8) = get_voter_weight_address(program_id, realm, governing_token_mint, governing_token_owner);
 
     let accounts = vec![
-        AccountMeta::new_readonly(*governance_id, false),
-        AccountMeta::new_readonly(*realm, false),
         AccountMeta::new_readonly(*governing_token_mint, false),
         AccountMeta::new_readonly(*governing_token_owner, false),
         AccountMeta::new_readonly(*authority, true),
+        AccountMeta::new_readonly(*governance_id, false),
+        AccountMeta::new_readonly(*realm, false),
         AccountMeta::new_readonly(token_owner_record, false),
         AccountMeta::new(voter_weight_record, false),
     ];
 
-    let instruction = VoterWeightAddinInstruction::SetVoterPercentage { vote_percentage };
+    let instruction = VoterWeightAddinInstruction::SetVotePercentage { vote_percentage };
 
     Instruction {
         program_id: *program_id,

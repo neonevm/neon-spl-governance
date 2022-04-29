@@ -110,11 +110,11 @@ impl<'a> AddinFixedWeights<'a> {
             let set_partial_voting_instruction: Instruction =
                 spl_governance_addin_fixed_weights::instruction::set_vote_percentage_with_realm(
                     &self.program_id,
-                    &self.interactor.spl_governance_program_address,
-                    &realm.address,
                     &realm.data.community_mint,
                     &token_owner.pubkey(),
                     &token_owner.pubkey(),
+                    &self.interactor.spl_governance_program_address,
+                    &realm.address,
                     percentage,
                 );
             
