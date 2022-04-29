@@ -3,6 +3,7 @@ mod tokens;
 mod wallet;
 mod helpers;
 mod msig;
+mod token_distribution;
 
 use crate::{
     tokens::{
@@ -13,10 +14,14 @@ use crate::{
     },
     errors::{StateError, ScriptError},
     wallet::Wallet,
+    msig::MultiSig,
     helpers::{
         TransactionExecutor,
         TransactionCollector,
         ProposalTransactionInserter,
+    },
+    token_distribution::{
+        TokenDistribution,
     },
 };
 use solana_sdk::{
@@ -53,117 +58,117 @@ use governance_lib::{
     realm::{RealmConfig, Realm},
     governance::Governance,
     proposal::Proposal,
-    addin_fixed_weights::AddinFixedWeights,
+    addin_fixed_weights::{VoterWeight, AddinFixedWeights},
     addin_vesting::AddinVesting,
 };
 use solana_sdk::pubkey;
 
 const REALM_NAME: &str = "NEON";
+const NEON_SUPPLY_FRACTION: MintMaxVoteWeightSource = MintMaxVoteWeightSource::SupplyFraction(
+        MintMaxVoteWeightSource::SUPPLY_FRACTION_BASE/10);
 
-#[derive(Debug)]
-enum AccountOwner {
+#[derive(Debug,PartialEq,Copy,Clone)]
+pub enum AccountOwner {
     MainGovernance,
     EmergencyGovernance,
     MultiSig(&'static str),
     Key(Pubkey),
 }
 
-struct ExtraTokenAccount {
-    pub owner: AccountOwner,
-    pub amount: u64,
-    pub name: &'static str,
-}
-
-const TOKEN_MULT:u64 = u64::pow(10, 9);
-
-const EXTRA_TOKEN_ACCOUNTS: &[ExtraTokenAccount] = &[
-    ExtraTokenAccount {owner: AccountOwner::MainGovernance, amount: 210_000_000 * TOKEN_MULT, name: "Treasury"},
-    ExtraTokenAccount {owner: AccountOwner::Key(pubkey!("rDeo4nZPE2aWpBkqFXBH8ygh1cD63nEKZPiDrpmQad6")), amount: 80_000_000 * TOKEN_MULT, name: "IDO pool"},
-];
-
-#[derive(Debug)]
-enum Lockup {
-    NotAcceptable,
+#[derive(Debug,PartialEq)]
+pub enum Lockup {
     NoLockup,
     For4Years,
     For1Year_1YearLinear,
 }
 
-#[derive(Debug)]
-struct MultiSig {
-    pub name: &'static str,
-    pub threshold: u16,
-    pub amounts: &'static [(Lockup,u64,)],
-    pub signers: &'static [AccountOwner],
+impl Lockup {
+    pub fn is_locked(&self) -> bool {*self != Lockup::NoLockup}
 }
 
+pub struct ExtraTokenAccount {
+    pub owner: AccountOwner,
+    pub amount: u64,
+    pub name: &'static str,
+    pub lockup: Lockup,
+}
+
+const TOKEN_MULT:u64 = u64::pow(10, 9);
+
+const EXTRA_TOKEN_ACCOUNTS: &[ExtraTokenAccount] = &[
+    ExtraTokenAccount {amount:   1_000_000 * TOKEN_MULT, name: "",         lockup: Lockup::For1Year_1YearLinear, owner: AccountOwner::MultiSig("5")},
+    ExtraTokenAccount {amount: 142_700_000 * TOKEN_MULT, name: "",         lockup: Lockup::For1Year_1YearLinear, owner: AccountOwner::MultiSig("5")},
+    ExtraTokenAccount {amount:   7_500_000 * TOKEN_MULT, name: "",         lockup: Lockup::For1Year_1YearLinear, owner: AccountOwner::MultiSig("4")},
+    ExtraTokenAccount {amount:   3_750_000 * TOKEN_MULT, name: "",         lockup: Lockup::For1Year_1YearLinear, owner: AccountOwner::MultiSig("4")},
+    ExtraTokenAccount {amount:  60_000_000 * TOKEN_MULT, name: "",         lockup: Lockup::For4Years,            owner: AccountOwner::MultiSig("2")},
+    ExtraTokenAccount {amount: 188_762_400 * TOKEN_MULT, name: "",         lockup: Lockup::NoLockup,             owner: AccountOwner::MultiSig("1")},
+    ExtraTokenAccount {amount: 210_000_000 * TOKEN_MULT, name: "Treasury", lockup: Lockup::NoLockup,             owner: AccountOwner::MainGovernance},
+    ExtraTokenAccount {amount:  80_000_000 * TOKEN_MULT, name: "IDO pool", lockup: Lockup::NoLockup,             owner: AccountOwner::Key(pubkey!("tstzQJwDhrPNSmqtV5rmC26xbbeBf56xFz9wpyTV7tW"))},
+];
+
 const MULTI_SIGS: &[MultiSig] = &[
-    MultiSig {name: "Neon", threshold: 2,
-        amounts: &[],
+    MultiSig {name: "1", threshold: 2,
         signers: &[
-            AccountOwner::Key(pubkey!("BU6N2Z68JPXLf247iYnHUTUv1B7p8AFWGTYkcjfeSwY8")),
-            AccountOwner::Key(pubkey!("ExKNgQwQs5AnWsCjjsPWTRwfdQiRxsAxw24e1Agx2Eyt")),
-            AccountOwner::Key(pubkey!("3aEJcS8EFBbbGgEBUjF1Q7gKhtJpana6WMvmBShZubx8")),
-        ],
-    },
-    MultiSig {name: "DAO", threshold: 3,
-        amounts: &[(Lockup::NoLockup, 290_000_000)],
-        signers: &[
-            AccountOwner::MultiSig("Neon"),
-            // TODO: add Jump!
-            AccountOwner::Key(pubkey!("EYYPcCewaYKhEtA7NymW83En8it7PmaxDiDqVEaDPMea")),
-            AccountOwner::Key(pubkey!("3iUcSzLktUYS6QAw3KpMnW49dsPWZEa6xcsHvKhVbT9K")),
-            AccountOwner::Key(pubkey!("H229HcLU1L3TuxirinzKjkoutpyuhb1MYpmFJeN5uz8t")),
-        ],
-    },
-/*    MultiSig {name: "1", threshold: 2,
-        amounts: &[(Lockup::NoLockup, 188_762_400)],
-        signers: &[
-            AccountOwner::Key(pubkey!("BU6N2Z68JPXLf247iYnHUTUv1B7p8AFWGTYkcjfeSwY8")),
-            AccountOwner::Key(pubkey!("6tAoNNAB6sXMbt8phMjr46noQ5T18GnnkBftWcw1HfCW")),
-            AccountOwner::Key(pubkey!("EsyJ9wzg2VTCCfHmnyi7ePE9LU368iVCrEd4LZeDYMzJ")),
+            pubkey!("BU6N2Z68JPXLf247iYnHUTUv1B7p8AFWGTYkcjfeSwY8"),
+            pubkey!("6tAoNNAB6sXMbt8phMjr46noQ5T18GnnkBftWcw1HfCW"),
+            pubkey!("EsyJ9wzg2VTCCfHmnyi7ePE9LU368iVCrEd4LZeDYMzJ"),
         ],
     },
     MultiSig {name: "2", threshold: 2,
-        amounts: &[(Lockup::For4Years, 60_000_000)],
         signers: &[
-            AccountOwner::Key(pubkey!("BU6N2Z68JPXLf247iYnHUTUv1B7p8AFWGTYkcjfeSwY8")),
-            AccountOwner::Key(pubkey!("H3cAYot4UJuY1jQhn8FtpeP4fHia3SXtvuKYaov7KMA9")),
-            AccountOwner::Key(pubkey!("8ZjncH1eKhJMmwqymWwPEAEaPjTSt91R1gMwx2bMyZqC")),
+            pubkey!("BU6N2Z68JPXLf247iYnHUTUv1B7p8AFWGTYkcjfeSwY8"),
+            pubkey!("H3cAYot4UJuY1jQhn8FtpeP4fHia3SXtvuKYaov7KMA9"),
+            pubkey!("8ZjncH1eKhJMmwqymWwPEAEaPjTSt91R1gMwx2bMyZqC"),
         ],
     },
     MultiSig {name: "4", threshold: 2,
-        amounts: &[(Lockup::For1Year_1YearLinear, 7_500_000), (Lockup::For1Year_1YearLinear, 3_750_000)],
         signers: &[
-            AccountOwner::Key(pubkey!("BU6N2Z68JPXLf247iYnHUTUv1B7p8AFWGTYkcjfeSwY8")),
-            AccountOwner::Key(pubkey!("2Smf7Kyskf3VXUKUB16GVgCizW4qDhvRREGCLcHt7bJV")),
-            AccountOwner::Key(pubkey!("EwNeN5ixjqNmBNGbVKDHd1iipStGhMC9u5yGsq7zsw6L")),
+            pubkey!("BU6N2Z68JPXLf247iYnHUTUv1B7p8AFWGTYkcjfeSwY8"),
+            pubkey!("2Smf7Kyskf3VXUKUB16GVgCizW4qDhvRREGCLcHt7bJV"),
+            pubkey!("EwNeN5ixjqNmBNGbVKDHd1iipStGhMC9u5yGsq7zsw6L"),
         ],
     },
     MultiSig {name: "5", threshold: 2,
-        amounts: &[(Lockup::For1Year_1YearLinear, 1_000_000), (Lockup::For1Year_1YearLinear, 142_700_000)],
         signers: &[
-            AccountOwner::Key(pubkey!("BU6N2Z68JPXLf247iYnHUTUv1B7p8AFWGTYkcjfeSwY8")),
-            AccountOwner::Key(pubkey!("C16ojhtyjzqenxHcg9hNjhAwZhdLJrCBKavfc4gqa1v3")),
-            AccountOwner::Key(pubkey!("4vdhzpPYPABJe9WvZA8pFzdbzYaHrj7yNwDQmjBCtts5")),
+            pubkey!("tstUPDM1tDgRgC8KALbXQ3hJeKQQTxDywyDVvxv51Lu"),
+            pubkey!("tstTLYLzy9Q5meFUmhhiXfnaGai96hc7Ludu3gQz8nh"),
+            pubkey!("tstVEdAx9DpjzGefNDMEYV6fxasM5QFBZsssadZn3SB"),
         ],
-    },*/
+    },
 ];
 
-fn get_account_owner_pubkey(wallet: &Wallet, client: &Client, account_owner: &AccountOwner) -> Result<Pubkey, ScriptError> {
-    match account_owner {
-        AccountOwner::MainGovernance => unreachable!(),
-        AccountOwner::EmergencyGovernance => unreachable!(),
-        AccountOwner::MultiSig(msig_name) => {
-            // TODO Check that 'msig_name' exists in MULTI_SIGS
-            let seed: String = format!("MSIG_{}", msig_name);
-            let msig_mint = Pubkey::create_with_seed(&wallet.creator_keypair.pubkey(), &seed, &spl_token::id())?;
-            let msig_realm = Realm::new(&client, &wallet.governance_program_id, &seed, &msig_mint);
-            let msig_governance = msig_realm.governance(&msig_mint);
-            Ok(msig_governance.governance_address)
-        },
-        AccountOwner::Key(pubkey) => {
-            Ok(*pubkey)
+pub struct AccountOwnerResolver<'a> {
+    wallet: &'a Wallet,
+    client: &'a Client<'a>,
+    multi_sigs: &'a [MultiSig],
+}
+
+impl<'a> AccountOwnerResolver<'a> {
+    pub fn new(wallet: &'a Wallet, client: &'a Client, multi_sigs: &'a [MultiSig]) -> Self {
+        Self {wallet, client, multi_sigs}
+    }
+
+    pub fn get_owner_pubkey(&self, account_owner: &AccountOwner) -> Result<Pubkey, ScriptError> {
+        match account_owner {
+            AccountOwner::MainGovernance => {
+                let realm = Realm::new(self.client, &self.wallet.governance_program_id, REALM_NAME, &self.wallet.community_pubkey);
+                let governance = realm.governance(&self.wallet.governed_account_pubkey);
+                Ok(governance.governance_address)
+            },
+            AccountOwner::EmergencyGovernance => unreachable!(),
+            AccountOwner::MultiSig(msig_name) => {
+                if self.multi_sigs.iter().find(|v| v.name == *msig_name).is_none() {
+                    return Err(StateError::UnknownMultiSig(msig_name.to_string()).into());
+                };
+                let seed: String = format!("MSIG_{}", msig_name);
+                let msig_mint = Pubkey::create_with_seed(&self.wallet.creator_keypair.pubkey(), &seed, &spl_token::id())?;
+                let msig_realm = Realm::new(self.client, &self.wallet.governance_program_id, &seed, &msig_mint);
+                let msig_governance = msig_realm.governance(&msig_mint);
+                Ok(msig_governance.governance_address)
+            },
+            AccountOwner::Key(pubkey) => {
+                Ok(*pubkey)
+            }
         }
     }
 }
@@ -176,25 +181,14 @@ fn process_environment(wallet: &Wallet, client: &Client, setup: bool, verbose: b
     let vesting_addin = AddinVesting::new(&client, wallet.vesting_addin_id);
     let governance = realm.governance(&wallet.governed_account_pubkey);
 
-    let vesting_amount = {
-        let voter_list = fixed_weight_addin.get_voter_list()?;
-        voter_list.iter().map(|v| v.weight).sum::<u64>()
-    };
-    let extra_amount = EXTRA_TOKEN_ACCOUNTS.iter().map(|v| v.amount).sum::<u64>();
-    let total_amount = vesting_amount + extra_amount;
+    let account_owner_resolver = AccountOwnerResolver::new(wallet, client, MULTI_SIGS);
+    let token_distribution = TokenDistribution::new(&fixed_weight_addin, &account_owner_resolver, EXTRA_TOKEN_ACCOUNTS)?;
+    token_distribution.validate()?;
 
-    println!("Vesting: {}.{:09}, extra: {}.{:09}, total: {}.{:09}",
-            vesting_amount/TOKEN_MULT, vesting_amount%TOKEN_MULT,
-            extra_amount/TOKEN_MULT, extra_amount%TOKEN_MULT,
-            total_amount/TOKEN_MULT, total_amount%TOKEN_MULT);
-
-    let msig_total_amounts = MULTI_SIGS.iter().map(|v| v.amounts.iter().map(|u| u.1).sum::<u64>()).sum::<u64>();
+    let msig_total_amounts = 0; //MULTI_SIGS.iter().map(|v| v.amounts.iter().map(|u| u.1).sum::<u64>()).sum::<u64>();
     println!("MULTI_SIGS total amount: {}", msig_total_amounts);
     for msig in MULTI_SIGS {
-        let msig_signers = msig.signers.into_iter()
-                .map(|v| get_account_owner_pubkey(wallet, client, v))
-                .collect::<Result<Vec<_>,ScriptError>>()?;
-        msig::setup_msig(wallet, client, &executor, msig.name, msig.threshold, &msig_signers)?; 
+        msig::setup_msig(wallet, client, &executor, msig)?; 
     }
 
     // ----------- Check or create community mint ----------------------
@@ -238,8 +232,13 @@ fn process_environment(wallet: &Wallet, client: &Client, setup: bool, verbose: b
                 &[
                     realm.create_realm_instruction(
                         &wallet.creator_keypair.pubkey(),
-                        Some(wallet.fixed_weight_addin_id),
-                        Some(wallet.fixed_weight_addin_id),
+                        &RealmConfig {
+                            council_token_mint: None,
+                            community_voter_weight_addin: Some(wallet.fixed_weight_addin_id),
+                            max_community_voter_weight_addin: Some(wallet.fixed_weight_addin_id),
+                            min_community_weight_to_create_governance: 1,            // TODO Verify parameters!
+                            community_mint_max_vote_weight_source: NEON_SUPPLY_FRACTION,
+                        }
                     ),
                 ],
             )?;
@@ -290,8 +289,9 @@ fn process_environment(wallet: &Wallet, client: &Client, setup: bool, verbose: b
     }
 
     // -------------------- Create accounts for token_owner --------------------
-    let voter_list = fixed_weight_addin.get_voter_list()?;
-    for (i, voter_weight) in voter_list.iter().enumerate() {
+    let special_accounts = token_distribution.get_special_accounts();
+    for (i, voter_weight) in token_distribution.voter_list.iter().enumerate() {
+
         let token_owner_record = realm.token_owner_record(&voter_weight.voter);
         let seed: String = format!("{}_vesting_{}", REALM_NAME, i);
         let vesting_token_account = Pubkey::create_with_seed(&wallet.creator_keypair.pubkey(), &seed, &spl_token::id())?;
@@ -302,11 +302,18 @@ fn process_environment(wallet: &Wallet, client: &Client, setup: bool, verbose: b
                 Ok(None)
             },
             || {
-                let transaction = client.create_transaction(
-                    &[
-                        token_owner_record.create_token_owner_record_instruction(),
-                        fixed_weight_addin.setup_voter_weight_record_instruction(
-                                &realm, &voter_weight.voter),
+                let mut instructions = vec![
+                    token_owner_record.create_token_owner_record_instruction(),
+                    fixed_weight_addin.setup_voter_weight_record_instruction(
+                            &realm, &voter_weight.voter),
+                    system_instruction::transfer(        // Charge VestingAddin::VoterWeightRecord
+                        &wallet.payer_keypair.pubkey(),
+                        &vesting_addin.get_voter_weight_record_address(&voter_weight.voter, &realm),
+                        Rent::default().minimum_balance(vesting_addin.get_voter_weight_account_size()),
+                    ),
+                ];
+                if !special_accounts.contains(&voter_weight.voter) {
+                    instructions.extend(vec![
                         system_instruction::create_account_with_seed(
                             &wallet.payer_keypair.pubkey(),       // from
                             &vesting_token_account,               // to
@@ -327,30 +334,32 @@ fn process_environment(wallet: &Wallet, client: &Client, setup: bool, verbose: b
                             &vesting_addin.find_vesting_account(&vesting_token_account),
                             Rent::default().minimum_balance(vesting_addin.get_vesting_account_size(1, true)),
                         ),
-                        system_instruction::transfer(
-                            &wallet.payer_keypair.pubkey(),   // Charge VoterWeightRecord
-                            &vesting_addin.get_voter_weight_record_address(&voter_weight.voter, &realm),
-                            Rent::default().minimum_balance(vesting_addin.get_voter_weight_account_size()),
-                        ),
-                    ],
-                    &[&wallet.creator_keypair]
-                )?;
-                Ok(Some(transaction))
+                    ]);
+                    let transaction = client.create_transaction(
+                        &instructions,
+                        &[&wallet.creator_keypair]
+                    )?;
+                    Ok(Some(transaction))
+                } else {
+                    let transaction = client.create_transaction_with_payer_only(
+                        &instructions,
+                    )?;
+                    Ok(Some(transaction))
+                }
             }
         )?;
     }
 
     // -------------------- Create extra token accounts ------------------------
-    for token_account in EXTRA_TOKEN_ACCOUNTS.iter() {
-        let seed: String = format!("{}_account_{}", REALM_NAME, token_account.name);
+    for (i,token_account) in token_distribution.extra_token_accounts.iter().enumerate() {
+        let seed: String = format!("{}_account_{}", REALM_NAME, i);
         let token_account_address = Pubkey::create_with_seed(&wallet.creator_keypair.pubkey(), &seed, &spl_token::id())?;
-        let token_account_owner = match token_account.owner {
-            AccountOwner::MainGovernance => {governance.governance_address},
-            AccountOwner::EmergencyGovernance => {governance.governance_address},
-            AccountOwner::Key(pubkey) => {pubkey},
-            AccountOwner::MultiSig(_) => unreachable!(), // TODO cover MultiSig value
+        let token_account_owner = if token_account.lockup.is_locked() {
+            vesting_addin.find_vesting_account(&token_account_address)
+        } else {
+            account_owner_resolver.get_owner_pubkey(&token_account.owner)?
         };
-        println!("Extra token account '{}' {}", token_account.name, token_account_address);
+        println!("Extra token account '{}' {}", seed, token_account_address);
 
         executor.check_and_create_object(&seed, get_account_data(client, &token_account_address)?,
             |d| {
@@ -359,8 +368,7 @@ fn process_environment(wallet: &Wallet, client: &Client, setup: bool, verbose: b
                 Ok(None)
             },
             || {
-                let transaction = client.create_transaction(
-                    &[
+                let mut instructions = vec![
                         system_instruction::create_account_with_seed(
                             &wallet.payer_keypair.pubkey(),       // from
                             &token_account_address,               // to
@@ -374,9 +382,20 @@ fn process_environment(wallet: &Wallet, client: &Client, setup: bool, verbose: b
                             &spl_token::id(),
                             &token_account_address,
                             &wallet.community_pubkey,
-                            &token_account_owner,
+                            &vesting_addin.find_vesting_account(&token_account_address),
                         ).unwrap(),
-                    ],
+                    ];
+                if token_account.lockup.is_locked() {
+                    instructions.extend(vec![
+                        system_instruction::transfer(         // Charge VestingRecord
+                            &wallet.payer_keypair.pubkey(),
+                            &vesting_addin.find_vesting_account(&token_account_address),
+                            Rent::default().minimum_balance(vesting_addin.get_vesting_account_size(1, true)),
+                        ),
+                    ]);
+                }
+                let transaction = client.create_transaction(
+                    &instructions,
                     &[&wallet.creator_keypair]
                 )?;
                 Ok(Some(transaction))
@@ -421,7 +440,7 @@ fn process_environment(wallet: &Wallet, client: &Client, setup: bool, verbose: b
             vote_threshold_percentage: VoteThresholdPercentage::YesVote(2),
             min_community_weight_to_create_proposal: 10,
             min_transaction_hold_up_time: 0,
-            max_voting_time: 78200,
+            max_voting_time: 60, //78200,
             vote_tipping: VoteTipping::Strict,
             proposal_cool_off_time: 0,
             min_council_weight_to_create_proposal: 0,
@@ -557,6 +576,62 @@ fn process_environment(wallet: &Wallet, client: &Client, setup: bool, verbose: b
 }
 
 
+// =========================================================================
+// Create IDO proposal
+// =========================================================================
+fn setup_proposal_ido(wallet: &Wallet, client: &Client, proposal_index: Option<u32>, setup: bool, verbose: bool) -> Result<(), ScriptError> {
+    let executor = TransactionExecutor {client, setup, verbose};
+
+    let realm = Realm::new(&client, &wallet.governance_program_id, REALM_NAME, &wallet.community_pubkey);
+    realm.update_max_voter_weight_record_address()?;
+
+    let fixed_weight_addin = AddinFixedWeights::new(&client, wallet.fixed_weight_addin_id);
+    let governance = realm.governance(&wallet.governed_account_pubkey);
+
+    let creator_token_owner = realm.token_owner_record(&wallet.creator_token_owner_keypair.pubkey());
+    creator_token_owner.update_voter_weight_record_address()?;
+
+    let governance_proposal_count = governance.get_proposals_count();
+    let proposal_number = proposal_index.unwrap_or(governance_proposal_count);
+    if proposal_number > governance_proposal_count {return Err(StateError::InvalidProposalIndex.into());}
+    println!("Use {} for proposal_index", proposal_number);
+
+    let proposal: Proposal = governance.proposal(proposal_number);
+    
+    executor.check_and_create_object("Proposal IDO", proposal.get_data()?,
+        |_| {Ok(None)},
+        || {
+            let transaction = client.create_transaction(
+                &[
+                    proposal.create_proposal_instruction(
+                        &wallet.creator_keypair.pubkey(),
+                        &creator_token_owner,
+                        &format!("{} {}", "IDO proposal", proposal_number),
+                        "Proposal for IDO (delegate right to start IDO)",
+                    ),
+                ],
+                &[&wallet.creator_keypair],
+            )?;
+            Ok(Some(transaction))
+        },
+    )?;
+
+    // let result = client.add_signatory(&realm, &governance, &proposal, &token_owner);
+    // println!("Add signatory {:?}", result);
+    
+    let mut transaction_inserter = ProposalTransactionInserter {
+        proposal: &proposal,
+        creator_keypair: &wallet.creator_keypair,
+        creator_token_owner: &creator_token_owner,
+        hold_up_time: 0,
+        setup: setup,
+        verbose: verbose,
+        proposal_transaction_index: 0,
+    };
+
+    Ok(())
+}
+
 
 // =========================================================================
 // Create TGE proposal (Token Genesis Event)
@@ -570,6 +645,10 @@ fn setup_proposal_tge(wallet: &Wallet, client: &Client, proposal_index: Option<u
     let fixed_weight_addin = AddinFixedWeights::new(&client, wallet.fixed_weight_addin_id);
     let vesting_addin = AddinVesting::new(&client, wallet.vesting_addin_id);
     let governance = realm.governance(&wallet.governed_account_pubkey);
+
+    let account_owner_resolver = AccountOwnerResolver::new(wallet, client, MULTI_SIGS);
+    let token_distribution = TokenDistribution::new(&fixed_weight_addin, &account_owner_resolver, EXTRA_TOKEN_ACCOUNTS)?;
+    token_distribution.validate()?;
 
     let creator_token_owner = realm.token_owner_record(&wallet.creator_token_owner_keypair.pubkey());
     creator_token_owner.update_voter_weight_record_address()?;
@@ -617,10 +696,6 @@ fn setup_proposal_tge(wallet: &Wallet, client: &Client, proposal_index: Option<u
     println!("Governance address: {}", governance.governance_address);
     println!("Governance token account: {}", governance_token_account);
 
-    let voter_list = fixed_weight_addin.get_voter_list()?;
-    let total_amount = voter_list.iter().map(|v| v.weight).sum::<u64>() +
-                       EXTRA_TOKEN_ACCOUNTS.iter().map(|v| v.amount).sum::<u64>();
-
     transaction_inserter.insert_transaction_checked(
             "Mint tokens",
             vec![
@@ -629,12 +704,15 @@ fn setup_proposal_tge(wallet: &Wallet, client: &Client, proposal_index: Option<u
                     &wallet.community_pubkey,
                     &governance_token_account,
                     &governance.governance_address, &[],
-                    total_amount,
+                    token_distribution.info.total_amount,
                 )?.into(),
             ],
         )?;
 
-    for (i, voter) in voter_list.iter().enumerate() {
+    let special_accounts = token_distribution.get_special_accounts();
+    for (i, voter) in token_distribution.voter_list.iter().enumerate() {
+        if special_accounts.contains(&voter.voter) {continue;}
+
         let seed: String = format!("{}_vesting_{}", REALM_NAME, i);
         let vesting_token_account = Pubkey::create_with_seed(&wallet.creator_keypair.pubkey(), &seed, &spl_token::id()).unwrap();
         // TODO Calculate schedule
@@ -657,12 +735,33 @@ fn setup_proposal_tge(wallet: &Wallet, client: &Client, proposal_index: Option<u
             )?;
     }
 
-    for token_account in EXTRA_TOKEN_ACCOUNTS.iter() {
-        let seed: String = format!("{}_account_{}", REALM_NAME, token_account.name);
+    for (i, token_account) in token_distribution.extra_token_accounts.iter().enumerate() {
+        let seed: String = format!("{}_account_{}", REALM_NAME, i);
         let token_account_address = Pubkey::create_with_seed(&wallet.creator_keypair.pubkey(), &seed, &spl_token::id())?;
 
-        transaction_inserter.insert_transaction_checked(
-                &format!("Transfer {} to {} ({})", token_account.amount, token_account_address, token_account.name),
+        if token_account.lockup.is_locked() {
+            let token_account_owner = account_owner_resolver.get_owner_pubkey(&token_account.owner)?;
+            // TODO Calculate schedule
+            let schedule = vec!(VestingSchedule { release_time: 0, amount: token_account.amount });
+
+            transaction_inserter.insert_transaction_checked(
+                &format!("Deposit {} to {} on token account {}",
+                        token_account.amount, token_account_owner, token_account_address),
+                vec![
+                    vesting_addin.deposit_with_realm_instruction(
+                        &governance.governance_address,          // source_token_authority
+                        &governance_token_account,    // source_token_account
+                        &token_account_owner,         // vesting_owner
+                        &token_account_address,       // vesting_token_account
+                        schedule,                     // schedule
+                        &realm,                       // realm
+                        Some(governance.governance_address),  // payer
+                    )?.into(),
+                ],
+            )?;
+        } else {
+            transaction_inserter.insert_transaction_checked(
+                &format!("Transfer {} to {} ({})", token_account.amount, token_account_address, seed),
                 vec![
                     spl_token::instruction::transfer(
                         &spl_token::id(),
@@ -673,6 +772,7 @@ fn setup_proposal_tge(wallet: &Wallet, client: &Client, proposal_index: Option<u
                     )?.into(),
                 ],
             )?;
+        }
     };
 
     transaction_inserter.insert_transaction_checked(
@@ -685,7 +785,7 @@ fn setup_proposal_tge(wallet: &Wallet, client: &Client, proposal_index: Option<u
                         community_voter_weight_addin: Some(wallet.vesting_addin_id),
                         max_community_voter_weight_addin: None,
                         min_community_weight_to_create_governance: 1,            // TODO Verify parameters!
-                        community_mint_max_vote_weight_source: MintMaxVoteWeightSource::FULL_SUPPLY_FRACTION,
+                        community_mint_max_vote_weight_source: NEON_SUPPLY_FRACTION,
                     },
                     Some(governance.governance_address),  // payer
                 ).into(),
@@ -846,6 +946,9 @@ fn main() {
             .subcommand(SubCommand::with_name("create-tge")
                 .about("Create Token Genesis Event proposal")
             )
+            .subcommand(SubCommand::with_name("create-ido")
+                .about("Create Proposal for IDO")
+            )
             .subcommand(SubCommand::with_name("sign-off")
                 .about("Sign Off proposal")
             )
@@ -876,6 +979,9 @@ fn main() {
             match arg_matches.subcommand() {
                 ("create-tge", Some(arg_matches)) => {
                     setup_proposal_tge(&wallet, &client, proposal_index, send_trx, verbose).unwrap()
+                },
+                ("create-ido", Some(arg_matches)) => {
+                    setup_proposal_ido(&wallet, &client, proposal_index, send_trx, verbose).unwrap()
                 },
                 ("sign-off", Some(arg_matches)) => {
                     sign_off_proposal(&wallet, &client, proposal_index, verbose).unwrap()

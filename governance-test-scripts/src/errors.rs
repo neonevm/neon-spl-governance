@@ -60,6 +60,12 @@ pub enum StateError {
 
     #[error("Proposal transaction require additional signer {0:?}")]
     RequireAdditionalSigner(Pubkey),
+
+    #[error("Unknown MultiSig {0:?}")]
+    UnknownMultiSig(String),
+
+    #[error("Invalid voter list")]
+    InvalidVoterList,
 }
 
 /// Errors that may be returned by the neon-cli program.

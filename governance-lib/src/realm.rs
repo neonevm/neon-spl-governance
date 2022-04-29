@@ -137,28 +137,27 @@ impl<'a> Realm<'a> {
         self.client.get_account_data_borsh::<RealmV2>(&self.program_id, &self.realm_address)
     }
 
-    pub fn create_realm_instruction(&self, realm_authority: &Pubkey, voter_weight_addin: Option<Pubkey>, max_voter_weight_addin: Option<Pubkey>) -> Instruction {
+    pub fn create_realm_instruction(&self, realm_authority: &Pubkey, realm_config: &RealmConfig) -> Instruction {
         create_realm(
             &self.program_id,
             &realm_authority,
             &self.community_mint,
             &self.client.payer.pubkey(),
-            None,
-            voter_weight_addin,
-            max_voter_weight_addin,
+            realm_config.council_token_mint,
+            realm_config.community_voter_weight_addin,
+            realm_config.max_community_voter_weight_addin,
             self.realm_name.clone(),
-            MIN_COMMUNITY_WEIGHT_TO_CREATE_GOVERNANCE,
-            MintMaxVoteWeightSource::FULL_SUPPLY_FRACTION,
+            realm_config.min_community_weight_to_create_governance,
+            realm_config.community_mint_max_vote_weight_source.clone(),
         )
     }
 
-    pub fn create_realm(&self, realm_authority: &'a Keypair, voter_weight_addin: Option<Pubkey>, max_voter_weight_addin: Option<Pubkey>) -> ClientResult<Signature> {
+    pub fn create_realm(&self, realm_authority: &'a Keypair, realm_config: &RealmConfig) -> ClientResult<Signature> {
         self.client.send_and_confirm_transaction_with_payer_only(
             &[
                 self.create_realm_instruction(
                     &realm_authority.pubkey(),
-                    voter_weight_addin,
-                    max_voter_weight_addin,
+                    realm_config,
                 ),
             ],
         )       

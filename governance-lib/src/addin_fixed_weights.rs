@@ -13,6 +13,7 @@ use {
         instruction::Instruction,
         transaction::Transaction,
     },
+    std::collections::HashMap,
 };
 
 #[derive(Debug)]
@@ -151,5 +152,29 @@ impl<'a> AddinFixedWeights<'a> {
             }
         }
         panic!("Can't find VOTER_LIST symbol in Elf data");
+    }
+
+    pub fn get_params(&self) -> ClientResult<HashMap<String,String>> {
+        let mut result = HashMap::new();
+        let program_data = &self.client.get_program_data(&self.program_id)?;
+        let elf = Elf::parse(program_data).expect("Can't parse Elf data");
+        elf.dynsyms.iter().for_each(|sym| {
+            let name = String::from(&elf.dynstrtab[sym.st_name]);
+            if name.starts_with("PARAM_")
+            {
+                let end = program_data.len();
+                let from: usize = usize::try_from(sym.st_value).unwrap_or_else(|_| panic!("Unable to cast usize from u64:{:?}", sym.st_value));
+                let to: usize = usize::try_from(sym.st_value + sym.st_size).unwrap_or_else(|err| panic!("Unable to cast usize from u64:{:?}. Error: {}", sym.st_value + sym.st_size, err));
+                if to < end && from < end {
+                    let buf = &program_data[from..to];
+                    let value = std::str::from_utf8(buf).unwrap();
+                    result.insert(name, String::from(value));
+                }
+                else {
+                    panic!("{} is out of bounds", name);
+                }
+            }
+        });
+        Ok(result)
     }
 }

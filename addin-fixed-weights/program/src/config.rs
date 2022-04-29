@@ -1,6 +1,28 @@
 //! CONFIG MODULE
 
 use cfg_if::cfg_if;
+use const_format::formatcp;
+use spl_governance::state::enums::MintMaxVoteWeightSource;
+
+macro_rules! neon_elf_param {
+    ($identifier:ident, $value:expr) => {
+        #[no_mangle]
+        #[used]
+        #[allow(missing_docs)]
+        pub static $identifier: [u8; $value.len()] = {
+            #[allow(clippy::string_lit_as_bytes)]
+            let bytes: &[u8] = $value.as_bytes();
+
+            let mut array = [0; $value.len()];
+            let mut i = 0;
+            while i < $value.len() {
+                array[i] = bytes[i];
+                i += 1;
+            }
+            array
+        };
+    }
+}
 
 macro_rules! voter_weight_array {
     ($identifier:ident, [ $(($value_pubkey:expr,$value_weight:expr),)* ]) => {
@@ -13,7 +35,18 @@ macro_rules! voter_weight_array {
     };
 }
 
-const TOKEN_MULT: u64 = u64::pow(10, 9);
+/// Token multiplier (based on token precission)
+pub const TOKEN_MULT: u64 = u64::pow(10, 9);
+
+/// Extra tokens (not locked)
+pub const EXTRA_TOKENS: u64 = 478_762_400 * TOKEN_MULT;
+
+/// Supply fraction to calculate MaxVoterWeight
+pub const SUPPLY_FRACTION: u64 = MintMaxVoteWeightSource::SUPPLY_FRACTION_BASE/10;
+
+neon_elf_param!( PARAM_TOKEN_MULT      , formatcp!("{:?}", TOKEN_MULT));
+neon_elf_param!( PARAM_EXTRA_TOKENS    , formatcp!("{:?}", EXTRA_TOKENS));
+neon_elf_param!( PARAM_SUPPLY_FRACTION , formatcp!("{:?}", SUPPLY_FRACTION));
 
 cfg_if! {
     if #[cfg(feature = "mainnet")] {
@@ -100,7 +133,7 @@ cfg_if! {
                 ("EaKk38a3S4XKum2YM8gEX6KSaW9CE9AbbUaW5xQpoTTC",   42_500_000 * TOKEN_MULT),
                 ("DEskk1zj5w8hvfMf5rSkxUZLcZf7sGrf5G49C7wNQNce",    7_500_000 * TOKEN_MULT),
                 ("BU6N2Z68JPXLf247iYnHUTUv1B7p8AFWGTYkcjfeSwY8",   42_500_000 * TOKEN_MULT),
-                ("FcTRG2o9uiJQPSZhJufb6cDkYXpmdEz54m952TmireW",    42_500_000 * TOKEN_MULT),    // !!! Testing key!!!
+                ("11111111111111111111111111111111",               42_500_000 * TOKEN_MULT),    // !!! Testing key!!!
             ]
         );
 
@@ -109,11 +142,21 @@ cfg_if! {
         voter_weight_array!(
             VOTER_LIST,
             [
-                ("FcTRG2o9uiJQPSZhJufb6cDkYXpmdEz54m952TmireW",  9 * TOKEN_MULT),
-                ("xaEuzqGFrUvjiEokdzpC2HAKotJFumGYo2YmNTS4eFZ",  2 * TOKEN_MULT),
-                ("EnCMdFj7eMxMfK2KhXEfbMURWRQ3AYdwxvTNKH91GD7p", 3 * TOKEN_MULT),
-                ("ACVPBh4FmfYGZu5jK6MYiAquaid2Vr3yjYFJ5RWe597v", 1 * TOKEN_MULT),
-                ("A3ujb32N9vnxsMp3stRGVpxACHNmxUedgpT8knShfnhs", 5 * TOKEN_MULT),
+                ("69GA1mJCEqyYxj57CCeamy2WGx7wM3ABEwuUFMmatu2d",   40_000_000 * TOKEN_MULT),
+                ("5CmWF9DMrcCtpuw3g1rnx9zYLX39bNwEX7dSEeaKFPPf",   40_000_000 * TOKEN_MULT),
+                ("HFTXn5oTGo9dgSJfgCAU59caaiwLWx1ZDy7VjE1qu4w",    20_000_000 * TOKEN_MULT),
+                ("tst18qx7Kd3ELAsM3Qxn4nKNRZeg26Zi7GKGHaeWFm6",    20_000_000 * TOKEN_MULT),
+                ("tst6RG7t1J8XN3NYLNHkA3acfZcjurhurG7Kk3gAw9k",     4_000_000 * TOKEN_MULT),
+                ("tst6YyNdi4nGhHAew2N9GKLfVE2gp99y4y4XNAo52qs",     3_000_000 * TOKEN_MULT),
+                ("tstCUGzLUYcuuDVGgAzwi334fDhDS2asqHqcurDqhrS",     3_000_000 * TOKEN_MULT),
+                ("tstD4uLc8NE7JYXgKdamx8f3JpC3usDLcbiyDpdbrxJ",     2_400_000 * TOKEN_MULT),
+                ("tstKY6DqH9u7uwVw2qa3pgfJNoKWm12e82JRuccBwvV",     2_200_000 * TOKEN_MULT),
+                ("tstnGPJyiQMUJqZxqvK4857xeWp7ZrczqZwsf4SB7R8",     2_000_000 * TOKEN_MULT),
+                ("tstPSu5sHGrZQraZ3Ef8MFmeSfKWxQSwQQviv7cYWwb",     1_440_000 * TOKEN_MULT),
+                ("11111111111111111111111111111111",              168_247_600 * TOKEN_MULT),
+                ("D3wCDKMbwPkSrdzrngBA6yAnNxEUuCNhKzN6ab5WUtMk",   60_000_000 * TOKEN_MULT),
+                ("9Fng45apVeSsmUdVoAnXbkqcs4vyQgWh3jkYQGQAXTpv",   11_250_000 * TOKEN_MULT),
+                ("6oPw4ud7meKUEckU3dk3UZL2WMiU8hNVbb6HkTmE9yJF",  143_700_000 * TOKEN_MULT),
             ]
         );
     
