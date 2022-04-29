@@ -208,7 +208,7 @@ pub fn setup_msig(wallet: &Wallet, client: &Client, executor: &TransactionExecut
             min_community_weight_to_create_proposal: 1,
             min_transaction_hold_up_time: 0,
             max_voting_time: 78200,
-            vote_tipping: VoteTipping::Disabled,
+            vote_tipping: VoteTipping::Early,
             proposal_cool_off_time: 0,
             min_council_weight_to_create_proposal: 0,
         };

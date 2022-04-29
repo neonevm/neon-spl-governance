@@ -16,8 +16,7 @@ use {
 const GOVERNANCE_KEY_FILE_PATH:             &str = "solana-program-library/target/deploy/spl_governance-keypair.json";
 const VOTER_WEIGHT_ADDIN_KEY_FILE_PATH:     &str = "target/deploy/spl_governance_addin_fixed_weights-keypair.json";
 const VESTING_ADDIN_KEY_FILE_PATH:          &str = "target/deploy/spl_governance_addin_vesting-keypair.json";
-const COMMUTINY_MINT_KEY_FILE_PATH:         &str = "governance-test-scripts/community_mint.keypair";
-const GOVERNED_MINT_KEY_FILE_PATH:          &str = "governance-test-scripts/governance.keypair";
+const COMMUTINY_MINT_KEY_FILE_PATH:         &str = "launch-script/community_mint.keypair";
 const PAYER_KEY_FILE_PATH:                  &str = "artifacts/payer.keypair";
 const CREATOR_KEY_FILE_PATH:                &str = "artifacts/creator.keypair";
 const CREATOR_TOKEN_OWNER_KEY_FILE_PATH:    &str = "artifacts/creator_token_owner.keypair";
@@ -30,7 +29,6 @@ pub struct Wallet {
 
     pub community_pubkey: Pubkey,
     pub community_keypair: Keypair,
-    pub governed_account_pubkey: Pubkey,
 
     pub payer_keypair: Keypair,
     pub creator_keypair: Keypair,
@@ -48,7 +46,6 @@ impl Wallet {
 
             community_pubkey: community_keypair.pubkey(),
             community_keypair: community_keypair,
-            governed_account_pubkey: read_keypair_file(GOVERNED_MINT_KEY_FILE_PATH)?.pubkey(),
 
             payer_keypair: read_keypair_file(PAYER_KEY_FILE_PATH)?,
             creator_keypair: read_keypair_file(CREATOR_KEY_FILE_PATH)?,
@@ -69,7 +66,6 @@ impl Wallet {
         println!("Vesting Addin Id:        {}", self.vesting_addin_id);
 
         println!("Community Token Mint:    {}", self.community_pubkey);
-        println!("Governed Account (Mint): {}", self.governed_account_pubkey);
 
         println!("Payer Pubkey:            {}", self.payer_keypair.pubkey());
         println!("Creator Pubkey:          {}", self.creator_keypair.pubkey());

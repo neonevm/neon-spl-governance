@@ -152,7 +152,7 @@ impl<'a> AccountOwnerResolver<'a> {
         match account_owner {
             AccountOwner::MainGovernance => {
                 let realm = Realm::new(self.client, &self.wallet.governance_program_id, REALM_NAME, &self.wallet.community_pubkey);
-                let governance = realm.governance(&self.wallet.governed_account_pubkey);
+                let governance = realm.governance(&self.wallet.community_pubkey);
                 Ok(governance.governance_address)
             },
             AccountOwner::EmergencyGovernance => unreachable!(),
@@ -179,7 +179,8 @@ fn process_environment(wallet: &Wallet, client: &Client, setup: bool, verbose: b
     let realm = Realm::new(&client, &wallet.governance_program_id, REALM_NAME, &wallet.community_pubkey);
     let fixed_weight_addin = AddinFixedWeights::new(&client, wallet.fixed_weight_addin_id);
     let vesting_addin = AddinVesting::new(&client, wallet.vesting_addin_id);
-    let governance = realm.governance(&wallet.governed_account_pubkey);
+    let main_governance = realm.governance(&wallet.community_pubkey);
+    let emergency_governance = realm.governance(&wallet.governance_program_id);
 
     let account_owner_resolver = AccountOwnerResolver::new(wallet, client, MULTI_SIGS);
     let token_distribution = TokenDistribution::new(&fixed_weight_addin, &account_owner_resolver, EXTRA_TOKEN_ACCOUNTS)?;
@@ -195,7 +196,7 @@ fn process_environment(wallet: &Wallet, client: &Client, setup: bool, verbose: b
     executor.check_and_create_object("Mint", get_mint_data(client, &wallet.community_pubkey)?,
         |d| {
             if !d.mint_authority.contains(&wallet.creator_keypair.pubkey()) &&
-                    !d.mint_authority.contains(&governance.governance_address) {
+                    !d.mint_authority.contains(&main_governance.governance_address) {
                 return Err(StateError::InvalidMintAuthority(wallet.community_pubkey, d.mint_authority).into());
             }
             Ok(None)
@@ -222,7 +223,7 @@ fn process_environment(wallet: &Wallet, client: &Client, setup: bool, verbose: b
                 return Err(StateError::InvalidRealmCommunityMint(realm.realm_address, d.community_mint).into());
             }
             if d.authority != Some(wallet.creator_keypair.pubkey()) &&
-                    d.authority != Some(governance.governance_address) {
+                    d.authority != Some(main_governance.governance_address) {
                 return Err(StateError::InvalidRealmAuthority(realm.realm_address, d.authority).into());
             }
             Ok(None)
@@ -359,7 +360,7 @@ fn process_environment(wallet: &Wallet, client: &Client, setup: bool, verbose: b
         } else {
             account_owner_resolver.get_owner_pubkey(&token_account.owner)?
         };
-        println!("Extra token account '{}' {}", seed, token_account_address);
+        println!("Extra token account '{}' {} owner by {}", seed, token_account_address, token_account_owner);
 
         executor.check_and_create_object(&seed, get_account_data(client, &token_account_address)?,
             |d| {
@@ -382,7 +383,7 @@ fn process_environment(wallet: &Wallet, client: &Client, setup: bool, verbose: b
                             &spl_token::id(),
                             &token_account_address,
                             &wallet.community_pubkey,
-                            &vesting_addin.find_vesting_account(&token_account_address),
+                            &token_account_owner,
                         ).unwrap(),
                     ];
                 if token_account.lockup.is_locked() {
@@ -435,26 +436,49 @@ fn process_environment(wallet: &Wallet, client: &Client, setup: bool, verbose: b
     )?;
 
     // ------------- Setup main governance ------------------------
-    let gov_config: GovernanceConfig =
-        GovernanceConfig {
-            vote_threshold_percentage: VoteThresholdPercentage::YesVote(2),
-            min_community_weight_to_create_proposal: 10,
-            min_transaction_hold_up_time: 0,
-            max_voting_time: 60, //78200,
-            vote_tipping: VoteTipping::Strict,
-            proposal_cool_off_time: 0,
-            min_council_weight_to_create_proposal: 0,
-        };
-
-    executor.check_and_create_object("Governance", governance.get_data()?,
+    executor.check_and_create_object("Main governance", main_governance.get_data()?,
         |_| {Ok(None)},
         || {
             let transaction = client.create_transaction(
                 &[
-                    governance.create_governance_instruction(
+                    main_governance.create_governance_instruction(
                         &wallet.creator_keypair.pubkey(),
                         &creator_token_owner_record,
-                        gov_config
+                        GovernanceConfig {
+                            vote_threshold_percentage: VoteThresholdPercentage::YesVote(16),
+                            min_community_weight_to_create_proposal: 3_000,
+                            min_transaction_hold_up_time: 0,
+                            max_voting_time: 3*60, //78200,
+                            vote_tipping: VoteTipping::Disabled,
+                            proposal_cool_off_time: 0,
+                            min_council_weight_to_create_proposal: 0,
+                        },
+                    ),
+                ],
+                &[&wallet.creator_keypair]
+            )?;
+            Ok(Some(transaction))
+        }
+    )?;
+
+    // ------------- Setup emergency governance ------------------------
+    executor.check_and_create_object("Emergency governance", emergency_governance.get_data()?,
+        |_| {Ok(None)},
+        || {
+            let transaction = client.create_transaction(
+                &[
+                    emergency_governance.create_governance_instruction(
+                        &wallet.creator_keypair.pubkey(),
+                        &creator_token_owner_record,
+                        GovernanceConfig {
+                            vote_threshold_percentage: VoteThresholdPercentage::YesVote(90),
+                            min_community_weight_to_create_proposal: 1_000_000,
+                            min_transaction_hold_up_time: 0,
+                            max_voting_time: 3*60, //78200,
+                            vote_tipping: VoteTipping::Disabled,
+                            proposal_cool_off_time: 0,
+                            min_council_weight_to_create_proposal: 0,
+                        },
                     ),
                 ],
                 &[&wallet.creator_keypair]
@@ -465,15 +489,15 @@ fn process_environment(wallet: &Wallet, client: &Client, setup: bool, verbose: b
 
     // --------- Create NEON associated token account -------------
     let governance_token_account = spl_associated_token_account::get_associated_token_address_with_program_id(
-            &governance.governance_address, &wallet.community_pubkey, &spl_token::id());
-    println!("Governance address: {}", governance.governance_address);
-    println!("Governance token account: {}", governance_token_account);
+            &main_governance.governance_address, &wallet.community_pubkey, &spl_token::id());
+    println!("Main governance address: {}", main_governance.governance_address);
+    println!("Main governance token account: {}", governance_token_account);
 
-    executor.check_and_create_object("NEON-token governance account",
+    executor.check_and_create_object("NEON-token main-governance account",
         get_account_data(client, &governance_token_account)?,
         |d| {
             assert_is_valid_account_data(d, &governance_token_account,
-                    &wallet.community_pubkey, &governance.governance_address)?;
+                    &wallet.community_pubkey, &main_governance.governance_address)?;
             Ok(None)
         },
         || {
@@ -481,7 +505,7 @@ fn process_environment(wallet: &Wallet, client: &Client, setup: bool, verbose: b
                 &[
                     spl_associated_token_account::create_associated_token_account(
                         &wallet.payer_keypair.pubkey(),
-                        &governance.governance_address,
+                        &main_governance.governance_address,
                         &wallet.community_pubkey,
                     ).into(),
                 ],
@@ -501,7 +525,7 @@ fn process_environment(wallet: &Wallet, client: &Client, setup: bool, verbose: b
                         spl_token::instruction::set_authority(
                             &spl_token::id(),
                             &wallet.community_pubkey,
-                            Some(&governance.governance_address),
+                            Some(&main_governance.governance_address),
                             spl_token::instruction::AuthorityType::MintTokens,
                             &wallet.creator_keypair.pubkey(),
                             &[],
@@ -509,7 +533,7 @@ fn process_environment(wallet: &Wallet, client: &Client, setup: bool, verbose: b
                     ].to_vec();
                 let signers = [&wallet.creator_keypair].to_vec();
                 Ok(Some((instructions, signers,)))
-            } else if d.mint_authority.contains(&governance.governance_address) {
+            } else if d.mint_authority.contains(&main_governance.governance_address) {
                 Ok(None)
             } else {
                 Err(StateError::InvalidMintAuthority(wallet.community_pubkey, d.mint_authority).into())
@@ -525,13 +549,13 @@ fn process_environment(wallet: &Wallet, client: &Client, setup: bool, verbose: b
                 let instructions = [
                         realm.set_realm_authority_instruction(
                             &wallet.creator_keypair.pubkey(),
-                            Some(&governance.governance_address),
+                            Some(&main_governance.governance_address),
                             SetRealmAuthorityAction::SetChecked,
                         )
                     ].to_vec();
                 let signers = [&wallet.creator_keypair].to_vec();
                 Ok(Some((instructions, signers,)))
-            } else if d.authority == Some(governance.governance_address) {
+            } else if d.authority == Some(main_governance.governance_address) {
                 Ok(None)
             } else {
                 Err(StateError::InvalidRealmAuthority(realm.realm_address, d.authority).into())
@@ -555,12 +579,12 @@ fn process_environment(wallet: &Wallet, client: &Client, setup: bool, verbose: b
                             client.set_program_upgrade_authority_instruction(
                                 program,
                                 &wallet.creator_keypair.pubkey(),
-                                Some(&governance.governance_address),
+                                Some(&emergency_governance.governance_address),
                             )?
                         ].to_vec();
                     let signers = [&wallet.creator_keypair].to_vec();
                     Ok(Some((instructions, signers,)))
-                } else if upgrade_authority == Some(governance.governance_address) {
+                } else if upgrade_authority == Some(emergency_governance.governance_address) {
                     Ok(None)
                 } else {
                     Err(StateError::InvalidProgramUpgradeAuthority(*program, upgrade_authority).into())
@@ -586,7 +610,7 @@ fn setup_proposal_ido(wallet: &Wallet, client: &Client, proposal_index: Option<u
     realm.update_max_voter_weight_record_address()?;
 
     let fixed_weight_addin = AddinFixedWeights::new(&client, wallet.fixed_weight_addin_id);
-    let governance = realm.governance(&wallet.governed_account_pubkey);
+    let governance = realm.governance(&wallet.community_pubkey);
 
     let creator_token_owner = realm.token_owner_record(&wallet.creator_token_owner_keypair.pubkey());
     creator_token_owner.update_voter_weight_record_address()?;
@@ -644,7 +668,8 @@ fn setup_proposal_tge(wallet: &Wallet, client: &Client, proposal_index: Option<u
 
     let fixed_weight_addin = AddinFixedWeights::new(&client, wallet.fixed_weight_addin_id);
     let vesting_addin = AddinVesting::new(&client, wallet.vesting_addin_id);
-    let governance = realm.governance(&wallet.governed_account_pubkey);
+    let governance = realm.governance(&wallet.community_pubkey);
+    let emergency_governance = realm.governance(&wallet.governance_program_id);
 
     let account_owner_resolver = AccountOwnerResolver::new(wallet, client, MULTI_SIGS);
     let token_distribution = TokenDistribution::new(&fixed_weight_addin, &account_owner_resolver, EXTRA_TOKEN_ACCOUNTS)?;
@@ -793,12 +818,23 @@ fn setup_proposal_tge(wallet: &Wallet, client: &Client, proposal_index: Option<u
         )?;
 
     transaction_inserter.insert_transaction_checked(
+            "Pass Realm under Emergency-governance",
+            vec![
+                realm.set_realm_authority_instruction(
+                    &governance.governance_address,
+                    Some(&emergency_governance.governance_address),
+                    SetRealmAuthorityAction::SetChecked,
+                ).into(),
+            ],
+        )?;
+
+/*    transaction_inserter.insert_transaction_checked(
             "Change Governance config",
             vec![
                 governance.set_governance_config_instruction(
                     GovernanceConfig {
-                        vote_threshold_percentage: VoteThresholdPercentage::YesVote(2),
-                        min_community_weight_to_create_proposal: 3*1000_000,
+                        vote_threshold_percentage: VoteThresholdPercentage::YesVote(16),
+                        min_community_weight_to_create_proposal: 3_000,
                         min_transaction_hold_up_time: 0,
                         max_voting_time: 1*60, // 3*24*3600,
                         vote_tipping: VoteTipping::Disabled,
@@ -807,7 +843,7 @@ fn setup_proposal_tge(wallet: &Wallet, client: &Client, proposal_index: Option<u
                     },
                 ).into(),
             ],
-        )?;
+        )?;*/
 
     Ok(())
 }
@@ -815,7 +851,7 @@ fn setup_proposal_tge(wallet: &Wallet, client: &Client, proposal_index: Option<u
 fn finalize_vote_proposal(wallet: &Wallet, client: &Client, proposal_index: Option<u32>, verbose: bool) -> Result<(), ScriptError> {
     let realm = Realm::new(&client, &wallet.governance_program_id, REALM_NAME, &wallet.community_pubkey);
     realm.update_max_voter_weight_record_address()?;
-    let governance = realm.governance(&wallet.governed_account_pubkey);
+    let governance = realm.governance(&wallet.community_pubkey);
 
     let creator_token_owner = realm.token_owner_record(&wallet.creator_token_owner_keypair.pubkey());
     creator_token_owner.update_voter_weight_record_address()?;
@@ -838,7 +874,7 @@ fn finalize_vote_proposal(wallet: &Wallet, client: &Client, proposal_index: Opti
 fn sign_off_proposal(wallet: &Wallet, client: &Client, proposal_index: Option<u32>, verbose: bool) -> Result<(), ScriptError> {
     let realm = Realm::new(&client, &wallet.governance_program_id, REALM_NAME, &wallet.community_pubkey);
     realm.update_max_voter_weight_record_address()?;
-    let governance = realm.governance(&wallet.governed_account_pubkey);
+    let governance = realm.governance(&wallet.community_pubkey);
 
     let creator_token_owner = realm.token_owner_record(&wallet.creator_token_owner_keypair.pubkey());
     creator_token_owner.update_voter_weight_record_address()?;
@@ -867,7 +903,7 @@ fn approve_proposal(wallet: &Wallet, client: &Client, proposal_index: Option<u32
     let creator_token_owner = realm.token_owner_record(&wallet.creator_token_owner_keypair.pubkey());
     creator_token_owner.update_voter_weight_record_address()?;
 
-    let governance = realm.governance(&wallet.governed_account_pubkey);
+    let governance = realm.governance(&wallet.community_pubkey);
     let governance_proposal_count = governance.get_proposals_count();
     let proposal_number = proposal_index.unwrap_or(governance_proposal_count);
     if proposal_number > governance_proposal_count {return Err(StateError::InvalidProposalIndex.into());}
@@ -893,7 +929,7 @@ fn approve_proposal(wallet: &Wallet, client: &Client, proposal_index: Option<u32
 
 fn execute_proposal(wallet: &Wallet, client: &Client, proposal_index: Option<u32>, verbose: bool) -> Result<(), ScriptError> {
     let realm = Realm::new(&client, &wallet.governance_program_id, REALM_NAME, &wallet.community_pubkey);
-    let governance = realm.governance(&wallet.governed_account_pubkey);
+    let governance = realm.governance(&wallet.community_pubkey);
 
     let governance_proposal_count = governance.get_proposals_count();
     let proposal_number = proposal_index.unwrap_or(governance_proposal_count);
