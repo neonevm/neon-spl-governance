@@ -16,7 +16,7 @@ pub fn get_max_voter_weight_record_seeds<'a>(
     realm: &'a Pubkey,
     mint: &'a Pubkey,
 ) -> [&'a [u8]; 3] {
-    [b"max_voter_weight", realm.as_ref(), mint.as_ref()]
+    [b"max-voter-weight-record", realm.as_ref(), mint.as_ref()]
 }
 
 /// Returns MaxVoterWeightRecord PDA address

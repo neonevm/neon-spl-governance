@@ -14,6 +14,15 @@ pub enum VoterWeightAddinError {
     /// Wrong Token Owner
     #[error("Wrong Token Owner")]
     WrongTokenOwner,
+    /// Wrong Voter Weight Record Ownership
+    #[error("Wrong Voter Weight Record Ownership")]
+    WrongVoterWeightRecordOwnership,
+    /// Missing Required Signer
+    #[error("Missing Required Signer")]
+    MissingRequiredSigner,
+    /// Overflow Voter Weight
+    #[error("Overflow Voter Weight")]
+    OverflowVoterWeight,
 }
 
 impl PrintProgramError for VoterWeightAddinError {

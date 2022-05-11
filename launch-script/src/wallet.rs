@@ -13,9 +13,9 @@ use {
     },
 };
 
-const GOVERNANCE_KEY_FILE_PATH:             &str = "solana-program-library/target/deploy/spl_governance-keypair.json";
-const VOTER_WEIGHT_ADDIN_KEY_FILE_PATH:     &str = "target/deploy/spl_governance_addin_fixed_weights-keypair.json";
-const VESTING_ADDIN_KEY_FILE_PATH:          &str = "target/deploy/spl_governance_addin_vesting-keypair.json";
+const GOVERNANCE_KEY_FILE_PATH:             &str = "artifacts/spl_governance-keypair.json";
+const VOTER_WEIGHT_ADDIN_KEY_FILE_PATH:     &str = "artifacts/spl_governance_addin_fixed_weights-keypair.json";
+const VESTING_ADDIN_KEY_FILE_PATH:          &str = "artifacts/spl_governance_addin_vesting-keypair.json";
 const COMMUTINY_MINT_KEY_FILE_PATH:         &str = "launch-script/community_mint.keypair";
 const PAYER_KEY_FILE_PATH:                  &str = "artifacts/payer.keypair";
 const CREATOR_KEY_FILE_PATH:                &str = "artifacts/creator.keypair";
