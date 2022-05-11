@@ -90,7 +90,7 @@ pub fn get_voter_weight_record_seeds<'a>(
     mint: &'a Pubkey,
     owner: &'a Pubkey,
 ) -> [&'a [u8]; 4] {
-    [b"voter_weight", realm.as_ref(), mint.as_ref(), owner.as_ref()]
+    [b"voter-weight-record", realm.as_ref(), mint.as_ref(), owner.as_ref()]
 }
 
 /// Returns ExtendedVoterWeightRecord PDA address

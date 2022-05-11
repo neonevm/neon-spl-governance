@@ -88,7 +88,7 @@ pub fn process_setup_voter_weight_record(
         reserved: [0; 8],
     };
 
-    let seeds: &[&[u8]] = &[b"voter_weight", &realm_info.key.to_bytes(), &governing_token_mint_info.key.to_bytes(), &governing_token_owner_info.key.to_bytes()];
+    let seeds: &[&[u8]] = &[b"voter-weight-record", &realm_info.key.to_bytes(), &governing_token_mint_info.key.to_bytes(), &governing_token_owner_info.key.to_bytes()];
     let rent = Rent::get()?;
 
     create_and_serialize_account_signed(
@@ -180,7 +180,7 @@ pub fn process_setup_max_voter_weight_record(
         reserved: [0; 8],
     };
 
-    let seeds: &[&[u8]] = &[b"max_voter_weight", &realm_info.key.to_bytes(), &governing_token_mint_info.key.to_bytes()];
+    let seeds: &[&[u8]] = &[b"max-voter-weight-record", &realm_info.key.to_bytes(), &governing_token_mint_info.key.to_bytes()];
     let rent = Rent::get()?;
 
     create_and_serialize_account_signed(
