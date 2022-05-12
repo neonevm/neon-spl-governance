@@ -1,11 +1,12 @@
 pub mod client;
-
+pub mod errors;
 pub mod realm;
 pub mod governance;
 pub mod proposal;
 pub mod token_owner;
 
 pub mod addin_fixed_weights;
+pub mod addin_vesting;
 
 #[cfg(test)]
 mod tests {

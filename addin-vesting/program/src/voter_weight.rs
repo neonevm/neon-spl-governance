@@ -15,26 +15,26 @@ use spl_governance_tools::account::{
     get_account_data,
 };
 
-use spl_governance_addin_api::voter_weight::VoterWeightRecord;
+pub use spl_governance_addin_api::voter_weight::VoterWeightRecord;
 
 /// ExtendedVoterWeightRecord account
 /// The account is used as an api interface to provide voting power to the governance program
 /// and to save information about total amount of deposited token
 #[derive(Clone, Debug, PartialEq, BorshDeserialize, BorshSerialize, BorshSchema)]
 pub struct ExtendedVoterWeightRecord {
-    base: VoterWeightRecord,
+    pub base: VoterWeightRecord,
 
     /// ExtendedVoterWeightRecord discriminator sha256("account:ExtendedVoterWeightRecord")[..8]
     /// Note: The discriminator size must match the addin implementing program discriminator size
     /// to ensure it's stored in the private space of the account data and it's unique
-    account_discriminator: [u8; 8],
+    pub account_discriminator: [u8; 8],
 
     /// Total number of tokens owned by the account
-    total_amount: u64,
+    pub total_amount: u64,
 
     /// Percentage of the total number of tokens for calculating the voting weight
     /// (in hundredths of a percent)
-    vote_percentage: u16,
+    pub vote_percentage: u16,
 }
 
 impl ExtendedVoterWeightRecord {

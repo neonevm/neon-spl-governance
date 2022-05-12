@@ -1,24 +1,26 @@
 [package]
-name = "governance-lib"
+name = "launch-script"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+question = "0.2.2"
+goblin = "0.4.2"
 solana-sdk = "1.9"
 solana-client = "1.9"
-solana-account-decoder = "1.9"
 borsh = "0.9.1"
-goblin = "0.4.2"
 log = "0.4.11"
+clap = "2.33.3"
 thiserror = "1.0"
-bs58 = "0.4.0"
 spl-token = { version = "3.3", path = "../solana-program-library/token/program", features = [ "no-entrypoint" ] }
-spl-associated-token-account = "1"
+spl-associated-token-account = { path = "../solana-program-library/associated-token-account/program", features = [ "no-entrypoint" ] }
 spl-governance = { version = "2.2", path = "../solana-program-library/governance/program" }
 spl-governance-addin-api= { version = "0.1.1", path = "../solana-program-library/governance/addin-api"}
 spl-governance-addin-mock = { version = "0.1", path = "../solana-program-library/governance/addin-mock/program" }
 
 spl-governance-addin-fixed-weights = { version = "0.1", path = "../addin-fixed-weights/program" }
 spl-governance-addin-vesting = { path = "../addin-vesting/program" }
+
+governance-lib = { path = "../governance-lib" }

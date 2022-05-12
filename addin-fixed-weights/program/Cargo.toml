@@ -10,6 +10,7 @@ edition = "2021"
 [features]
 no-entrypoint = []
 test-bpf = []
+mainnet = []
 
 [dependencies]
 arrayref = "0.3.6"
@@ -20,10 +21,11 @@ num-traits = "0.2"
 serde = "1.0.127"
 serde_derive = "1.0.103"
 solana-program = "1.9.9"
+const_format = { version = "0.2.21" }
 spl-token = { path = "../../solana-program-library/token/program", version = "3.3", features = [ "no-entrypoint" ] }
-spl-governance = { path = "../../solana-program-library/governance/program", features = ["no-entrypoint"] }
-spl-governance-addin-api= { path = "../../solana-program-library/governance/addin-api", version = "0.1.1" }
-spl-governance-tools= { path = "../../solana-program-library/governance/tools", version = "0.1.2" }
+spl-governance-addin-api = { path = "../../solana-program-library/governance/addin-api", version = "0.1.1" }
+spl-governance-tools = { path = "../../solana-program-library/governance/tools", version = "0.1.2" }
+spl-governance = { path = "../../solana-program-library/governance/program", version = "2.2.4", features = [ "no-entrypoint" ]}
 thiserror = "1.0"
 cfg-if = { version = "1.0" }
 

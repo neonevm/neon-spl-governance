@@ -1,136 +1,272 @@
 use {
-    crate::realm::Realm,
+    crate::errors::GovernanceLibError,
     borsh::BorshDeserialize,
     solana_sdk::{
+        account::Account,
+        account_utils::StateMut,
+        borsh::try_from_slice_unchecked,
         commitment_config::CommitmentConfig,
         pubkey::Pubkey,
-        instruction::Instruction,
+        instruction::{AccountMeta, Instruction},
         transaction::Transaction,
         signer::{Signer, keypair::Keypair},
+        signers::Signers,
+        signature::Signature,
+        program_pack::{Pack, IsInitialized},
+        bpf_loader, bpf_loader_deprecated,
+        bpf_loader_upgradeable::{self, UpgradeableLoaderState},
+        loader_upgradeable_instruction::UpgradeableLoaderInstruction,
     },
     std::fmt,
-    spl_governance::{
-        state::{
-            enums::MintMaxVoteWeightSource,
-            realm::{RealmV2, get_realm_address},
-        },
-        instruction::create_realm,
-    },
     solana_client::{
+        rpc_config::RpcSendTransactionConfig,
         rpc_client::RpcClient,
-        client_error::ClientError,
     },
 };
 
-const MIN_COMMUNITY_WEIGHT_TO_CREATE_GOVERNANCE: u64 = 1;
-
-pub struct SplGovernanceInteractor<'a> {
+pub struct Client<'a> {
     pub url: String,
-    pub solana_client: RpcClient,
     pub payer: &'a Keypair,
-    pub spl_governance_program_address: Pubkey,
-    pub spl_governance_voter_weight_addin_address: Pubkey,
+    pub solana_client: RpcClient,
 }
 
-impl<'a> fmt::Debug for SplGovernanceInteractor<'a> {
+pub type ClientResult<T> = std::result::Result<T, GovernanceLibError>;
+
+impl<'a> fmt::Debug for Client<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("SplGovernanceInteractor")
+        f.debug_struct("Client")
             .field("url", &self.url)
-            .field("program", &self.spl_governance_program_address)
-            .field("addin", &self.spl_governance_voter_weight_addin_address)
+            .field("payer", &self.payer.pubkey())
             .finish()
     }
 }
 
-impl<'a> SplGovernanceInteractor<'a> {
+impl<'a> fmt::Display for Client<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Client")
+            .field("url", &self.url)
+            .field("payer", &self.payer.pubkey())
+            .finish()
+    }
+}
 
-    pub fn new(url: &str, program_address: Pubkey, addin_address: Pubkey, payer: &'a Keypair) -> Self {
-        SplGovernanceInteractor {
+impl<'a> Client<'a> {
+
+    pub fn new(url: &str, payer: &'a Keypair) -> Self {
+        Client {
             url: url.to_string(),
             solana_client: RpcClient::new_with_commitment(url.to_string(),CommitmentConfig::confirmed()),
             payer,
-            spl_governance_program_address: program_address,
-            spl_governance_voter_weight_addin_address: addin_address,
         }
     }
+
+    pub fn send_transaction(&self, transaction: &Transaction) -> ClientResult<Signature> {
+        //self.solana_client.send_and_confirm_transaction(&transaction)
+        self.solana_client.send_and_confirm_transaction_with_spinner_and_config(&transaction, 
+                self.solana_client.commitment(),
+                RpcSendTransactionConfig {skip_preflight: true, ..RpcSendTransactionConfig::default()}).map_err(|e| e.into())
+    }
+
+    pub fn create_transaction_with_payer_only(
+            &self,
+            instructions: &[Instruction],
+    ) -> ClientResult<Transaction> {
+        self.create_transaction::<[&dyn solana_sdk::signature::Signer;0]>(
+                instructions,
+                &[],
+            )
+    }
+
+    pub fn create_transaction<T: Signers>(
+            &self,
+            instructions: &[Instruction],
+            signing_keypairs: &T,
+    ) -> ClientResult<Transaction> {
+        let mut transaction: Transaction =
+            Transaction::new_with_payer(
+                instructions,
+                Some(&self.payer.pubkey()),
+            );
+
+        let blockhash = self.solana_client.get_latest_blockhash().unwrap();
+        transaction.partial_sign(&[self.payer], blockhash);
+        transaction.sign(signing_keypairs, blockhash);
+
+        Ok(transaction)
+    }
+
+    pub fn send_and_confirm_transaction_with_payer_only(
+            &self,
+            instructions: &[Instruction],
+    ) -> ClientResult<Signature> {
+        self.send_and_confirm_transaction::<[&dyn solana_sdk::signature::Signer;0]>(
+                instructions,
+                &[],
+            )
+    }
+
+    pub fn send_and_confirm_transaction<T: Signers>(
+            &self,
+            instructions: &[Instruction],
+            signing_keypairs: &T,
+    ) -> ClientResult<Signature> {
+        let mut transaction: Transaction =
+            Transaction::new_with_payer(
+                instructions,
+                Some(&self.payer.pubkey()),
+            );
+
+        let blockhash = self.solana_client.get_latest_blockhash().unwrap();
+        transaction.partial_sign(&[self.payer], blockhash);
+        transaction.sign(signing_keypairs, blockhash);
+        
+        //self.solana_client.send_and_confirm_transaction(&transaction)
+        self.solana_client.send_and_confirm_transaction_with_spinner_and_config(&transaction, 
+                self.solana_client.commitment(),
+                RpcSendTransactionConfig {skip_preflight: true, ..RpcSendTransactionConfig::default()}).map_err(|e| e.into())
+    }
+
+    pub fn get_account(&self, account_key: &Pubkey) -> ClientResult<Option<Account>> {
+        let account_info = self.solana_client.get_account_with_commitment(
+                &account_key, self.solana_client.commitment())?.value;
+        Ok(account_info)
+    }
+
+    pub fn get_account_data_pack<T: Pack + IsInitialized>(
+            &self,
+            owner_program_id: &Pubkey,
+            account_key: &Pubkey,
+    ) -> ClientResult<Option<T>> {
+        if let Some(account_info) = self.get_account(account_key)? {
+            if account_info.data.is_empty() {
+                return Err(GovernanceLibError::StateError(*account_key, "Account is empty".to_string()));
+            }
+            if account_info.owner != *owner_program_id {
+                return Err(GovernanceLibError::StateError(*account_key,
+                        format!("Invalid account owner: expect {}, actual {}", owner_program_id, account_info.owner)));
+            }
+        
+            let account: T = T::unpack(&account_info.data).unwrap(); //try_from_slice_unchecked(&account_info.data).unwrap();
+            if !account.is_initialized() {
+                return Err(GovernanceLibError::StateError(*account_key, "Uninitialized account".to_string()));
+            }
+            Ok(Some(account))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn get_account_data_borsh<T: BorshDeserialize + IsInitialized>(
+            &self,
+            owner_program_id: &Pubkey,
+            account_key: &Pubkey,
+    ) -> ClientResult<Option<T>> {
+        if let Some(account_info) = self.get_account(account_key)? {
+            if account_info.data.is_empty() {
+                return Err(GovernanceLibError::StateError(*account_key, "Account is empty".to_string()));
+            }
+            if account_info.owner != *owner_program_id {
+                return Err(GovernanceLibError::StateError(*account_key,
+                        format!("Invalid account owner: expect {}, actual {}", owner_program_id, account_info.owner)));
+            }
+        
+            let account: T = try_from_slice_unchecked(&account_info.data).unwrap();
+            if !account.is_initialized() {
+                return Err(GovernanceLibError::StateError(*account_key, "Uninitialized account".to_string()));
+            }
+            Ok(Some(account))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn get_program_upgrade_authority(
+            &self,
+            program_id: &Pubkey,
+    ) -> ClientResult<Option<Pubkey>> {
+        let programdata_address = self.get_program_data_address(&program_id)?;
+        let buffer_account = &self.solana_client.get_account(&programdata_address)?;
+        if let Ok(UpgradeableLoaderState::ProgramData {upgrade_authority_address, ..}) = buffer_account.state() {
+            Ok(upgrade_authority_address)
+        } else {
+            return Err(GovernanceLibError::StateError(programdata_address, "Invalid associated PDA".to_string()));
+        }
+    }
+
+    pub fn get_program_data_address(
+            &self,
+            program_id: &Pubkey,
+    ) -> ClientResult<Pubkey> {
+        let program_info = &self.solana_client.get_account(&program_id)?;
+
+        if program_info.owner == bpf_loader_upgradeable::id() {
+            if let Ok(UpgradeableLoaderState::Program {programdata_address}) = program_info.state() {
+                Ok(programdata_address)
+            } else {
+                return Err(GovernanceLibError::StateError(*program_id, "Account is not upgradeable".to_string()));
+            }
+        } else {
+            return Err(GovernanceLibError::StateError(*program_id, "Unable to load program data: invalid owner".to_string()));
+        }
+    }
+
+    pub fn set_program_upgrade_authority_instruction(
+            &self,
+            program_id: &Pubkey,
+            upgrade_authority: &Pubkey,
+            new_upgrade_authority: Option<&Pubkey>,
+    ) -> ClientResult<Instruction> {
+        let program_data_address = self.get_program_data_address(program_id)?;
+        let mut accounts = vec![
+            AccountMeta::new(program_data_address, false),
+            AccountMeta::new_readonly(*upgrade_authority, true),
+        ];
+        if let Some(new_upgrade_authority) = new_upgrade_authority {
+            accounts.push(AccountMeta::new_readonly(*new_upgrade_authority, false));
+        }
+    
+        Ok(Instruction::new_with_bincode(
+            bpf_loader_upgradeable::id(),
+            &UpgradeableLoaderInstruction::SetAuthority,
+            accounts,
+        ))
+    }
+
+    pub fn get_program_data(
+            &self,
+            program_id: &Pubkey,
+    ) -> ClientResult<Vec<u8>> {
+        let program_info = &self.solana_client.get_account(&program_id)?;
+
+        if program_info.owner == bpf_loader::id() || program_info.owner == bpf_loader_deprecated::id() {
+            Ok(program_info.data.clone())
+        } else if program_info.owner == bpf_loader_upgradeable::id() {
+            if let Ok(UpgradeableLoaderState::Program {programdata_address}) = program_info.state() {
+                let buffer_account = &self.solana_client.get_account(&programdata_address)?;
+                if let Ok(UpgradeableLoaderState::ProgramData {..}) = buffer_account.state() {
+                    let offset = UpgradeableLoaderState::programdata_data_offset().unwrap_or(0);
+                    let program_data = &buffer_account.data[offset..];
+                    Ok(program_data.to_vec())
+                } else {
+                    return Err(GovernanceLibError::StateError(programdata_address, "Invalid associated PDA".to_string()));
+                }
+            } else if let Ok(UpgradeableLoaderState::Buffer {..}) = program_info.state() {
+                let offset = UpgradeableLoaderState::buffer_data_offset().unwrap_or(0);
+                let program_data = &program_info.data[offset..];
+                Ok(program_data.to_vec())
+            } else {
+                return Err(GovernanceLibError::StateError(*program_id, "Account is not upgradeable".to_string()));
+            }
+        } else {
+            return Err(GovernanceLibError::StateError(*program_id, "Unable to load program data: invalid owner".to_string()));
+        }
+    }
+
     pub fn account_exists(&self, address: &Pubkey) -> bool {
         self.solana_client.get_account(address).is_ok()
     }
-    pub fn get_realm_address(&self, name: &str) -> Pubkey {
-        get_realm_address(&self.spl_governance_program_address, name)
-    }
-    pub fn get_realm_v2(&self, realm_name: &str) -> Result<RealmV2,()> {
-        let realm_pubkey: Pubkey = self.get_realm_address(realm_name);
 
-        self.solana_client.get_account_data(&realm_pubkey)
-            .map_err(|_|())
-            .and_then(|data|{
-                let mut data_slice: &[u8] = &data;
-                RealmV2::deserialize(&mut data_slice).map_err(|_|())
-
-            })
-    }
-//    pub fn get_voter_weight_record(&self, voter_weight_record_pubkey: &Pubkey) -> VoterWeightRecord {
-//        let mut dt: &[u8] = &self.solana_client.get_account_data(voter_weight_record_pubkey).unwrap();
-//        VoterWeightRecord::deserialize(&mut dt).unwrap()
-//    }
-//    pub fn get_max_voter_weight_record(&self, max_voter_weight_record_pubkey: &Pubkey) -> MaxVoterWeightRecord {
-//        let mut dt: &[u8] = &self.solana_client.get_account_data(max_voter_weight_record_pubkey).unwrap();
-//        MaxVoterWeightRecord::deserialize(&mut dt).unwrap()
-//    }
-
-    pub fn create_realm(&'a self, realm_authority: &'a Keypair, community_mint_pubkey: &Pubkey, addin_opt: Option<Pubkey>, realm_name: &str) -> Result<Realm<'a>,ClientError> {
-        let realm_pubkey: Pubkey = self.get_realm_address(realm_name);
-
-        if !self.account_exists(&realm_pubkey) {
-            let realm_authority_pubkey: Pubkey = realm_authority.pubkey();
-
-            let create_realm_instruction: Instruction =
-                create_realm(
-                    &self.spl_governance_program_address,
-                    &realm_authority_pubkey,
-                    community_mint_pubkey,
-                    &self.payer.pubkey(),
-                    None,
-                    addin_opt,
-                    addin_opt,
-                    realm_name.to_string(),
-                    MIN_COMMUNITY_WEIGHT_TO_CREATE_GOVERNANCE,
-                    //MintMaxVoteWeightSource::SupplyFraction(10_000_000_000),
-                    MintMaxVoteWeightSource::FULL_SUPPLY_FRACTION,
-                );
-            
-            let transaction: Transaction =
-                Transaction::new_signed_with_payer(
-                    &[
-                        create_realm_instruction,
-                    ],
-                    Some(&self.payer.pubkey()),
-                    &[
-                        self.payer,
-                    ],
-                    self.solana_client.get_latest_blockhash().unwrap(),
-                );
-            
-            self.solana_client.send_and_confirm_transaction(&transaction)?;
-        }
-
-        Ok(
-            Realm {
-                //authority: realm_authority,
-                interactor: self,
-                address: realm_pubkey,
-                community_mint: *community_mint_pubkey,
-                data: self.get_realm_v2(realm_name).unwrap(),
-                //max_voter_weight_addin_address: addin_opt,
-                // voter_weight_addin_address: addin_opt,
-                max_voter_weight_record_address: None,
-            }
-        )
-    }
-
-
-/*    pub fn _add_signatory(&self, realm: &Realm, _governance: &Governance, proposal: &Proposal, token_owner: &TokenOwner) -> Result<Signature,ClientError> {
+/*    pub fn _add_signatory(&self, realm: &Realm, _governance: &Governance, proposal: &Proposal, token_owner: &TokenOwner) -> Result<Signature,GovernanceLibError> {
         let realm_authority_pubkey: Pubkey = realm.authority.pubkey();
         // let signatory_record_address = get_signatory_record_address(&self.spl_governance_program_address, &proposal.address, &token_owner.authority.pubkey());
 
