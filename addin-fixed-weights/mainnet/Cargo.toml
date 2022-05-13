@@ -12,7 +12,7 @@ no-entrypoint = []
 test-bpf = []
 
 [dependencies]
-solana-program = "1.9.9"
+solana-program = "1.10.13"
 spl-governance-addin-fixed-weights = { path = "../program", features = [ "mainnet", "no-entrypoint" ] }
 
 [lib]

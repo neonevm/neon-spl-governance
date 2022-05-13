@@ -1,8 +1,10 @@
 [package]
 name = "spl-governance-addin-vesting"
-version = "0.1.0"
-authors = ["Elliott Benisty <elliott@bonfida.com>", "Lucas Chaumeny <lucas@bonfida.com>"]
-edition = "2018"
+version = "0.1.1"
+description = "Solana Program Library Governance Addin For Vesting"
+authors = ["NeonLabs Maintainers <maintainers@neonlabs.org>"]
+repository = "https://github.com/neonlabsorg/neon-spl-governance/addin-vesting/program"
+edition = "2021"
 
 [features]
 no-entrypoint = []
@@ -14,8 +16,8 @@ num-traits = "0.2"
 num-derive = "0.3"
 arrayref = "0.3.6"
 borsh = "0.9.1"
-solana-program = "1.9.9"
-spl-token = { version = "3.2", features = ["no-entrypoint"] }
+solana-program = "1.10.13"
+spl-token = { version = "3.3.0", features = ["no-entrypoint"] }
 spl-associated-token-account = { version = "1.0.2", features = ["no-entrypoint"] }
 spl-governance = { path="../../solana-program-library/governance/program", features = ["no-entrypoint"] }
 spl-governance-tools = { path="../../solana-program-library/governance/tools", version = "0.1.2" }
@@ -23,8 +25,8 @@ spl-governance-addin-api = { path="../../solana-program-library/governance/addin
 arbitrary = { version = "0.4", features = ["derive"], optional = true }
 
 [dev-dependencies]
-solana-sdk = "1.9.9"
-solana-program-test = "1.9.9"
+solana-sdk = "1.10.13"
+solana-program-test = "1.10.13"
 tokio = { version = "1.0", features = ["macros"]}
 hex = "0.4"
 
