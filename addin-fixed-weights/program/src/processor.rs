@@ -170,7 +170,7 @@ pub fn process_setup_max_voter_weight_record(
     let payer_info = next_account_info(account_info_iter)?; // 3
     let system_info = next_account_info(account_info_iter)?; // 4
 
-    let max_voter_weight = (get_max_voter_weight_fixed() as u128)
+    let max_voter_weight = (get_max_voter_weight_fixed()? as u128)
         .checked_add(crate::config::EXTRA_TOKENS as u128).unwrap()
         .checked_mul(crate::config::SUPPLY_FRACTION as u128).unwrap()
         .checked_div(MintMaxVoteWeightSource::SUPPLY_FRACTION_BASE as u128).unwrap() as u64;
@@ -201,10 +201,11 @@ pub fn process_setup_max_voter_weight_record(
 }
 
 /// Get Fixed Voter Weight
-fn get_max_voter_weight_fixed() -> u64 {
+fn get_max_voter_weight_fixed() -> Result<u64,ProgramError> {
     crate::config::VOTER_LIST
         .iter()
-        .fold(0, |acc, item| acc + item.1)
+        .try_fold(0u64, |acc, item| acc.checked_add(item.1))
+        .ok_or_else(|| VoterWeightAddinError::OverflowVoterWeight.into())
 }
 
 /// Get Fixed Voter Weight

@@ -1,6 +1,6 @@
 [package]
 name = "spl-governance-addin-fixed-weights"
-version = "0.1.0"
+version = "0.1.1"
 description = "Solana Program Library Governance Voter Weight Addin Program"
 authors = ["NeonLabs Maintainers <maintainers@neonlabs.org>"]
 repository = "https://github.com/neonlabsorg/neon-spl-governance/addin-fixed-weights/program"
@@ -20,7 +20,7 @@ num-derive = "0.3"
 num-traits = "0.2"
 serde = "1.0.127"
 serde_derive = "1.0.103"
-solana-program = "1.9.9"
+solana-program = "1.10.13"
 const_format = { version = "0.2.21" }
 spl-token = { path = "../../solana-program-library/token/program", version = "3.3", features = [ "no-entrypoint" ] }
 spl-governance-addin-api = { path = "../../solana-program-library/governance/addin-api", version = "0.1.1" }

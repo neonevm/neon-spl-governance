@@ -87,10 +87,9 @@ impl Processor {
                return Err(VestingError::InvalidVestingTokenAccount.into());
         }
 
-        let mut total_amount: u64 = 0;
-        for s in schedules.iter() {
-            total_amount = total_amount.checked_add(s.amount).ok_or(VestingError::OverflowAmount)?;
-        }
+        let total_amount = schedules.iter()
+                .try_fold(0u64, |acc, item| acc.checked_add(item.amount))
+                .ok_or(VestingError::OverflowAmount)?;
         
         let vesting_record = VestingRecord {
             account_type: VestingAccountType::VestingRecord,
@@ -230,10 +229,11 @@ impl Processor {
 
         // Unlock the schedules that have reached maturity
         let clock = Clock::get()?;
-        let mut total_amount_to_transfer = 0;
+        let mut total_amount_to_transfer = 0u64;
         for s in vesting_record.schedule.iter_mut() {
             if clock.unix_timestamp as u64 >= s.release_time {
-                total_amount_to_transfer += s.amount;
+                total_amount_to_transfer = total_amount_to_transfer.checked_add(s.amount)
+                        .ok_or(VestingError::OverflowAmount)?;
                 s.amount = 0;
             }
         }
@@ -346,10 +346,9 @@ impl Processor {
             return Err(VestingError::MissingRequiredSigner.into());
         }
 
-        let mut total_amount = 0;
-        for s in vesting_record.schedule.iter_mut() {
-            total_amount += s.amount;
-        }
+        let total_amount = vesting_record.schedule.iter()
+                .try_fold(0u64, |acc, item| acc.checked_add(item.amount))
+                .ok_or(VestingError::OverflowAmount)?;
 
         vesting_record.owner = *new_vesting_owner_account.key;
         vesting_record.serialize(&mut *vesting_account.data.borrow_mut())?;
