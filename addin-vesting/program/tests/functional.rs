@@ -362,7 +362,6 @@ async fn test_token_vesting_with_realm() {
     let set_vote_percentage_instructions = [
         set_vote_percentage_with_realm(
             &program_id,
-            &mint.pubkey(),
             &destination_account.pubkey(),
             &destination_delegate.pubkey(),
             &governance_id,

@@ -351,7 +351,6 @@ pub fn create_voter_weight_record(
 #[allow(clippy::too_many_arguments)]
 pub fn set_vote_percentage_with_realm(
     program_id: &Pubkey,
-    vesting_mint: &Pubkey,
     vesting_owner: &Pubkey,
     vesting_authority: &Pubkey,
     governance_id: &Pubkey,
@@ -362,7 +361,7 @@ pub fn set_vote_percentage_with_realm(
     let token_owner_record_account = get_token_owner_record_address(governance_id, realm, mint, vesting_owner);
     let voter_weight_record_account = get_voter_weight_record_address(program_id, realm, mint, vesting_owner);
     let accounts = vec![
-        AccountMeta::new_readonly(*vesting_mint, false),
+        AccountMeta::new_readonly(*mint, false),
         AccountMeta::new_readonly(*vesting_owner, false),
         AccountMeta::new_readonly(*vesting_authority, true),
         AccountMeta::new_readonly(*governance_id, false),
