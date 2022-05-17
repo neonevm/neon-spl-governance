@@ -64,6 +64,24 @@ pub enum VestingInstruction {
     Withdraw,
 
 
+    /// Set Vote Percentage for calcalate voter_weight from total_amount of deposited tokens
+    ///
+    /// Accounts expected by this instruction:
+    /// 
+    ///  * Single owner
+    ///   0. `[]` The Vesting Mint
+    ///   1. `[]` The Vesting Owner account
+    ///   2. `[signer]` The Vesting Authority account
+    ///   3. `[]` The Governance program account
+    ///   4. `[]` The Realm account
+    ///   5. `[]` Governing Owner Record. PDA seeds (governance program): ['governance', realm, token_mint, vesting_owner]
+    ///   6. `[writable]` The VoterWeight Record. PDA seeds: ['voter_weight', realm, token_mint, vesting_owner]
+    SetVotePercentage {
+        #[allow(dead_code)]
+        vote_percentage: u16,
+    },
+
+
     /// Change the destination account of a given simple vesting contract (SVC)
     /// - can only be invoked by the present destination address of the contract.
     ///
@@ -96,24 +114,6 @@ pub enum VestingInstruction {
     ///   5. `[]` The Mint account
     ///   6. `[writable]` The VoterWeightRecord. PDA seeds: ['voter_weight', realm, token_mint, token_owner]
     CreateVoterWeightRecord,
-
-
-    /// Set Vote Percentage for calcalate voter_weight from total_amount of deposited tokens
-    ///
-    /// Accounts expected by this instruction:
-    /// 
-    ///  * Single owner
-    ///   0. `[]` The Vesting account. PDA seeds: [vesting spl-token account]
-    ///   1. `[]` The Vesting Owner account
-    ///   2. `[signer]` The Vesting Authority account
-    ///   3. `[]` The Governance program account
-    ///   4. `[]` The Realm account
-    ///   5. `[]` Governing Owner Record. PDA seeds (governance program): ['governance', realm, token_mint, vesting_owner]
-    ///   6. `[writable]` The VoterWeight Record. PDA seeds: ['voter_weight', realm, token_mint, vesting_owner]
-    SetVotePercentage {
-        #[allow(dead_code)]
-        vote_percentage: u16,
-    },
 }
 
 /// Creates a `Deposit` instruction to create and initialize the vesting token account
@@ -351,7 +351,6 @@ pub fn create_voter_weight_record(
 #[allow(clippy::too_many_arguments)]
 pub fn set_vote_percentage_with_realm(
     program_id: &Pubkey,
-    vesting_token_account: &Pubkey,
     vesting_owner: &Pubkey,
     vesting_authority: &Pubkey,
     governance_id: &Pubkey,
@@ -359,11 +358,10 @@ pub fn set_vote_percentage_with_realm(
     mint: &Pubkey,
     vote_percentage: u16,
 ) -> Result<Instruction, ProgramError> {
-    let (vesting_account, _) = Pubkey::find_program_address(&[vesting_token_account.as_ref()], program_id);
     let token_owner_record_account = get_token_owner_record_address(governance_id, realm, mint, vesting_owner);
     let voter_weight_record_account = get_voter_weight_record_address(program_id, realm, mint, vesting_owner);
     let accounts = vec![
-        AccountMeta::new_readonly(vesting_account, false),
+        AccountMeta::new_readonly(*mint, false),
         AccountMeta::new_readonly(*vesting_owner, false),
         AccountMeta::new_readonly(*vesting_authority, true),
         AccountMeta::new_readonly(*governance_id, false),

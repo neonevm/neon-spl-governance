@@ -440,7 +440,7 @@ impl Processor {
     ) -> ProgramResult {
         let accounts_iter = &mut accounts.iter();
 
-        let vesting_account = next_account_info(accounts_iter)?;
+        let vesting_mint_account = next_account_info(accounts_iter)?;
         let vesting_owner_account = next_account_info(accounts_iter)?;
         let vesting_authority_account = next_account_info(accounts_iter)?;
         let governance_account = next_account_info(accounts_iter)?;
@@ -448,23 +448,15 @@ impl Processor {
         let owner_record_account = next_account_info(accounts_iter)?;
         let voter_weight_record_account = next_account_info(accounts_iter)?;
 
-        let vesting_record = get_account_data::<VestingRecord>(program_id, vesting_account)?;
-
-        let expected_realm_account = vesting_record.realm.ok_or(VestingError::VestingIsNotUnderRealm)?;
-
-        if *realm_account.key != expected_realm_account {
-            return Err(VestingError::InvalidRealmAccount.into())
-        };
-
         let realm_data = get_realm_data(governance_account.key, realm_account)?;
-        realm_data.assert_is_valid_governing_token_mint(&vesting_record.mint)?;
+        realm_data.assert_is_valid_governing_token_mint(vesting_mint_account.key)?;
 
         let owner_record_data = get_token_owner_record_data_for_seeds(
             governance_account.key,
             owner_record_account,
             &get_token_owner_record_address_seeds(
                 realm_account.key,
-                &vesting_record.mint,
+                vesting_mint_account.key,
                 vesting_owner_account.key,
             ),
         )?;
@@ -474,7 +466,7 @@ impl Processor {
                 program_id,
                 voter_weight_record_account,
                 realm_account.key,
-                &vesting_record.mint,
+                vesting_mint_account.key,
                 vesting_owner_account.key)?;
 
         voter_weight_record.set_vote_percentage(vote_percentage)?;

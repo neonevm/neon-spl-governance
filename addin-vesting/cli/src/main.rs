@@ -372,7 +372,6 @@ fn command_set_vote_percentage_with_realm(
     payer: Keypair,
     vesting_authority: Keypair,
     vesting_owner_pubkey: Pubkey,
-    vesting_token_pubkey: Pubkey,
     mint_pubkey: Pubkey,
     realm_pubkey: Pubkey,
     percentage: u16,
@@ -380,7 +379,6 @@ fn command_set_vote_percentage_with_realm(
 
     let instruction = set_vote_percentage_with_realm(
         &vesting_addin_program_id,
-        &vesting_token_pubkey,
         &vesting_owner_pubkey,
         &vesting_authority.pubkey(),
         &governance_program_id,
@@ -825,14 +823,25 @@ fn main() {
                     ),
             )
             .arg(
-                Arg::with_name("vesting_address")
-                    .long("vesting_address")
+                Arg::with_name("mint_address")
+                    .long("mint_address")
                     .value_name("ADDRESS")
                     .required(true)
                     .validator(is_pubkey)
                     .takes_value(true)
                     .help(
-                        "Specify the vesting token address (publickey).",
+                        "Specify the address (publickey) of the mint for the token that should be used.",
+                    ),
+            )
+            .arg(
+                Arg::with_name("realm_address")
+                    .long("realm_address")
+                    .value_name("ADDRESS")
+                    .required(true)
+                    .validator(is_pubkey)
+                    .takes_value(true)
+                    .help(
+                        "Specify the address (publickey) of the governance realm.",
                     ),
             )
             .arg(
@@ -1094,7 +1103,8 @@ fn main() {
         ("set-vote-percentage", Some(arg_matches)) => {
 
             let vesting_authority = keypair_of(arg_matches, "vesting_authority").unwrap();
-            let vesting_token_pubkey = pubkey_of(arg_matches, "vesting_address").unwrap();
+            let mint_pubkey = pubkey_of(arg_matches, "mint_address").unwrap();
+            let realm_pubkey = pubkey_of(arg_matches, "realm_address").unwrap();
 
             let vesting_owner_pubkey = pubkey_of(arg_matches, "vesting_owner").unwrap();
             
@@ -1102,14 +1112,6 @@ fn main() {
 
             let payer_keypair = keypair_of(arg_matches, "payer").unwrap_or( keypair_of(arg_matches, "vesting_authority").unwrap() );
 
-            let (vesting_pubkey,_) = Pubkey::find_program_address(&[&vesting_token_pubkey.as_ref()], &vesting_addin_program_id);
-            
-            let vesting_record_account_data = rpc_client.get_account_data(&vesting_pubkey).unwrap();
-            let vesting_record: VestingRecord = try_from_slice_unchecked(&vesting_record_account_data).unwrap();
-
-            let mint_pubkey: Pubkey = vesting_record.mint;
-            let realm_pubkey: Pubkey = vesting_record.realm.unwrap();
-            
             command_set_vote_percentage_with_realm(
                 rpc_client,
                 governance_program_id,
@@ -1117,7 +1119,6 @@ fn main() {
                 payer_keypair,
                 vesting_authority,
                 vesting_owner_pubkey,
-                vesting_token_pubkey,
                 mint_pubkey,
                 realm_pubkey,
                 percentage,
