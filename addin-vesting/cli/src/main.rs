@@ -1,5 +1,5 @@
 // use std::str::FromStr;
-use chrono::{DateTime, Duration};
+use chrono::{NaiveDateTime, DateTime, Duration};
 use clap::{
     crate_description, crate_name, crate_version, value_t, App, AppSettings, Arg, SubCommand,
 };
@@ -425,11 +425,16 @@ fn report_vesting_record_info(vesting_record: &VestingRecord) {
 
     let schedules = &vesting_record.schedule;
 
+    msg!("Schedule:");
     for i in 0..schedules.len() {
-        msg!("\nSCHEDULE {:?}", i);
-        msg!("Release Height: {:?}", &schedules[i].release_time);
-        msg!("Amount: {:?}", &schedules[i].amount);
+        msg!("  {:2}: amount {}, timestamp {} ({})",
+                i,
+                &schedules[i].amount,
+                &schedules[i].release_time,
+                NaiveDateTime::from_timestamp(schedules[i].release_time.try_into().unwrap(), 0u32),
+            );
     }
+    msg!("Total amount: {}", schedules.iter().map(|v| v.amount).sum::<u64>());
 }
 
 fn main() {
