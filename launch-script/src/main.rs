@@ -35,6 +35,9 @@ use solana_sdk::{
     system_instruction,
     rent::Rent,
 };
+use solana_clap_utils::{
+    input_parsers::{pubkey_of},
+};
 
 use spl_governance::{
     state::{
@@ -309,9 +312,12 @@ fn process_environment(wallet: &Wallet, client: &Client, setup: bool, verbose: b
         let seed: String = format!("{}_vesting_{}", REALM_NAME, i);
         let vesting_token_account = Pubkey::create_with_seed(&wallet.creator_keypair.pubkey(), &seed, &spl_token::id())?;
 
-        executor.check_and_create_object(&seed, token_owner_record.get_data()?,
+        executor.check_and_create_object(&format!("{} <- {}", seed, voter_weight.voter), token_owner_record.get_data()?,
             |_| {
                 // TODO check that all accounts needed to this owner created correctly
+                let fixed_weight_record_address = fixed_weight_addin.get_voter_weight_record_address(&realm, &voter_weight.voter);
+                let vesting_weight_record_address = vesting_addin.get_voter_weight_record_address(&voter_weight.voter, &realm);
+                println!("VoterWeightRecords: fixed {}, vesting {}", fixed_weight_record_address, vesting_weight_record_address);
                 Ok(None)
             },
             || {
@@ -670,6 +676,126 @@ fn setup_proposal_ido(wallet: &Wallet, client: &Client, proposal_index: Option<u
 
 
 // =========================================================================
+// Upgrade FIXED_WEIGHT_ADDIN
+// =========================================================================
+fn setup_proposal_upgrade_fixed_weight(wallet: &Wallet, client: &Client, proposal_index: Option<u32>, setup: bool, verbose: bool,
+        buffer: Pubkey, voter: Pubkey) -> Result<(), ScriptError> {
+    use borsh::ser::BorshSerialize;
+    use spl_governance::{
+        state::{
+            proposal_transaction::InstructionData,
+            vote_record::{Vote, VoteChoice, get_vote_record_address},
+        },
+        instruction::cast_vote,
+    };
+
+    let executor = TransactionExecutor {client, setup, verbose};
+
+    let realm = Realm::new(&client, &wallet.governance_program_id, REALM_NAME, &wallet.community_pubkey);
+    realm.update_max_voter_weight_record_address()?;
+
+    let fixed_weight_addin = AddinFixedWeights::new(&client, wallet.fixed_weight_addin_id);
+    let governance = realm.governance(&wallet.governance_program_id);
+
+    let creator_token_owner = realm.token_owner_record(&wallet.creator_token_owner_keypair.pubkey());
+    creator_token_owner.update_voter_weight_record_address()?;
+
+    let governance_proposal_count = governance.get_proposals_count();
+    let proposal_number = proposal_index.unwrap_or(governance_proposal_count);
+    if proposal_number > governance_proposal_count {return Err(StateError::InvalidProposalIndex.into());}
+    println!("Use {} for proposal_index", proposal_number);
+
+    let proposal: Proposal = governance.proposal(proposal_number);
+    
+    executor.check_and_create_object("Upgrade FIXED_WEIGHT_ADDIN", proposal.get_data()?,
+        |_| {Ok(None)},
+        || {
+            let transaction = client.create_transaction(
+                &[
+                    proposal.create_proposal_instruction(
+                        &wallet.creator_keypair.pubkey(),
+                        &creator_token_owner,
+                        &format!("{} {}", "Upgrade FIXED_WEIGHT_ADDIN", proposal_number),
+                        "Upgrade FIXED_WEIGHT_ADDIN",
+                    ),
+                ],
+                &[&wallet.creator_keypair],
+            )?;
+            Ok(Some(transaction))
+        },
+    )?;
+
+    let mut transaction_inserter = ProposalTransactionInserter {
+        proposal: &proposal,
+        creator_keypair: &wallet.creator_keypair,
+        creator_token_owner: &creator_token_owner,
+        hold_up_time: 0,
+        setup: setup,
+        verbose: verbose,
+        proposal_transaction_index: 0,
+    };
+
+    transaction_inserter.insert_transaction_checked(
+            "Upgrade FIXED_WEIGHT_ADDIN",
+            vec![
+                solana_sdk::bpf_loader_upgradeable::upgrade(
+                    &fixed_weight_addin.program_id,
+                    &buffer,
+                    &governance.governance_address,
+                    &client.payer.pubkey(),
+                ).into(),
+            ],
+        )?;
+
+    let voter_token_owner = realm.token_owner_record(&voter);
+    voter_token_owner.update_voter_weight_record_address()?;
+
+    let vote_record_address = get_vote_record_address(
+        &wallet.governance_program_id,
+        &proposal.proposal_address,
+        &voter_token_owner.token_owner_record_address);
+
+    executor.check_and_create_object("VoteRecord for voter", client.get_account(&vote_record_address)?,
+        |v| {
+            println!("Vote record: {:?}", v);
+            Ok(None)
+        },
+        || {
+            let transaction = client.create_transaction_with_payer_only(
+                &[
+                    system_instruction::transfer(
+                        &wallet.payer_keypair.pubkey(),
+                        &vote_record_address,
+                        Rent::default().minimum_balance(4+32+32+1+8+(4+4+1+1)+8),
+                    ),
+                ],
+            )?;
+            Ok(Some(transaction))
+        },
+    )?;
+
+    let vote_instruction: InstructionData = cast_vote(
+        &wallet.governance_program_id,
+        &realm.realm_address,
+        &governance.governance_address,
+        &proposal.proposal_address,
+        &creator_token_owner.token_owner_record_address,
+        &voter_token_owner.token_owner_record_address,
+        &voter,
+        &realm.community_mint,
+        &voter_token_owner.token_owner_address, // payer
+        voter_token_owner.get_voter_weight_record_address(),
+        realm.settings().max_voter_weight_record_address,
+        Vote::Approve(vec![VoteChoice {rank: 0, weight_percentage: 100}]),
+    ).into();
+    println!("vote_instruction: {:?}", vote_instruction);
+    println!("{}", base64::encode(vote_instruction.try_to_vec().unwrap()));
+
+    Ok(())
+}
+
+
+// =========================================================================
 // Create TGE proposal (Token Genesis Event)
 // =========================================================================
 fn setup_proposal_tge(wallet: &Wallet, client: &Client, proposal_index: Option<u32>, setup: bool, verbose: bool, testing: bool) -> Result<(), ScriptError> {
@@ -859,78 +985,34 @@ fn setup_proposal_tge(wallet: &Wallet, client: &Client, proposal_index: Option<u
     Ok(())
 }
 
-fn finalize_vote_proposal(wallet: &Wallet, client: &Client, proposal_index: Option<u32>, verbose: bool) -> Result<(), ScriptError> {
-    let realm = Realm::new(&client, &wallet.governance_program_id, REALM_NAME, &wallet.community_pubkey);
-    realm.update_max_voter_weight_record_address()?;
-    let governance = realm.governance(&wallet.community_pubkey);
-
-    let creator_token_owner = realm.token_owner_record(&wallet.creator_token_owner_keypair.pubkey());
-    creator_token_owner.update_voter_weight_record_address()?;
-
-    let governance_proposal_count = governance.get_proposals_count();
-    let proposal_number = proposal_index.unwrap_or(governance_proposal_count);
-    if proposal_number > governance_proposal_count {return Err(StateError::InvalidProposalIndex.into());}
-    println!("Use {} for proposal_index", proposal_number);
-
-    let proposal: Proposal = governance.proposal(proposal_number);
-    if let None = proposal.get_data()? {
-        return Err(StateError::InvalidProposalIndex.into());
-    }
-
-    proposal.finalize_vote(&creator_token_owner)?;
+fn finalize_vote_proposal(wallet: &Wallet, client: &Client, proposal: &Proposal, verbose: bool) -> Result<(), ScriptError> {
+    let proposal_data = proposal.get_data()?.ok_or(StateError::InvalidProposalIndex)?;
+    proposal.finalize_vote(&proposal_data.token_owner_record)?;
 
     Ok(())
 }
 
-fn sign_off_proposal(wallet: &Wallet, client: &Client, proposal_index: Option<u32>, verbose: bool) -> Result<(), ScriptError> {
-    let realm = Realm::new(&client, &wallet.governance_program_id, REALM_NAME, &wallet.community_pubkey);
-    realm.update_max_voter_weight_record_address()?;
-    let governance = realm.governance(&wallet.community_pubkey);
-
-    let creator_token_owner = realm.token_owner_record(&wallet.creator_token_owner_keypair.pubkey());
+fn sign_off_proposal(wallet: &Wallet, client: &Client, proposal: &Proposal, verbose: bool) -> Result<(), ScriptError> {
+    let creator_token_owner = proposal.governance.realm.token_owner_record(&wallet.creator_token_owner_keypair.pubkey());
     creator_token_owner.update_voter_weight_record_address()?;
 
-    let governance_proposal_count = governance.get_proposals_count();
-    let proposal_number = proposal_index.unwrap_or(governance_proposal_count);
-    if proposal_number > governance_proposal_count {return Err(StateError::InvalidProposalIndex.into());}
-    println!("Use {} for proposal_index", proposal_number);
-
-    let proposal: Proposal = governance.proposal(proposal_number);
-    if let None = proposal.get_data()? {
-        return Err(StateError::InvalidProposalIndex.into());
-    }
-
-    if proposal.get_state()? == ProposalState::Draft {
+    let proposal_data = proposal.get_data()?.ok_or(StateError::InvalidProposalIndex)?;
+    if proposal_data.state == ProposalState::Draft {
         proposal.sign_off_proposal(&wallet.creator_keypair, &creator_token_owner)?;
     }
 
     Ok(())
 }
 
-fn approve_proposal(wallet: &Wallet, client: &Client, proposal_index: Option<u32>, verbose: bool) -> Result<(), ScriptError> {
-    let realm = Realm::new(&client, &wallet.governance_program_id, REALM_NAME, &wallet.community_pubkey);
-    realm.update_max_voter_weight_record_address()?;
-
-    let creator_token_owner = realm.token_owner_record(&wallet.creator_token_owner_keypair.pubkey());
-    creator_token_owner.update_voter_weight_record_address()?;
-
-    let governance = realm.governance(&wallet.community_pubkey);
-    let governance_proposal_count = governance.get_proposals_count();
-    let proposal_number = proposal_index.unwrap_or(governance_proposal_count);
-    if proposal_number > governance_proposal_count {return Err(StateError::InvalidProposalIndex.into());}
-    println!("Use {} for proposal_index", proposal_number);
-
-    let proposal: Proposal = governance.proposal(proposal_number);
-    if let None = proposal.get_data()? {
-        return Err(StateError::InvalidProposalIndex.into());
-    }
+fn approve_proposal(wallet: &Wallet, client: &Client, proposal: &Proposal, verbose: bool) -> Result<(), ScriptError> {
+    let proposal_data = proposal.get_data()?.ok_or(StateError::InvalidProposalIndex)?;
 
     for voter in wallet.voter_keypairs.iter() {
-        let token_owner = realm.token_owner_record(&voter.pubkey());
+        let token_owner = proposal.governance.realm.token_owner_record(&voter.pubkey());
         if let Some(_) = token_owner.get_data()? {
             token_owner.update_voter_weight_record_address()?;
 
-            let signature = proposal.cast_vote(&creator_token_owner, voter, &token_owner, true)?;
+            let signature = proposal.cast_vote(&proposal_data.token_owner_record, voter, &token_owner, true)?;
             println!("CastVote {} {:?}", voter.pubkey(), signature);
         }
     }
@@ -938,20 +1020,7 @@ fn approve_proposal(wallet: &Wallet, client: &Client, proposal_index: Option<u32
     Ok(())
 }
 
-fn execute_proposal(wallet: &Wallet, client: &Client, proposal_index: Option<u32>, verbose: bool) -> Result<(), ScriptError> {
-    let realm = Realm::new(&client, &wallet.governance_program_id, REALM_NAME, &wallet.community_pubkey);
-    let governance = realm.governance(&wallet.community_pubkey);
-
-    let governance_proposal_count = governance.get_proposals_count();
-    let proposal_number = proposal_index.unwrap_or(governance_proposal_count);
-    if proposal_number > governance_proposal_count {return Err(StateError::InvalidProposalIndex.into());}
-    println!("Use {} for proposal_index", proposal_number);
-
-    let proposal: Proposal = governance.proposal(proposal_number);
-    if let None = proposal.get_data()? {
-        return Err(StateError::InvalidProposalIndex.into());
-    }
-
+fn execute_proposal(wallet: &Wallet, client: &Client, proposal: &Proposal, verbose: bool) -> Result<(), ScriptError> {
     let result = proposal.execute_transactions(0)?;
     println!("Execute transactions from proposal option 0: {:?}", result);
 
@@ -996,11 +1065,37 @@ fn main() {
                     .value_name("PROPOSAL_INDEX")
                     .help("Proposal index")
             )
+            .arg(
+                Arg::with_name("governance")
+                    .long("governance")
+                    .short("g")
+                    .takes_value(true)
+                    .value_name("GOVERNANCE")
+                    .help("Governance name (COMMUNITY, EMERGENCY, MSIG_#, or <address>)")
+            )
             .subcommand(SubCommand::with_name("create-tge")
                 .about("Create Token Genesis Event proposal")
             )
             .subcommand(SubCommand::with_name("create-ido")
                 .about("Create Proposal for IDO")
+            )
+            .subcommand(SubCommand::with_name("upgrade-fixed-weight")
+                .about("Create proposal for upgrade-fixed-weight")
+                .arg(
+                    Arg::with_name("buffer")
+                        .long("buffer")
+                        .short("b")
+                        .takes_value(true)
+                        .value_name("BUFFER")
+                        .help("Buffer with new program")
+                )
+                .arg(
+                    Arg::with_name("voter")
+                        .long("voter")
+                        .takes_value(true)
+                        .value_name("VOTER")
+                        .help("Voter for approve proposal")
+                )
             )
             .subcommand(SubCommand::with_name("sign-off")
                 .about("Sign Off proposal")
@@ -1037,17 +1132,36 @@ fn main() {
                 ("create-ido", Some(arg_matches)) => {
                     setup_proposal_ido(&wallet, &client, proposal_index, send_trx, verbose).unwrap()
                 },
-                ("sign-off", Some(arg_matches)) => {
-                    sign_off_proposal(&wallet, &client, proposal_index, verbose).unwrap()
+                ("upgrade-fixed-weight", Some(arg_matches)) => {
+                    let buffer: Pubkey = pubkey_of(&arg_matches, "buffer").unwrap();
+                    let voter: Pubkey = pubkey_of(&arg_matches, "voter").unwrap();
+                    setup_proposal_upgrade_fixed_weight(&wallet, &client, proposal_index, send_trx, verbose,
+                            buffer, voter).unwrap()
                 },
-                ("approve", Some(arg_matches)) => {
-                    approve_proposal(&wallet, &client, proposal_index, verbose).unwrap()
-                },
-                ("finalize-vote", Some(arg_matches)) => {
-                    finalize_vote_proposal(&wallet, &client, proposal_index, verbose).unwrap()
-                },
-                ("execute", Some(arg_matches)) => {
-                    execute_proposal(&wallet, &client, proposal_index, verbose).unwrap()
+                (cmd, _arg_matches) if ["sign-off", "approve", "finalize-vote", "execute"].contains(&cmd) => {
+                    let governance_name = arg_matches.value_of("governance").unwrap_or("COMMUNITY");
+                    let (realm_name, realm_mint, governed_address) = match governance_name {
+                        "COMMUNITY" => (REALM_NAME, wallet.community_pubkey, wallet.community_pubkey),
+                        "EMERGENCY" => (REALM_NAME, wallet.community_pubkey, wallet.governance_program_id),
+                        name if name.starts_with("MSIG_") => {
+                            let msig_mint = Pubkey::create_with_seed(&wallet.creator_keypair.pubkey(), name, &spl_token::id()).unwrap();
+                            (name, msig_mint, msig_mint)
+                        },
+                        _ => unreachable!(),
+                    };
+                    let realm = Realm::new(&client, &wallet.governance_program_id, realm_name, &realm_mint);
+                    let governance = realm.governance(&governed_address);
+                    let proposal = governance.proposal(proposal_index.unwrap());
+
+                    realm.update_max_voter_weight_record_address().unwrap();
+
+                    match cmd {
+                        "sign-off" => sign_off_proposal(&wallet, &client, &proposal, verbose).unwrap(),
+                        "approve"  => approve_proposal(&wallet, &client, &proposal, verbose).unwrap(),
+                        "finalize-vote" => finalize_vote_proposal(&wallet, &client, &proposal, verbose).unwrap(),
+                        "execute" => execute_proposal(&wallet, &client, &proposal, verbose).unwrap(),
+                        _ => unreachable!(),
+                    }
                 },
                 _ => unreachable!(),
             }

@@ -207,7 +207,7 @@ impl<'a> Proposal<'a> {
             )
     }
 
-    pub fn finalize_vote(&self, creator_token_owner: &TokenOwner) -> ClientResult<Signature> {
+    pub fn finalize_vote(&self, proposal_owner_record: &Pubkey) -> ClientResult<Signature> {
         self.governance.realm.client.send_and_confirm_transaction_with_payer_only(
                 &[
                     finalize_vote(
@@ -215,7 +215,7 @@ impl<'a> Proposal<'a> {
                         &self.governance.realm.realm_address,
                         &self.governance.governance_address,
                         &self.proposal_address,
-                        &creator_token_owner.token_owner_record_address,
+                        proposal_owner_record,
                         &self.governance.realm.community_mint,
                         self.governance.realm.settings().max_voter_weight_record_address,
                     ),
@@ -239,7 +239,7 @@ impl<'a> Proposal<'a> {
             )
     }
 
-    pub fn cast_vote(&self, proposal_owner: &TokenOwner, voter_authority: &Keypair, voter: &TokenOwner, vote_yes_no: bool) -> ClientResult<Signature> {
+    pub fn cast_vote(&self, proposal_owner_record: &Pubkey, voter_authority: &Keypair, voter: &TokenOwner, vote_yes_no: bool) -> ClientResult<Signature> {
         let payer = self.get_client().payer;
 
         let vote: Vote =
@@ -261,7 +261,7 @@ impl<'a> Proposal<'a> {
                         &self.governance.realm.realm_address,
                         &self.governance.governance_address,
                         &self.proposal_address,
-                        &proposal_owner.token_owner_record_address,
+                        &proposal_owner_record,
                         &voter.token_owner_record_address,
                         &voter_authority.pubkey(),
                         &self.governance.realm.community_mint,
