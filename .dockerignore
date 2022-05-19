@@ -10,4 +10,8 @@ Dockerfile.*
 bin
 target
 cli
+addin-vesting/cli/target
+addin-vesting/program/tests
+governance-test-scripts/target
+maintenance-test-scripts/target
 solana-program-library/target
