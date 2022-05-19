@@ -1,0 +1,13 @@
+Dockerfile
+Dockerfile.*
+.*.swp
+
+.git
+.github
+.gitignore
+.gitmodules
+.dockerfile
+bin
+target
+cli
+solana-program-library/target

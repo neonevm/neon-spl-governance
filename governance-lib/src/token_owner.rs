@@ -152,7 +152,7 @@ impl<'a> TokenOwner<'a> {
             _ => {None},
         };
         self.settings_mut().voter_weight_record_address = voter_weight_record_address;
-        return Ok(voter_weight_record_address)
+        Ok(voter_weight_record_address)
     }
 
     pub fn create_token_owner_record_instruction(&self) -> Instruction {
@@ -176,7 +176,7 @@ impl<'a> TokenOwner<'a> {
     pub fn set_delegate_instruction(&self, authority: &Pubkey, new_delegate: &Option<Pubkey>) -> Instruction {
         set_governance_delegate(
             &self.realm.program_id,
-            &authority,
+            authority,
             &self.realm.realm_address,
             &self.realm.community_mint,
             &self.token_owner_address,

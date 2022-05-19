@@ -22,12 +22,8 @@ use solana_sdk::{
     system_instruction,
     instruction::Instruction,
     transaction::Transaction,
-    // signer::{ 
-    //     keypair::read_keypair_file,
-    // },
 };
 use spl_associated_token_account::{get_associated_token_address};
-use spl_token;
 use std::convert::TryInto;
 use spl_governance_addin_vesting::{
     state::{ VestingRecord, VestingSchedule },
@@ -36,6 +32,7 @@ use spl_governance_addin_vesting::{
 };
 
 // Lock the vesting contract
+#[allow(clippy::too_many_arguments)]
 fn command_deposit_svc(
     rpc_client: RpcClient,
     vesting_addin_program_id: Pubkey,
@@ -56,7 +53,7 @@ fn command_deposit_svc(
     let vesting_token_keypair = Keypair::new();
     let vesting_token_pubkey = vesting_token_keypair.pubkey();
 
-    let (vesting_pubkey,_) = Pubkey::find_program_address(&[&vesting_token_pubkey.as_ref()], &vesting_addin_program_id);
+    let (vesting_pubkey,_) = Pubkey::find_program_address(&[vesting_token_pubkey.as_ref()], &vesting_addin_program_id);
 
     let instructions = [
         system_instruction::create_account(
@@ -112,6 +109,7 @@ fn command_deposit_svc(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn command_deposit_with_realm_svc(
     rpc_client: RpcClient,
     governance_program_id: Pubkey,
@@ -134,7 +132,7 @@ fn command_deposit_with_realm_svc(
     let vesting_token_keypair = Keypair::new();
     let vesting_token_pubkey = vesting_token_keypair.pubkey();
 
-    let (vesting_pubkey,_) = Pubkey::find_program_address(&[&vesting_token_pubkey.as_ref()], &vesting_addin_program_id);
+    let (vesting_pubkey,_) = Pubkey::find_program_address(&[vesting_token_pubkey.as_ref()], &vesting_addin_program_id);
 
     let instructions = [
         system_instruction::create_account(
@@ -220,6 +218,7 @@ fn command_withdraw_svc(
     rpc_client.send_transaction(&transaction).unwrap();
 }
 
+#[allow(clippy::too_many_arguments)]
 fn command_withdraw_with_realm_svc(
     rpc_client: RpcClient,
     governance_program_id: Pubkey,
@@ -280,6 +279,7 @@ fn command_change_owner(
     rpc_client.send_transaction(&transaction).unwrap();
 }
 
+#[allow(clippy::too_many_arguments)]
 fn command_change_owner_with_realm(
     rpc_client: RpcClient,
     governance_program_id: Pubkey,
@@ -365,6 +365,7 @@ fn command_create_voter_weight_record(
     rpc_client.send_transaction(&transaction).unwrap();
 }
 
+#[allow(clippy::too_many_arguments)]
 fn command_set_vote_percentage_with_realm(
     rpc_client: RpcClient,
     governance_program_id: Pubkey,
@@ -408,7 +409,7 @@ fn command_info(
     // msg!("RPC URL: {:?}", &rpc_url);
     msg!("Program ID: {:?}", &vesting_addin_program_id);
 
-    let (vesting_pubkey,_) = Pubkey::find_program_address(&[&vesting_token_pubkey.as_ref()], &vesting_addin_program_id);
+    let (vesting_pubkey,_) = Pubkey::find_program_address(&[vesting_token_pubkey.as_ref()], &vesting_addin_program_id);
     msg!("Vesting Account Pubkey: {:?}", &vesting_pubkey);
 
     let vesting_record_account_data = rpc_client.get_account_data(&vesting_pubkey).unwrap();
@@ -425,10 +426,10 @@ fn report_vesting_record_info(vesting_record: &VestingRecord) {
 
     let schedules = &vesting_record.schedule;
 
-    for i in 0..schedules.len() {
+    for (i, item) in schedules.iter().enumerate() {
         msg!("\nSCHEDULE {:?}", i);
-        msg!("Release Height: {:?}", &schedules[i].release_time);
-        msg!("Amount: {:?}", &schedules[i].amount);
+        msg!("Release Height: {:?}", &item.release_time);
+        msg!("Amount: {:?}", &item.amount);
     }
 }
 
@@ -899,17 +900,17 @@ fn main() {
             let mint_pubkey = pubkey_of(arg_matches, "mint_address").unwrap();
             let realm_opt: Option<Pubkey> = pubkey_of(arg_matches, "realm_address");
 
-            let payer_keypair = keypair_of(arg_matches, "payer").unwrap_or( keypair_of(arg_matches, "source_owner").unwrap() );
+            let payer_keypair = keypair_of(arg_matches, "payer").unwrap_or_else(|| keypair_of(arg_matches, "source_owner").unwrap() );
 
             // Parsing schedules
             let mut schedule_amounts: Vec<u64> = values_of(arg_matches, "amounts").unwrap();
             let confirm: bool = value_of(arg_matches, "confirm").unwrap();
             let release_frequency: Option<String> = value_of(arg_matches, "release-frequency");
 
-            let schedule_times = if release_frequency.is_some() {
+            let schedule_times = if let Some(release_frequency_some) = release_frequency {
                 // best found in rust
                 let release_frequency: iso8601_duration::Duration =
-                    release_frequency.unwrap().parse().unwrap();
+                    release_frequency_some.parse().unwrap();
                 let release_frequency: u64 = Duration::from_std(release_frequency.to_std())
                     .unwrap()
                     .num_seconds()
@@ -1010,9 +1011,9 @@ fn main() {
 
             let destination_token_pubkey = pubkey_of(arg_matches, "destination_address").unwrap();
 
-            let payer_keypair = keypair_of(arg_matches, "payer").unwrap_or( keypair_of(arg_matches, "vesting_owner").unwrap() );
+            let payer_keypair = keypair_of(arg_matches, "payer").unwrap_or_else(|| keypair_of(arg_matches, "vesting_owner").unwrap() );
 
-            let (vesting_pubkey,_) = Pubkey::find_program_address(&[&vesting_token_pubkey.as_ref()], &vesting_addin_program_id);
+            let (vesting_pubkey,_) = Pubkey::find_program_address(&[vesting_token_pubkey.as_ref()], &vesting_addin_program_id);
 
             let vesting_record_account_data = rpc_client.get_account_data(&vesting_pubkey).unwrap();
             let vesting_record: VestingRecord = try_from_slice_unchecked(&vesting_record_account_data).unwrap();
@@ -1049,9 +1050,9 @@ fn main() {
 
             let new_vesting_owner_pubkey = pubkey_of(arg_matches, "new_vesting_owner").unwrap();
             
-            let payer_keypair = keypair_of(arg_matches, "payer").unwrap_or( keypair_of(arg_matches, "vesting_owner").unwrap() );
+            let payer_keypair = keypair_of(arg_matches, "payer").unwrap_or_else(|| keypair_of(arg_matches, "vesting_owner").unwrap() );
 
-            let (vesting_pubkey,_) = Pubkey::find_program_address(&[&vesting_token_pubkey.as_ref()], &vesting_addin_program_id);
+            let (vesting_pubkey,_) = Pubkey::find_program_address(&[vesting_token_pubkey.as_ref()], &vesting_addin_program_id);
 
             let vesting_record_account_data = rpc_client.get_account_data(&vesting_pubkey).unwrap();
             let vesting_record: VestingRecord = try_from_slice_unchecked(&vesting_record_account_data).unwrap();
@@ -1110,7 +1111,7 @@ fn main() {
             
             let percentage: u16 = value_of(arg_matches, "percentage").unwrap();
 
-            let payer_keypair = keypair_of(arg_matches, "payer").unwrap_or( keypair_of(arg_matches, "vesting_authority").unwrap() );
+            let payer_keypair = keypair_of(arg_matches, "payer").unwrap_or_else(|| keypair_of(arg_matches, "vesting_authority").unwrap() );
 
             command_set_vote_percentage_with_realm(
                 rpc_client,

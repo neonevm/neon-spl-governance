@@ -36,12 +36,12 @@ use maintenance::{
     },
 };
 
-const MAINTENANCE_KEY_FILE_PATH: &'static str = "../artifacts/maintenance.keypair";
-const MAINTAIN_AUTHORITY_KEY_FILE_PATH: &'static str = "../artifacts/voter1.keypair";
-const NEW_MAINTAIN_AUTHORITY_KEY_FILE_PATH: &'static str = "../artifacts/voter2.keypair";
-const ADDIN_INITIAL_AUTHORITY_KEY_FILE_PATH: &'static str = "../artifacts/voter3.keypair";
-const ADDIN_KEY_FILE_PATH: &'static str = "../artifacts/addin-fixed-weights.keypair";
-const BUFFER_ADDRESS: &'static str = "447xS9Kc6m1Dg8UEnyMFrnao5ZL82HTaq7UEjfLZDWEb";
+const MAINTENANCE_KEY_FILE_PATH: &str = "../artifacts/maintenance.keypair";
+const MAINTAIN_AUTHORITY_KEY_FILE_PATH: &str = "../artifacts/voter1.keypair";
+const NEW_MAINTAIN_AUTHORITY_KEY_FILE_PATH: &str = "../artifacts/voter2.keypair";
+const ADDIN_INITIAL_AUTHORITY_KEY_FILE_PATH: &str = "../artifacts/voter3.keypair";
+const ADDIN_KEY_FILE_PATH: &str = "../artifacts/addin-fixed-weights.keypair";
+const BUFFER_ADDRESS: &str = "447xS9Kc6m1Dg8UEnyMFrnao5ZL82HTaq7UEjfLZDWEb";
 
 fn main() {
 
@@ -137,7 +137,7 @@ fn main() {
         set_delegate(
             &maintenance_pubkey,
             &maintained_addin_pubkey,
-            vec![new_maintain_authority_pubkey.clone()],
+            vec![new_maintain_authority_pubkey],
             &maintain_authority_pubkey,
         );
     
@@ -166,7 +166,7 @@ fn main() {
     // println!("Buffer: Data offset = {}; Program len = {}; ProgramData data offset = {}", buffer_data_offset, program_len, programdata_data_offset);
     let program_buffer = &solana_client.get_account_data(&buffer_pubkey).unwrap();
     let (_,program_buffer_data): (&[u8], &[u8]) = program_buffer.split_at(buffer_data_offset);
-    let buffer_hash: Hash = hash(&program_buffer_data);
+    let buffer_hash: Hash = hash(program_buffer_data);
     println!("Buffer Hash: {:?}", buffer_hash);
 
     let set_code_hashes_instruction: Instruction =

@@ -64,7 +64,7 @@ impl<'a> Proposal<'a> {
                 &self.governance.realm.program_id,
                 &self.governance.governance_address,
                 &token_owner.token_owner_record_address,
-                &create_authority,
+                create_authority,
                 &self.governance.realm.client.payer.pubkey(),
                 token_owner.get_voter_weight_record_address(),
 
