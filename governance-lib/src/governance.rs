@@ -107,7 +107,7 @@ impl<'a> Governance<'a> {
                 config)
     }
 
-    pub fn proposal<'b:'a>(&'b self, proposal_index: u32) -> Proposal {
+    pub fn proposal_by_index<'b:'a>(&'b self, proposal_index: u32) -> Proposal {
         let proposal_address: Pubkey = get_proposal_address(
                 &self.realm.program_id,
                 &self.governance_address,
@@ -116,8 +116,14 @@ impl<'a> Governance<'a> {
             );
         Proposal {
             governance: self,
-            proposal_index,
             proposal_address: proposal_address,
+        }
+    }
+
+    pub fn proposal<'b:'a>(&'b self, proposal_address: &Pubkey) -> Proposal {
+        Proposal {
+            governance: self,
+            proposal_address: *proposal_address,
         }
     }
 }

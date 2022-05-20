@@ -40,6 +40,9 @@ pub enum StateError {
     #[error("Missing realm {0:?}")]
     MissingRealm(Pubkey),
 
+    #[error("Missing proposal {0:?}")]
+    MissingProposal(Pubkey),
+
     #[error("Invalid program upgrade authority {1:?} for {0:?}")]
     InvalidProgramUpgradeAuthority(Pubkey,Option<Pubkey>),
 
@@ -51,6 +54,9 @@ pub enum StateError {
 
     #[error("Invalid proposal_index")]
     InvalidProposalIndex,
+
+    #[error("Invalid proposal")]
+    InvalidProposal,
 
     #[error("Invalid proposal transaction {0:?}")]
     InvalidProposalTransaction(u16),

@@ -14,10 +14,14 @@ use {
     },
     spl_governance::{
         state::{
-            enums::MintMaxVoteWeightSource,
+            enums::{
+                GovernanceAccountType,
+                MintMaxVoteWeightSource,
+            },
             realm::{RealmV2, SetRealmAuthorityAction, get_realm_address},
             realm_config::{RealmConfigAccount, get_realm_config_address},
             governance::get_governance_address,
+            token_owner_record::TokenOwnerRecordV2,
         },
         instruction::{
             set_realm_config,
@@ -165,6 +169,61 @@ impl<'a> Realm<'a> {
 
     pub fn token_owner_record<'b:'a>(&'b self, token_owner: &Pubkey) -> TokenOwner<'a> {
         TokenOwner::new(self, token_owner)
+    }
+
+    pub fn find_owner_or_delegate_record<'b:'a>(&'b self, owner_or_delegate: &Pubkey) -> ClientResult<Option<TokenOwner<'a>>> {
+        // TODO Find record with the most tokens
+        let owner_record = self.token_owner_record(owner_or_delegate);
+        if let Some(_) = owner_record.get_data()? {
+            return Ok(Some(owner_record));
+        }
+
+        #[derive(BorshSchema,BorshSerialize)]
+        struct TokenOwnerRecordForRealmFilter {
+            pub account_type: GovernanceAccountType,
+            pub realm: Pubkey,
+            pub governing_token_mint: Pubkey,
+        }
+
+        let filter = TokenOwnerRecordForRealmFilter {
+            account_type: GovernanceAccountType::TokenOwnerRecordV2,
+            realm: self.realm_address,
+            governing_token_mint: self.community_mint,
+        };
+
+        let config = RpcProgramAccountsConfig {
+            filters: Some(vec![
+                RpcFilterType::Memcmp(Memcmp {
+                    offset: 0,
+                    bytes: MemcmpEncodedBytes::Base58(bs58::encode(filter.try_to_vec()?).into_string()),
+                    encoding: None,
+                }),
+                RpcFilterType::Memcmp(Memcmp {
+                    offset: 1+32+32+32+8+4+4+1+7,
+                    bytes: MemcmpEncodedBytes::Base58(bs58::encode(Some(owner_or_delegate).try_to_vec()?).into_string()),
+                    encoding: None,
+                }),
+            ]),
+            account_config: RpcAccountInfoConfig {
+                encoding: Some(UiAccountEncoding::Base64),
+                data_slice: None,
+                commitment: Some(CommitmentConfig::confirmed()),
+            },
+            with_context: Some(false),
+        };
+        let accounts = self.client.solana_client.get_program_accounts_with_config(
+            &self.program_id,
+            config,
+        )?;
+        if accounts.is_empty() {
+            Ok(None)
+        } else {
+            if let Some(record) = self.client.get_account_data_borsh::<TokenOwnerRecordV2>(&self.program_id, &accounts[0].0).unwrap() {
+                Ok(Some(TokenOwner::new(self, &record.governing_token_owner)))
+            } else {
+                Ok(None)
+            }
+        }
     }
 
     pub fn governance<'b:'a>(&'b self, governed_account: &Pubkey) -> Governance<'a> {

@@ -24,6 +24,12 @@ use governance_lib::{
 };
 
 
+macro_rules! println_bold {
+    ($format:literal, $($item:expr),*) => {
+        println!(concat!("\x1b[1m", $format, "\x1b[0m"), $($item),*);
+    }
+}
+
 macro_rules! println_item {
     ($format:literal, $($item:expr),*) => {
         println!(concat!("\x1b[34m", $format, "\x1b[0m"), $($item),*);
@@ -233,6 +239,7 @@ pub struct ProposalTransactionInserter<'a> {
 
 impl<'a> ProposalTransactionInserter<'a> {
     pub fn insert_transaction_checked(&mut self, name: &str, instructions: Vec<InstructionData>) -> Result<(), ScriptError> {
+        use borsh::BorshSerialize;
         let mut extra_signers = vec!();
         for instruction in &instructions {
             extra_signers.extend(instruction.accounts.iter().filter(|a| a.is_signer && a.pubkey != self.proposal.governance.governance_address));
@@ -262,6 +269,12 @@ impl<'a> ProposalTransactionInserter<'a> {
             println_update!("Proposal transaction '{}'/{} was inserted in trx: {}", name, self.proposal_transaction_index, signature);
         } else {
             println_update!("Proposal transaction '{}'/{} will be inserted", name, self.proposal_transaction_index);
+            if self.verbose {
+                for instruction in &instructions {
+                    println_item!("{:?}", instruction);
+                    println_item!("BASE64: {}", base64::encode(instruction.try_to_vec()?));
+                }
+            }
         }
         self.proposal_transaction_index += 1;
         Ok(())
