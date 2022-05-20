@@ -25,3 +25,14 @@ RUN cargo clippy && \
     # cargo build-bpf --features no-logs,alpha && cp target/deploy/evm_loader.so target/deploy/evm_loader-alpha.so && \
     # cargo build-bpf --features no-logs,mainnet && cp target/deploy/evm_loader.so target/deploy/evm_loader-mainnet.so && \
     # cargo build-bpf --features no-logs
+
+# Define solana-image that contains utility
+FROM neonlabsorg/solana:${SOLANA_REVISION} AS solana
+
+# Build target image
+FROM ubuntu:20.04 AS base
+WORKDIR /opt
+
+COPY --from=solana /opt/solana/bin/solana /opt/solana/bin/solana-keygen /opt/solana/bin/solana-faucet /opt/solana/bin/
+COPY --from=governance-builder /opt/neon-governance/target/deploy/*.so /opt/
+COPY artifacts/*.keypair /opt/
