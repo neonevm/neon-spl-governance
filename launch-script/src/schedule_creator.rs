@@ -76,14 +76,14 @@ impl ScheduleCreator {
             Lockup::For4Years => {
                 vec![
                     VestingSchedule {
-                        release_time: (self.current + Duration::minutes(12)).timestamp() as u64,
+                        release_time: (self.current + Duration::minutes(4*12)).timestamp() as u64,
                         amount
                     }
                 ]
             },
             Lockup::For1Year_1YearLinear => {
                 let mut schedules = vec!();
-                let start = self.current + Duration::minutes(3);
+                let start = self.current + Duration::minutes(12);
                 for i in 1i32..=12 {
                     let prev = (amount as u128)
                         .checked_mul((i-1) as u128).unwrap()
@@ -92,7 +92,7 @@ impl ScheduleCreator {
                         .checked_mul(i as u128).unwrap()
                         .checked_div(12).unwrap() as u64;
                     let schedule = VestingSchedule {
-                        release_time: (start + Duration::seconds((i*180/12).into())).timestamp() as u64,
+                        release_time: (start + Duration::seconds((i*12*60/12).into())).timestamp() as u64,
                         amount: curr-prev
                     };
                     schedules.push(schedule)

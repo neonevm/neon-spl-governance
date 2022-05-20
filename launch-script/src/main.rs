@@ -466,8 +466,8 @@ fn process_environment(wallet: &Wallet, client: &Client, setup: bool, verbose: b
                         &creator_token_owner_record,
                         GovernanceConfig {
                             vote_threshold_percentage: VoteThresholdPercentage::YesVote(16),
-                            min_community_weight_to_create_proposal: 3_000,
-                            min_transaction_hold_up_time: 0,
+                            min_community_weight_to_create_proposal: 3_000 * 1_000_000_000,
+                            min_transaction_hold_up_time: 5*60,
                             max_voting_time: 3*60, //78200,
                             vote_tipping: VoteTipping::Disabled,
                             proposal_cool_off_time: 0,
@@ -492,7 +492,7 @@ fn process_environment(wallet: &Wallet, client: &Client, setup: bool, verbose: b
                         &creator_token_owner_record,
                         GovernanceConfig {
                             vote_threshold_percentage: VoteThresholdPercentage::YesVote(90),
-                            min_community_weight_to_create_proposal: 1_000_000,
+                            min_community_weight_to_create_proposal: 1_000_000 * 1_000_000_000,
                             min_transaction_hold_up_time: 0,
                             max_voting_time: 3*60, //78200,
                             vote_tipping: VoteTipping::Disabled,
@@ -769,7 +769,6 @@ fn setup_proposal_vote_proposal(wallet: &Wallet, client: &Client,
 // Create TGE proposal (Token Genesis Event)
 // =========================================================================
 fn setup_proposal_tge(wallet: &Wallet, client: &Client, transaction_inserter: &mut ProposalTransactionInserter, testing: bool) -> Result<(), ScriptError> {
-    //let executor = TransactionExecutor {client, setup, verbose};
     let schedule_creator = ScheduleCreator::new(testing);
 
     let realm = Realm::new(&client, &wallet.governance_program_id, REALM_NAME, &wallet.community_pubkey);
@@ -1159,7 +1158,7 @@ fn main() {
                         proposal: &proposal,
                         creator_keypair: &wallet.creator_keypair,
                         creator_token_owner: &creator_owner_record,
-                        hold_up_time: 0,     // TODO: Get hold_up_time from parameters
+                        hold_up_time: governance.get_data().unwrap().map(|d| d.config.min_transaction_hold_up_time).unwrap_or(0),
                         setup: send_trx,
                         verbose: verbose,
                         proposal_transaction_index: 0,
