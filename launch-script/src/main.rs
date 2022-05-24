@@ -4,6 +4,7 @@ mod wallet;
 mod helpers;
 mod msig;
 mod token_distribution;
+mod schedule_creator;
 
 use crate::{
     tokens::{
@@ -23,6 +24,7 @@ use crate::{
     token_distribution::{
         TokenDistribution,
     },
+    schedule_creator::ScheduleCreator,
 };
 use solana_sdk::{
     pubkey::Pubkey,
@@ -51,8 +53,6 @@ use clap::{
     App, AppSettings, Arg, SubCommand,
 };
 
-use spl_governance_addin_vesting::state::VestingSchedule;
-
 use governance_lib::{
     client::Client,
     realm::{RealmConfig, Realm},
@@ -74,7 +74,7 @@ pub enum AccountOwner {
     Key(Pubkey),
 }
 
-#[derive(Debug,PartialEq)]
+#[derive(Debug,PartialEq,Copy,Clone)]
 pub enum Lockup {
     NoLockup,
     For4Years,
@@ -82,7 +82,17 @@ pub enum Lockup {
 }
 
 impl Lockup {
+    pub fn default() -> Self {Lockup::For1year1yearLinear}
+
     pub fn is_locked(&self) -> bool {*self != Lockup::NoLockup}
+
+    pub fn get_schedule_size(&self) -> u32 {
+        match *self {
+            Lockup::NoLockup => 1,
+            Lockup::For4Years => 1,
+            Lockup::For1year1yearLinear => 12,
+        }
+    }
 }
 
 pub struct ExtraTokenAccount {
@@ -332,7 +342,7 @@ fn process_environment(wallet: &Wallet, client: &Client, setup: bool, verbose: b
                         system_instruction::transfer(         // Charge VestingRecord
                             &wallet.payer_keypair.pubkey(),
                             &vesting_addin.find_vesting_account(&vesting_token_account),
-                            Rent::default().minimum_balance(vesting_addin.get_vesting_account_size(1, true)),
+                            Rent::default().minimum_balance(vesting_addin.get_vesting_account_size(Lockup::default().get_schedule_size(), true)),
                         ),
                     ]);
                     let transaction = client.create_transaction(
@@ -390,7 +400,7 @@ fn process_environment(wallet: &Wallet, client: &Client, setup: bool, verbose: b
                         system_instruction::transfer(         // Charge VestingRecord
                             &wallet.payer_keypair.pubkey(),
                             &vesting_addin.find_vesting_account(&token_account_address),
-                            Rent::default().minimum_balance(vesting_addin.get_vesting_account_size(1, true)),
+                            Rent::default().minimum_balance(vesting_addin.get_vesting_account_size(token_account.lockup.get_schedule_size(), true)),
                         ),
                     ]);
                 }
@@ -660,8 +670,9 @@ fn setup_proposal_ido(wallet: &Wallet, client: &Client, proposal_index: Option<u
 // =========================================================================
 // Create TGE proposal (Token Genesis Event)
 // =========================================================================
-fn setup_proposal_tge(wallet: &Wallet, client: &Client, proposal_index: Option<u32>, setup: bool, verbose: bool) -> Result<(), ScriptError> {
+fn setup_proposal_tge(wallet: &Wallet, client: &Client, proposal_index: Option<u32>, setup: bool, verbose: bool, testing: bool) -> Result<(), ScriptError> {
     let executor = TransactionExecutor {client, setup, verbose};
+    let schedule_creator = ScheduleCreator::new(testing);
 
     let realm = Realm::new(client, &wallet.governance_program_id, REALM_NAME, &wallet.community_pubkey);
     realm.update_max_voter_weight_record_address()?;
@@ -740,8 +751,7 @@ fn setup_proposal_tge(wallet: &Wallet, client: &Client, proposal_index: Option<u
 
         let seed: String = format!("{}_vesting_{}", REALM_NAME, i);
         let vesting_token_account = Pubkey::create_with_seed(&wallet.creator_keypair.pubkey(), &seed, &spl_token::id()).unwrap();
-        // TODO Calculate schedule
-        let schedule = vec!(VestingSchedule { release_time: 0, amount: voter.weight });
+        let schedule = schedule_creator.get_schedule(voter.weight, Lockup::default());
 
         transaction_inserter.insert_transaction_checked(
                 &format!("Deposit {} to {} on token account {}",
@@ -766,8 +776,7 @@ fn setup_proposal_tge(wallet: &Wallet, client: &Client, proposal_index: Option<u
 
         if token_account.lockup.is_locked() {
             let token_account_owner = account_owner_resolver.get_owner_pubkey(&token_account.owner)?;
-            // TODO Calculate schedule
-            let schedule = vec!(VestingSchedule { release_time: 0, amount: token_account.amount });
+            let schedule = schedule_creator.get_schedule(token_account.amount, token_account.lockup);
 
             transaction_inserter.insert_transaction_checked(
                 &format!("Deposit {} to {} on token account {}",
@@ -966,6 +975,12 @@ fn main() {
                 .takes_value(false)
                 .help("Send transactions to blockchain")
         )
+        .arg(
+            Arg::with_name("testing")
+                .long("testing")
+                .takes_value(false)
+                .help("Configure testing environment")
+        )
         .subcommand(SubCommand::with_name("environment")
             .about("Prepare environment for launching")
         )
@@ -1006,6 +1021,7 @@ fn main() {
 
     let send_trx: bool = matches.is_present("send_trx");
     let verbose: bool = matches.is_present("verbose");
+    let testing: bool = matches.is_present("testing");
     match matches.subcommand() {
         ("environment", Some(_)) => {
             process_environment(&wallet, &client, send_trx, verbose).unwrap()
@@ -1014,7 +1030,7 @@ fn main() {
             let proposal_index = arg_matches.value_of("index").map(|v| v.parse::<u32>().unwrap());
             match arg_matches.subcommand() {
                 ("create-tge", Some(_)) => {
-                    setup_proposal_tge(&wallet, &client, proposal_index, send_trx, verbose).unwrap()
+                    setup_proposal_tge(&wallet, &client, proposal_index, send_trx, verbose, testing).unwrap()
                 },
                 ("create-ido", Some(_)) => {
                     setup_proposal_ido(&wallet, &client, proposal_index, send_trx, verbose).unwrap()
