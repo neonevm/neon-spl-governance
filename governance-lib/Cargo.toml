@@ -6,9 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-solana-sdk = "1.9"
-solana-client = "1.9"
-solana-account-decoder = "1.9"
+solana-sdk = "1.10.16"
+solana-client = "1.10.16"
+solana-account-decoder = "1.10.16"
 borsh = "0.9.1"
 goblin = "0.4.2"
 log = "0.4.11"

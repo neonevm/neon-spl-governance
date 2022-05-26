@@ -113,6 +113,7 @@ impl<'a> Realm<'a> {
                         encoding: Some(UiAccountEncoding::Base64),
                         data_slice: None,
                         commitment: Some(CommitmentConfig::confirmed()),
+                        min_context_slot: None,
                     },
                     with_context: Some(false),
                 };
