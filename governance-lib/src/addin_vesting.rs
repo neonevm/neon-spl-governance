@@ -46,7 +46,7 @@ impl<'a> AddinVesting<'a> {
 
     pub fn find_vesting_account(&self, vesting_token_account: &Pubkey) -> Pubkey {
         let (vesting_account,_) = Pubkey::find_program_address(
-                &[&vesting_token_account.as_ref()],
+                &[vesting_token_account.as_ref()],
                 &self.program_id,
             );
         vesting_account
@@ -122,14 +122,15 @@ impl<'a> AddinVesting<'a> {
             &self.program_id,
             &spl_token::id(),
             vesting_token_account,
-            &source_token_authority,
+            source_token_authority,
             source_token_account,
             vesting_owner,
-            &payer.unwrap_or(self.client.payer.pubkey()),
+            &payer.unwrap_or_else(|| self.client.payer.pubkey() ),
             schedules,
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn deposit_with_realm_instruction(&self, source_token_authority: &Pubkey, source_token_account: &Pubkey,
             vesting_owner: &Pubkey, vesting_token_account: &Pubkey, schedules: Vec<VestingSchedule>, realm: &Realm, payer: Option<Pubkey>) -> Result<Instruction, ProgramError>
     {
@@ -137,10 +138,10 @@ impl<'a> AddinVesting<'a> {
             &self.program_id,
             &spl_token::id(),
             vesting_token_account,
-            &source_token_authority,
+            source_token_authority,
             source_token_account,
             vesting_owner,
-            &payer.unwrap_or(self.client.payer.pubkey()),
+            &payer.unwrap_or_else(|| self.client.payer.pubkey() ),
             schedules,
             &realm.program_id,
             &realm.realm_address,

@@ -45,7 +45,7 @@ impl ScheduleCreator {
                     }
                 ]
             },
-            Lockup::For1Year_1YearLinear => {
+            Lockup::For1year1yearLinear => {
                 let mut schedules = vec!();
                 let start = shift_years(self.current, 1);
                 for i in 1i32..=12 {
@@ -81,7 +81,7 @@ impl ScheduleCreator {
                     }
                 ]
             },
-            Lockup::For1Year_1YearLinear => {
+            Lockup::For1year1yearLinear => {
                 let mut schedules = vec!();
                 let start = self.current + Duration::minutes(3);
                 for i in 1i32..=12 {
@@ -112,7 +112,7 @@ mod test {
         let schedule_creator = ScheduleCreator::new(true);
         println!("{:?}", schedule_creator.get_schedule(11, Lockup::NoLockup));
         println!("{:?}", schedule_creator.get_schedule(11, Lockup::For4Years));
-        println!("{:?}", schedule_creator.get_schedule(11, Lockup::For1Year_1YearLinear));
+        println!("{:?}", schedule_creator.get_schedule(11, Lockup::For1year1yearLinear));
     }
 
     #[test]
@@ -120,13 +120,13 @@ mod test {
         let schedule_creator = ScheduleCreator::new(false);
         println!("{:?}", schedule_creator.get_schedule(1_000_000, Lockup::NoLockup));
         println!("{:?}", schedule_creator.get_schedule(1_000_000, Lockup::For4Years));
-        println!("{:?}", schedule_creator.get_schedule(1_000_000, Lockup::For1Year_1YearLinear));
+        println!("{:?}", schedule_creator.get_schedule(1_000_000, Lockup::For1year1yearLinear));
     }
 
     #[test]
     fn test_date() {
         let today = Utc::today();
-        let curr = today.naive_utc().and_hms(0, 0, 0);
+        let _curr = today.naive_utc().and_hms(0, 0, 0);
         let curr = Utc.ymd(2022, 1, 31).and_hms(0, 0, 0);
 
         println!("Today: {}", today);

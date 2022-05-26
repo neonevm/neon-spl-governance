@@ -1,18 +1,16 @@
 use crate::{
-    tokens::{get_mint_data, get_account_data, create_mint_instructions},
+    tokens::{get_mint_data},
     errors::{StateError, ScriptError},
     wallet::Wallet,
     helpers::{
         TransactionExecutor,
         TransactionCollector,
-        ProposalTransactionInserter,
     },
 };
 use solana_sdk::{
     pubkey::Pubkey,
     signer::{
         Signer,
-        keypair::Keypair,
     },
     system_instruction,
     rent::Rent,
@@ -24,7 +22,6 @@ use spl_governance::{
             MintMaxVoteWeightSource,
             VoteThresholdPercentage,
             VoteTipping,
-            ProposalState,
         },
         governance::GovernanceConfig,
         realm::SetRealmAuthorityAction,
@@ -34,9 +31,6 @@ use spl_governance::{
 use governance_lib::{
     client::Client,
     realm::{RealmConfig, Realm},
-    governance::Governance,
-    proposal::Proposal,
-    addin_fixed_weights::AddinFixedWeights,
     addin_vesting::AddinVesting,
 };
 
@@ -55,7 +49,7 @@ pub fn setup_msig(wallet: &Wallet, client: &Client, executor: &TransactionExecut
 {
     let seed: String = format!("MSIG_{}", msig.name);
     let msig_mint = Pubkey::create_with_seed(&wallet.creator_keypair.pubkey(), &seed, &spl_token::id())?;
-    let msig_realm = Realm::new(&client, &wallet.governance_program_id, &seed, &msig_mint);
+    let msig_realm = Realm::new(client, &wallet.governance_program_id, &seed, &msig_mint);
     let msig_governance = msig_realm.governance(&msig_mint);
 
     let vesting_addin = AddinVesting::new(client, wallet.vesting_addin_id);
@@ -100,18 +94,19 @@ pub fn setup_msig(wallet: &Wallet, client: &Client, executor: &TransactionExecut
                         None,
                         0,
                     )?,
-                    spl_associated_token_account::create_associated_token_account(
+                    spl_associated_token_account::instruction::create_associated_token_account(
                         &wallet.payer_keypair.pubkey(),
                         &wallet.creator_keypair.pubkey(),
                         &msig_mint,
-                    ).into(),
+                        &spl_token::id(),
+                    ),
                     spl_token::instruction::mint_to(
                         &spl_token::id(),
                         &msig_mint,
                         &creator_token_account,
                         &wallet.creator_keypair.pubkey(), &[],
                         msig.signers.len() as u64,
-                    )?.into(),
+                    )?,
                 ],
                 &[&wallet.creator_keypair],
             )?;
@@ -153,7 +148,7 @@ pub fn setup_msig(wallet: &Wallet, client: &Client, executor: &TransactionExecut
 
     // -------------------- Create accounts for token_owner --------------------
     for (i, owner) in msig.signers.iter().enumerate() {
-        let token_owner_record = msig_realm.token_owner_record(&owner);
+        let token_owner_record = msig_realm.token_owner_record(owner);
         let seed: String = format!("{}_msig_{}", msig.name, i);
         let vesting_token_account = Pubkey::create_with_seed(&wallet.creator_keypair.pubkey(), &seed, &spl_token::id())?;
         let schedule = vec!(VestingSchedule { release_time: 0, amount: 1 });
@@ -186,12 +181,12 @@ pub fn setup_msig(wallet: &Wallet, client: &Client, executor: &TransactionExecut
                         vesting_addin.deposit_with_realm_instruction(
                             &wallet.creator_keypair.pubkey(),  // source_token_authority
                             &creator_token_account,            // source_token_account
-                            &owner,                            // vesting_owner
+                            owner,                             // vesting_owner
                             &vesting_token_account,            // vesting_token_account
                             schedule,                          // schedule
                             &msig_realm,                       // realm
                             None,                              // default payer
-                        )?.into(),
+                        )?,
                     ],
                     &[&wallet.creator_keypair],
                 )?;

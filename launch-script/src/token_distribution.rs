@@ -1,53 +1,15 @@
 use crate::{
     AccountOwner, AccountOwnerResolver,
-    Lockup,
     ExtraTokenAccount,
     TOKEN_MULT,
-    tokens::{
-        get_mint_data,
-        get_account_data,
-        create_mint_instructions,
-        assert_is_valid_account_data,
-    },
     errors::{StateError, ScriptError},
-    wallet::Wallet,
-    msig::MultiSig,
-    helpers::{
-        TransactionExecutor,
-        TransactionCollector,
-        ProposalTransactionInserter,
-    },
 };
 use solana_sdk::{
     pubkey::Pubkey,
-    signer::{
-        Signer,
-        keypair::Keypair,
-    },
-    system_instruction,
-    rent::Rent,
-};
-
-use spl_governance::{
-    state::{
-        enums::{
-            MintMaxVoteWeightSource,
-            VoteThresholdPercentage,
-            VoteTipping,
-            ProposalState,
-        },
-        governance::GovernanceConfig,
-        realm::SetRealmAuthorityAction,
-    },
 };
 
 use governance_lib::{
-    client::Client,
-    realm::{RealmConfig, Realm},
-    governance::Governance,
-    proposal::Proposal,
     addin_fixed_weights::{VoterWeight, AddinFixedWeights},
-    addin_vesting::AddinVesting,
 };
 
 pub struct Info {
@@ -94,7 +56,7 @@ impl<'a> TokenDistribution<'a> {
     pub fn get_unique_owners(&self) -> Vec<AccountOwner> {
         let mut unique_owners: Vec<AccountOwner> = Vec::new();
         for extra_account in self.extra_token_accounts.iter() {
-            if unique_owners.iter().find(|&u| *u == extra_account.owner).is_none() {
+            if unique_owners.iter().any(|u| *u == extra_account.owner) {
                 unique_owners.push(extra_account.owner);
             }
         }
@@ -103,7 +65,7 @@ impl<'a> TokenDistribution<'a> {
 
     pub fn get_special_accounts(&self) -> Vec<Pubkey> {
         let unique_owners = self.get_unique_owners();
-        unique_owners.iter().map(|v| self.resolver.get_owner_pubkey(&v).unwrap()).collect()
+        unique_owners.iter().map(|v| self.resolver.get_owner_pubkey(v).unwrap()).collect()
     }
 
     pub fn validate(&self) -> Result<(),ScriptError> {
@@ -124,7 +86,7 @@ impl<'a> TokenDistribution<'a> {
             let locked_amount = self.extra_token_accounts.iter()
                 .filter_map(|v| if v.lockup.is_locked() && v.owner == *owner {Some(v.amount)} else {None})
                 .sum::<u64>();
-            let owner_address = self.resolver.get_owner_pubkey(&owner).unwrap();
+            let owner_address = self.resolver.get_owner_pubkey(owner).unwrap();
             print!(" {:45} {:10}.{:09} {:?}:  ", owner_address.to_string(), locked_amount/TOKEN_MULT, locked_amount%TOKEN_MULT, owner);
             let voter_item = self.voter_list.iter().find(|v| v.voter == owner_address);
             if locked_amount > 0 {
@@ -139,19 +101,18 @@ impl<'a> TokenDistribution<'a> {
                     println!("missed in voter_list");
                     result = false;
                 };
+            } else if voter_item.is_some() {
+                println!("voter exists");
+                result = false;
             } else {
-                if let Some(_) = voter_item {
-                    println!("voter exists");
-                    result = false;
-                } else {
-                    println!("no locked tokens");
-                }
+                println!("no locked tokens");
             }
         }
 
-        if result == false {
-            return Err(StateError::InvalidVoterList.into());
+        if result {
+            Ok(())
+        } else {
+            Err(StateError::InvalidVoterList.into())
         }
-        Ok(())
     }
 }
