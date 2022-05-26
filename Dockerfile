@@ -27,8 +27,9 @@ FROM neonlabsorg/solana:${SOLANA_REVISION} AS solana
 FROM ubuntu:20.04 AS base
 WORKDIR /opt
 
-RUN apt-get update -y
-RUN apt-get install -y libssl-dev
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get -y install libssl1.1 && \
+    rm -rf /var/lib/apt/lists/*
 
 COPY --from=solana /opt/solana/bin/solana /opt/solana/bin/solana-keygen /opt/solana/bin/
 COPY --from=governance-builder /usr/local/cargo/bin/spl-token /opt/solana/bin/

@@ -1158,6 +1158,7 @@ fn main() {
                             encoding: Some(solana_account_decoder::UiAccountEncoding::Base64),
                             data_slice: None,
                             commitment: None,
+                            min_context_slot: None,
                         },
                         with_context: Some(false),
                     }
