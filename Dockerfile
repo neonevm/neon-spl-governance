@@ -3,6 +3,7 @@ ARG SOLANA_REVISION=v1.9.12-testnet-with_trx_cap
 FROM solanalabs/rust:latest AS builder
 RUN rustup toolchain install stable
 RUN rustup component add clippy --toolchain stable
+RUN cargo install spl-token-cli
 WORKDIR /opt
 RUN sh -c "$(curl -sSfL https://release.solana.com/stable/install)" && \
     /root/.local/share/solana/install/active_release/bin/sdk/bpf/scripts/install.sh
@@ -26,11 +27,13 @@ FROM neonlabsorg/solana:${SOLANA_REVISION} AS solana
 FROM ubuntu:20.04 AS base
 WORKDIR /opt
 
+RUN apt-get update -y
+RUN apt-get install -y libssl-dev
+
 COPY --from=solana /opt/solana/bin/solana /opt/solana/bin/solana-keygen /opt/solana/bin/
-COPY --from=governance-builder /opt/neon-governance/solana-program-library/target/deploy/*.so /opt/
-COPY --from=governance-builder /opt/neon-governance/target/deploy/*.so /opt/
-COPY context/spl-token /opt/solana/bin/
-COPY context/libssl.so.1.1 context/libcrypto.so.1.1 /usr/lib/x86_64-linux-gnu/
+COPY --from=governance-builder /usr/local/cargo/bin/spl-token /opt/solana/bin/
+COPY --from=governance-builder /opt/neon-governance/solana-program-library/target/deploy/*.so /opt/deploy/
+COPY --from=governance-builder /opt/neon-governance/target/deploy/*.so /opt/deploy/
 COPY artifacts/creator.keypair /root/.config/solana/id.json
 COPY artifacts/*.keypair /opt/artifacts/
 COPY artifacts/voters/*.keypair /opt/artifacts/voters/
