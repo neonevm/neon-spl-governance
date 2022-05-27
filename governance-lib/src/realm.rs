@@ -42,8 +42,6 @@ use solana_sdk::{
     commitment_config::CommitmentConfig,
 };
 
-const MIN_COMMUNITY_WEIGHT_TO_CREATE_GOVERNANCE: u64 = 1;
-
 pub struct RealmConfig {
     pub council_token_mint: Option<Pubkey>,
     pub community_voter_weight_addin: Option<Pubkey>,
@@ -119,6 +117,7 @@ impl<'a> Realm<'a> {
                         encoding: Some(UiAccountEncoding::Base64),
                         data_slice: None,
                         commitment: Some(CommitmentConfig::confirmed()),
+                        min_context_slot: None,
                     },
                     with_context: Some(false),
                 };
@@ -134,7 +133,7 @@ impl<'a> Realm<'a> {
             _ => {None},
         };
         self.settings_mut().max_voter_weight_record_address = max_voter_weight_record_address;
-        return Ok(max_voter_weight_record_address)
+        Ok(max_voter_weight_record_address)
     }
 
     pub fn get_data(&self) -> ClientResult<Option<RealmV2>> {
@@ -144,7 +143,7 @@ impl<'a> Realm<'a> {
     pub fn create_realm_instruction(&self, realm_authority: &Pubkey, realm_config: &RealmConfig) -> Instruction {
         create_realm(
             &self.program_id,
-            &realm_authority,
+            realm_authority,
             &self.community_mint,
             &self.client.payer.pubkey(),
             realm_config.council_token_mint,
@@ -174,7 +173,7 @@ impl<'a> Realm<'a> {
     pub fn find_owner_or_delegate_record<'b:'a>(&'b self, owner_or_delegate: &Pubkey) -> ClientResult<Option<TokenOwner<'a>>> {
         // TODO Find record with the most tokens
         let owner_record = self.token_owner_record(owner_or_delegate);
-        if let Some(_) = owner_record.get_data()? {
+        if (owner_record.get_data()?).is_some() {
             return Ok(Some(owner_record));
         }
 
@@ -208,6 +207,7 @@ impl<'a> Realm<'a> {
                 encoding: Some(UiAccountEncoding::Base64),
                 data_slice: None,
                 commitment: Some(CommitmentConfig::confirmed()),
+                min_context_slot: None,
             },
             with_context: Some(false),
         };
@@ -217,12 +217,10 @@ impl<'a> Realm<'a> {
         )?;
         if accounts.is_empty() {
             Ok(None)
+        } else if let Some(record) = self.client.get_account_data_borsh::<TokenOwnerRecordV2>(&self.program_id, &accounts[0].0).unwrap() {
+            Ok(Some(TokenOwner::new(self, &record.governing_token_owner)))
         } else {
-            if let Some(record) = self.client.get_account_data_borsh::<TokenOwnerRecordV2>(&self.program_id, &accounts[0].0).unwrap() {
-                Ok(Some(TokenOwner::new(self, &record.governing_token_owner)))
-            } else {
-                Ok(None)
-            }
+            Ok(None)
         }
     }
 
@@ -250,7 +248,7 @@ impl<'a> Realm<'a> {
             &self.realm_address,
             realm_authority,
             realm_config.council_token_mint,
-            &payer.unwrap_or(self.client.payer.pubkey()),
+            &payer.unwrap_or_else(|| self.client.payer.pubkey() ),
             realm_config.community_voter_weight_addin,
             realm_config.max_community_voter_weight_addin,
             realm_config.min_community_weight_to_create_governance,
@@ -275,7 +273,7 @@ impl<'a> Realm<'a> {
         set_realm_authority(
             &self.program_id,
             &self.realm_address,
-            &realm_authority,
+            realm_authority,
             new_realm_authority,
             action
         )

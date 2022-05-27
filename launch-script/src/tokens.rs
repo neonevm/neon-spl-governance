@@ -4,13 +4,11 @@ use solana_sdk::{
     instruction::{ Instruction },
     signer::{
         Signer,
-        keypair::{ Keypair },
     },
-    signature::Signature,
     program_pack::{ Pack },
 };
 
-use spl_token::state::{ Account, Mint };
+use spl_token::state::{ Account, Mint, Multisig };
 
 use governance_lib::{
     client::{Client, ClientResult},
@@ -22,6 +20,10 @@ pub fn get_mint_data(client: &Client, mint: &Pubkey) -> ClientResult<Option<Mint
 
 pub fn get_account_data(client: &Client, account: &Pubkey) -> ClientResult<Option<Account>> {
     client.get_account_data_pack::<Account>(&spl_token::id(), account)
+}
+
+pub fn get_multisig_data(client: &Client, account: &Pubkey) -> ClientResult<Option<Multisig>> {
+    client.get_account_data_pack::<Multisig>(&spl_token::id(), account)
 }
 
 pub fn assert_is_valid_account_data(d: &Account, address: &Pubkey, mint: &Pubkey, owner: &Pubkey) -> Result<(),StateError> {
@@ -40,14 +42,14 @@ pub fn create_mint_instructions(client: &Client, mint_pubkey: &Pubkey, mint_auth
     Ok([
         solana_sdk::system_instruction::create_account(
             &client.payer.pubkey(),
-            &mint_pubkey,
+            mint_pubkey,
             client.solana_client.get_minimum_balance_for_rent_exemption(Mint::LEN)?,
             Mint::LEN as u64,
             &spl_token::id(),
         ),
         spl_token::instruction::initialize_mint(
             &spl_token::id(),
-            &mint_pubkey,
+            mint_pubkey,
             mint_authority,
             freeze_authority,
             decimals
@@ -55,29 +57,29 @@ pub fn create_mint_instructions(client: &Client, mint_pubkey: &Pubkey, mint_auth
     ].to_vec())
 }
 
-pub fn create_mint(client: &Client, mint_keypair: &Keypair, mint_authority: &Pubkey,
-        freeze_authority: Option<&Pubkey>, decimals: u8) -> ClientResult<Signature>
-{
-    client.send_and_confirm_transaction(
-            &[
-                solana_sdk::system_instruction::create_account(
-                    &client.payer.pubkey(),
-                    &mint_keypair.pubkey(),
-                    client.solana_client.get_minimum_balance_for_rent_exemption(Mint::LEN)?,
-                    Mint::LEN as u64,
-                    &spl_token::id(),
-                ),
-                spl_token::instruction::initialize_mint(
-                    &spl_token::id(),
-                    &mint_keypair.pubkey(),
-                    mint_authority,
-                    freeze_authority,
-                    decimals
-                ).unwrap(),
-            ],
-            &[mint_keypair],
-        )
-}
+// pub fn create_mint(client: &Client, mint_keypair: &Keypair, mint_authority: &Pubkey,
+//         freeze_authority: Option<&Pubkey>, decimals: u8) -> ClientResult<Signature>
+// {
+//     client.send_and_confirm_transaction(
+//             &[
+//                 solana_sdk::system_instruction::create_account(
+//                     &client.payer.pubkey(),
+//                     &mint_keypair.pubkey(),
+//                     client.solana_client.get_minimum_balance_for_rent_exemption(Mint::LEN)?,
+//                     Mint::LEN as u64,
+//                     &spl_token::id(),
+//                 ),
+//                 spl_token::instruction::initialize_mint(
+//                     &spl_token::id(),
+//                     &mint_keypair.pubkey(),
+//                     mint_authority,
+//                     freeze_authority,
+//                     decimals
+//                 ).unwrap(),
+//             ],
+//             &[mint_keypair],
+//         )
+// }
 
 /*
 pub fn create_account(client: &RpcClient, owner_keypair: &Keypair, mint_keypair: &Keypair, mint_pubkey: &Pubkey) -> Result<Pubkey,()> {

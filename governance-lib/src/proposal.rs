@@ -62,7 +62,7 @@ impl<'a> Proposal<'a> {
                 &self.governance.realm.program_id,
                 &self.governance.governance_address,
                 &token_owner.token_owner_record_address,
-                &create_authority,
+                create_authority,
                 &self.governance.realm.client.payer.pubkey(),
                 token_owner.get_voter_weight_record_address(),
 
@@ -260,7 +260,7 @@ impl<'a> Proposal<'a> {
                         &self.governance.realm.realm_address,
                         &self.governance.governance_address,
                         &self.proposal_address,
-                        &proposal_owner_record,
+                        proposal_owner_record,
                         &voter.token_owner_record_address,
                         &voter_authority.pubkey(),
                         &self.governance.realm.community_mint,

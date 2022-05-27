@@ -81,28 +81,28 @@ pub enum StateError {
 #[derive(Debug, Error)]
 pub enum ScriptError {
     #[error("Std error {0:?}")]
-    StdError(Box<dyn std::error::Error>),
+    Std(Box<dyn std::error::Error>),
 
     /// Std IO Error
     #[error("Std I/O error. {0:?}")]
-    StdIoError(std::io::Error),
+    StdIo(std::io::Error),
 
     /// Solana Client Error
     #[error("Solana program error. {0:?}")]
-    ProgramError(SolanaProgramError),
+    Program(SolanaProgramError),
 
     /// Solana Client Error
     #[error("Solana client error. {0:?}")]
-    ClientError(SolanaClientError),
+    Client(SolanaClientError),
 
     #[error("Governance lib error {0:?}")]
-    GovernanceLibError(GovernanceLibError),
+    GovernanceLib(GovernanceLibError),
 
     #[error("State error: {0:?}")]
-    StateError(StateError),
+    State(StateError),
 
     #[error("Pubkey error: {0:?}")]
-    PubkeyError(PubkeyError),
+    Pubkey(PubkeyError),
 
 //    /// Solana Signer Error
 //    #[error("Solana signer error. {0:?}")]
@@ -202,43 +202,43 @@ pub enum ScriptError {
 
 impl From<std::io::Error> for ScriptError {
     fn from(e: std::io::Error) -> ScriptError {
-        ScriptError::StdIoError(e)
+        ScriptError::StdIo(e)
     }
 }
 
 impl From<Box<dyn std::error::Error>> for ScriptError {
     fn from(e: Box<dyn std::error::Error>) -> ScriptError {
-        ScriptError::StdError(e)
+        ScriptError::Std(e)
     }
 }
 
 impl From<SolanaClientError> for ScriptError {
     fn from(e: SolanaClientError) -> ScriptError {
-        ScriptError::ClientError(e)
+        ScriptError::Client(e)
     }
 }
 
 impl From<GovernanceLibError> for ScriptError {
     fn from(e: GovernanceLibError) -> ScriptError {
-        ScriptError::GovernanceLibError(e)
+        ScriptError::GovernanceLib(e)
     }
 }
 
 impl From<StateError> for ScriptError {
     fn from(e: StateError) -> ScriptError {
-        ScriptError::StateError(e)
+        ScriptError::State(e)
     }
 }
 
 impl From<PubkeyError> for ScriptError {
     fn from(e: PubkeyError) -> ScriptError {
-        ScriptError::PubkeyError(e)
+        ScriptError::Pubkey(e)
     }
 }
 
 impl From<SolanaProgramError> for ScriptError {
     fn from(e: SolanaProgramError) -> ScriptError {
-        ScriptError::ProgramError(e)
+        ScriptError::Program(e)
     }
 }
 

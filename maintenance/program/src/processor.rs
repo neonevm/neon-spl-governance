@@ -73,7 +73,7 @@ pub fn process_instruction(
 }
 
 /// Get MaintenanceRecord account seeds
-pub fn get_maintenance_record_seeds<'a>(maintenance: &'a Pubkey) -> [&'a [u8]; 2] {
+pub fn get_maintenance_record_seeds(maintenance: &Pubkey) -> [& [u8]; 2] {
     [b"maintenance", maintenance.as_ref()]
 }
 
@@ -193,7 +193,7 @@ pub fn process_upgrade(
     let maintenance_record = get_account_data::<MaintenanceRecord>(program_id, maintenance_record_info)?;
 
     if maintenance_record.authority != *authority_info.key &&
-        maintenance_record.delegate.iter().find(|&&item| item == *authority_info.key ).is_none()
+        maintenance_record.delegate.iter().any(|&item| item == *authority_info.key )
     {
         return Err(MaintenanceError::WrongDelegate.into());
     }
@@ -202,11 +202,11 @@ pub fn process_upgrade(
         let buffer_data_offset: usize = UpgradeableLoaderState::buffer_data_offset().map_err(|_| MaintenanceError::BufferDataOffsetError )?;
         let program_buffer: &[u8] = &upgrade_buffer_info.data.borrow();
         let program_buffer_data: &[u8] = program_buffer.get(buffer_data_offset..).ok_or(MaintenanceError::BufferDataOffsetError)?;
-        hash(&program_buffer_data)
+        hash(program_buffer_data)
     };
     // msg!("MAINTENANCE-INSTRUCTION: UPGRADE Buffer Hash {:?}", buffer_hash);
 
-    if maintenance_record.hashes.iter().find(|&&item| item == buffer_hash ).is_none() {
+    if maintenance_record.hashes.iter().any(|&item| item == buffer_hash ) {
         return Err(MaintenanceError::WrongCodeHash.into());
     }
 
@@ -326,7 +326,7 @@ pub fn process_close_maintenance(
     let program_authority: Pubkey = 
         match upgradeable_loader_state {
             UpgradeableLoaderState::ProgramData { slot: _, upgrade_authority_address } => 
-                upgrade_authority_address.ok_or(ProgramError::from(MaintenanceError::AuthorityDeserializationError))?,
+                upgrade_authority_address.ok_or_else(|| ProgramError::from(MaintenanceError::AuthorityDeserializationError) )?,
             _ => 
                 return Err(ProgramError::from(MaintenanceError::AuthorityDeserializationError)),
         };

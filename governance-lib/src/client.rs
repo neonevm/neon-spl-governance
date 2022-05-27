@@ -62,7 +62,7 @@ impl<'a> Client<'a> {
 
     pub fn send_transaction(&self, transaction: &Transaction) -> ClientResult<Signature> {
         //self.solana_client.send_and_confirm_transaction(&transaction)
-        self.solana_client.send_and_confirm_transaction_with_spinner_and_config(&transaction, 
+        self.solana_client.send_and_confirm_transaction_with_spinner_and_config(transaction, 
                 self.solana_client.commitment(),
                 RpcSendTransactionConfig {skip_preflight: true, ..RpcSendTransactionConfig::default()}).map_err(|e| e.into())
     }
@@ -128,7 +128,7 @@ impl<'a> Client<'a> {
 
     pub fn get_account(&self, account_key: &Pubkey) -> ClientResult<Option<Account>> {
         let account_info = self.solana_client.get_account_with_commitment(
-                &account_key, self.solana_client.commitment())?.value;
+                account_key, self.solana_client.commitment())?.value;
         Ok(account_info)
     }
 
@@ -146,7 +146,7 @@ impl<'a> Client<'a> {
                         format!("Invalid account owner: expect {}, actual {}", owner_program_id, account_info.owner)));
             }
         
-            let account: T = T::unpack(&account_info.data).unwrap(); //try_from_slice_unchecked(&account_info.data).unwrap();
+            let account: T = T::unpack(&account_info.data)?;
             if !account.is_initialized() {
                 return Err(GovernanceLibError::StateError(*account_key, "Uninitialized account".to_string()));
             }
@@ -170,7 +170,7 @@ impl<'a> Client<'a> {
                         format!("Invalid account owner: expect {}, actual {}", owner_program_id, account_info.owner)));
             }
         
-            let account: T = try_from_slice_unchecked(&account_info.data).unwrap();
+            let account: T = try_from_slice_unchecked(&account_info.data)?;
             if !account.is_initialized() {
                 return Err(GovernanceLibError::StateError(*account_key, "Uninitialized account".to_string()));
             }
@@ -184,12 +184,12 @@ impl<'a> Client<'a> {
             &self,
             program_id: &Pubkey,
     ) -> ClientResult<Option<Pubkey>> {
-        let programdata_address = self.get_program_data_address(&program_id)?;
+        let programdata_address = self.get_program_data_address(program_id)?;
         let buffer_account = &self.solana_client.get_account(&programdata_address)?;
         if let Ok(UpgradeableLoaderState::ProgramData {upgrade_authority_address, ..}) = buffer_account.state() {
             Ok(upgrade_authority_address)
         } else {
-            return Err(GovernanceLibError::StateError(programdata_address, "Invalid associated PDA".to_string()));
+            Err(GovernanceLibError::StateError(programdata_address, "Invalid associated PDA".to_string()))
         }
     }
 
@@ -197,16 +197,16 @@ impl<'a> Client<'a> {
             &self,
             program_id: &Pubkey,
     ) -> ClientResult<Pubkey> {
-        let program_info = &self.solana_client.get_account(&program_id)?;
+        let program_info = &self.solana_client.get_account(program_id)?;
 
         if program_info.owner == bpf_loader_upgradeable::id() {
             if let Ok(UpgradeableLoaderState::Program {programdata_address}) = program_info.state() {
                 Ok(programdata_address)
             } else {
-                return Err(GovernanceLibError::StateError(*program_id, "Account is not upgradeable".to_string()));
+                Err(GovernanceLibError::StateError(*program_id, "Account is not upgradeable".to_string()))
             }
         } else {
-            return Err(GovernanceLibError::StateError(*program_id, "Unable to load program data: invalid owner".to_string()));
+            Err(GovernanceLibError::StateError(*program_id, "Unable to load program data: invalid owner".to_string()))
         }
     }
 
@@ -236,7 +236,7 @@ impl<'a> Client<'a> {
             &self,
             program_id: &Pubkey,
     ) -> ClientResult<Vec<u8>> {
-        let program_info = &self.solana_client.get_account(&program_id)?;
+        let program_info = &self.solana_client.get_account(program_id)?;
 
         if program_info.owner == bpf_loader::id() || program_info.owner == bpf_loader_deprecated::id() {
             Ok(program_info.data.clone())
@@ -248,17 +248,17 @@ impl<'a> Client<'a> {
                     let program_data = &buffer_account.data[offset..];
                     Ok(program_data.to_vec())
                 } else {
-                    return Err(GovernanceLibError::StateError(programdata_address, "Invalid associated PDA".to_string()));
+                    Err(GovernanceLibError::StateError(programdata_address, "Invalid associated PDA".to_string()))
                 }
             } else if let Ok(UpgradeableLoaderState::Buffer {..}) = program_info.state() {
                 let offset = UpgradeableLoaderState::buffer_data_offset().unwrap_or(0);
                 let program_data = &program_info.data[offset..];
                 Ok(program_data.to_vec())
             } else {
-                return Err(GovernanceLibError::StateError(*program_id, "Account is not upgradeable".to_string()));
+                Err(GovernanceLibError::StateError(*program_id, "Account is not upgradeable".to_string()))
             }
         } else {
-            return Err(GovernanceLibError::StateError(*program_id, "Unable to load program data: invalid owner".to_string()));
+            Err(GovernanceLibError::StateError(*program_id, "Unable to load program data: invalid owner".to_string()))
         }
     }
 

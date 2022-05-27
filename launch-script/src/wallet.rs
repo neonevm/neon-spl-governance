@@ -8,14 +8,13 @@ use {
         },
     },
     std::{
-        collections::HashMap,
         fs,
     },
 };
 
-const GOVERNANCE_KEY_FILE_PATH:             &str = "artifacts/spl_governance-keypair.json";
-const VOTER_WEIGHT_ADDIN_KEY_FILE_PATH:     &str = "artifacts/spl_governance_addin_fixed_weights-keypair.json";
-const VESTING_ADDIN_KEY_FILE_PATH:          &str = "artifacts/spl_governance_addin_vesting-keypair.json";
+const GOVERNANCE_KEY_FILE_PATH:             &str = "artifacts/spl-governance.keypair";
+const VOTER_WEIGHT_ADDIN_KEY_FILE_PATH:     &str = "artifacts/addin-fixed-weights.keypair";
+const VESTING_ADDIN_KEY_FILE_PATH:          &str = "artifacts/addin-vesting.keypair";
 const COMMUTINY_MINT_KEY_FILE_PATH:         &str = "launch-script/community_mint.keypair";
 const PAYER_KEY_FILE_PATH:                  &str = "artifacts/payer.keypair";
 const CREATOR_KEY_FILE_PATH:                &str = "artifacts/creator.keypair";
@@ -45,7 +44,7 @@ impl Wallet {
             vesting_addin_id: read_keypair_file(VESTING_ADDIN_KEY_FILE_PATH)?.pubkey(),
 
             community_pubkey: community_keypair.pubkey(),
-            community_keypair: community_keypair,
+            community_keypair,
 
             payer_keypair: read_keypair_file(PAYER_KEY_FILE_PATH)?,
             creator_keypair: read_keypair_file(CREATOR_KEY_FILE_PATH)?,
@@ -71,7 +70,7 @@ impl Wallet {
         println!("Creator Pubkey:          {}", self.creator_keypair.pubkey());
         println!("Creator token owner:     {}", self.creator_token_owner_keypair.pubkey());
         println!("Voter pubkeys:");
-        for (i, ref keypair) in self.voter_keypairs.iter().enumerate() {
+        for (i, keypair) in self.voter_keypairs.iter().enumerate() {
             println!("\t{} {}", i, keypair.pubkey());
         }
     }

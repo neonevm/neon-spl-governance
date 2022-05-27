@@ -62,7 +62,7 @@ impl<'a> Governance<'a> {
             Some(&self.governed_account),
             &token_owner.token_owner_record_address,
             &self.realm.client.payer.pubkey(),
-            &creator,                               // realm_authority OR token_owner authority
+            creator,                               // realm_authority OR token_owner authority
             token_owner.get_voter_weight_record_address(),
             gov_config,
         )
@@ -116,7 +116,7 @@ impl<'a> Governance<'a> {
             );
         Proposal {
             governance: self,
-            proposal_address: proposal_address,
+            proposal_address,
         }
     }
 

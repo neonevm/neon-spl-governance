@@ -20,7 +20,7 @@ num-derive = "0.3"
 num-traits = "0.2"
 serde = "1.0.127"
 serde_derive = "1.0.103"
-solana-program = "1.10.13"
+solana-program = "1.10.16"
 const_format = { version = "0.2.21" }
 spl-token = { path = "../../solana-program-library/token/program", version = "3.3", features = [ "no-entrypoint" ] }
 spl-governance-addin-api = { path = "../../solana-program-library/governance/addin-api", version = "0.1.1" }

@@ -20,21 +20,9 @@ use spl_governance::{
     },
 };
 
-//use spl_governance_addin_fixed_weights::{
-//    instruction::{
-//        get_max_voter_weight_address,
-//        get_voter_weight_address,
-//    }
-//};
-
-// mod tokens;
-
 use governance_lib::{
     client::Client,
     realm::{Realm, RealmConfig},
-    governance::Governance,
-    proposal::Proposal,
-    token_owner::TokenOwner,
     addin_fixed_weights::AddinFixedWeights,
 };
 
@@ -87,7 +75,7 @@ fn main() {
     let client = Client::new("http://localhost:8899", &payer_keypair);
     // let client = Client::new("https://api.devnet.solana.com", program_id, voter_weight_addin_pubkey);
 
-    let mut realm: Realm = Realm::new(&client, &program_id, REALM_NAME, &community_pubkey);
+    let realm: Realm = Realm::new(&client, &program_id, REALM_NAME, &community_pubkey);
     if !client.account_exists(&realm.realm_address) {
         realm.create_realm(
             owner_keypair,
@@ -118,7 +106,7 @@ fn main() {
         println!("Token Owner {} \n{:?}, voter_weight_record: {}", i, token_owner, voter_weight_record);
         token_owners.push(token_owner);
         if i == 2 {
-            let result = fixed_weight_addin.set_vote_percentage_fixed(&realm, &keypair, 5000);
+            let result = fixed_weight_addin.set_vote_percentage_fixed(&realm, keypair, 5000);
             println!("{:?}", result);
         }
     }
@@ -151,11 +139,12 @@ fn main() {
 //        } else {
 //            0
 //        };
-    let proposal = governance.proposal(proposal_number);
+    let proposal = governance.proposal_by_index(proposal_number);
     if !client.account_exists(&proposal.proposal_address) {
         proposal.create_proposal(
             &voter_keypairs[0],
             &token_owners[0],
+            proposal_number,
             PROPOSAL_NAME,
             PROPOSAL_DESCRIPTION,
         ).unwrap();
@@ -174,7 +163,7 @@ fn main() {
     for (i, owner) in token_owners.iter().enumerate() {
         let yes = i == 0 || i == 3 || i == 4;
         let result = proposal.cast_vote(
-                &token_owners[0],
+                &token_owners[0].token_owner_record_address,
                 &voter_keypairs[i],
                 owner, yes);
         println!("CastVote {} {:?}", i, result);

@@ -212,11 +212,11 @@ impl<'a> TransactionCollector<'a> {
             match result {
                 Ok(signature) => {
                     println_update!("{}: processed in trx {}", self.name, signature);
-                    return Ok(Some(signature));
+                    Ok(Some(signature))
                 },
                 Err(error) => {
                     println_error!("{}: failed process with {}", self.name, error);
-                    return Err(error.into());
+                    Err(error.into())
                 }
             }
         } else {
@@ -261,8 +261,8 @@ impl<'a> ProposalTransactionInserter<'a> {
             }
         } else if self.setup {
             let signature = self.proposal.insert_transaction(
-                    &self.creator_keypair,
-                    &self.creator_token_owner,
+                    self.creator_keypair,
+                    self.creator_token_owner,
                     0, self.proposal_transaction_index, self.hold_up_time,
                     instructions
                 )?;

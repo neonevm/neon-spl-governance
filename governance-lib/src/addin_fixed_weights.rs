@@ -39,7 +39,7 @@ impl<'a> AddinFixedWeights<'a> {
         }
     }
 
-    pub fn setup_max_voter_weight_record(&self, realm: &Realm) -> Result<Pubkey, ()> {
+    pub fn setup_max_voter_weight_record(&self, realm: &Realm) -> Result<Pubkey, GovernanceLibError> {
         use spl_governance_addin_fixed_weights::instruction;
         let (max_voter_weight_record_pubkey,_): (Pubkey,u8) = instruction::get_max_voter_weight_address(
                 &self.program_id,
@@ -69,7 +69,7 @@ impl<'a> AddinFixedWeights<'a> {
                 );
             
             self.client.solana_client.send_and_confirm_transaction(&transaction)
-                .map_err(|_|())?;
+                .map_err(GovernanceLibError::ClientError)?;
         }
 
         Ok(max_voter_weight_record_pubkey)
@@ -93,7 +93,7 @@ impl<'a> AddinFixedWeights<'a> {
         )
     }
 
-    pub fn setup_voter_weight_record(&self, realm: &Realm, token_owner: &Pubkey) -> Result<Pubkey,()> {
+    pub fn setup_voter_weight_record(&self, realm: &Realm, token_owner: &Pubkey) -> Result<Pubkey,GovernanceLibError> {
         let (voter_weight_record_pubkey,_): (Pubkey,u8) = spl_governance_addin_fixed_weights::instruction::get_voter_weight_address(
                 &self.program_id,
                 &realm.realm_address,
@@ -122,13 +122,14 @@ impl<'a> AddinFixedWeights<'a> {
                     self.client.solana_client.get_latest_blockhash().unwrap(),
                 );
             
-            self.client.solana_client.send_and_confirm_transaction(&transaction).unwrap();
+            self.client.solana_client.send_and_confirm_transaction(&transaction)
+                .map_err(GovernanceLibError::ClientError)?;
         }
         
         Ok(voter_weight_record_pubkey)
     }
 
-    pub fn set_vote_percentage_fixed(&self, realm: &Realm, token_owner: &Keypair, percentage: u16) -> Result<Pubkey,()> {
+    pub fn set_vote_percentage_fixed(&self, realm: &Realm, token_owner: &Keypair, percentage: u16) -> Result<Pubkey,GovernanceLibError> {
         let (voter_weight_record_pubkey,_): (Pubkey,u8) = spl_governance_addin_fixed_weights::instruction::get_voter_weight_address(
                 &self.program_id,
                 &realm.realm_address,
@@ -161,7 +162,7 @@ impl<'a> AddinFixedWeights<'a> {
                 );
             
             self.client.solana_client.send_and_confirm_transaction(&transaction)
-                .map_err(|_|())?;
+                .map_err(GovernanceLibError::ClientError)?;
         }
         
         Ok(voter_weight_record_pubkey)
