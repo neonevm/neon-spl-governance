@@ -37,6 +37,9 @@ pub enum StateError {
     #[error("Missing Mint {0:?}")]
     MissingMint(Pubkey),
 
+    #[error("Missing spl-token account {0:?}")]
+    MissingSplTokenAccount(Pubkey),
+
     #[error("Missing realm {0:?}")]
     MissingRealm(Pubkey),
 

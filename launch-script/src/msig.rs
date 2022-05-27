@@ -234,7 +234,7 @@ pub fn setup_msig(wallet: &Wallet, client: &Client, executor: &TransactionExecut
     let mut collector = TransactionCollector::new(client, executor.setup, executor.verbose,
             &format!("{} pass under governance", msig.name));
     // 1. Mint
-    collector.check_and_create_object(&format!("{}-token mint-authority", msig.name),
+    collector.check_and_create_object(&format!("{} token mint-authority", msig.name),
         get_mint_data(client, &msig_mint)?,
         |d| {
             if d.mint_authority.contains(&wallet.creator_keypair.pubkey()) {
@@ -256,7 +256,7 @@ pub fn setup_msig(wallet: &Wallet, client: &Client, executor: &TransactionExecut
                 Err(StateError::InvalidMintAuthority(msig_mint, d.mint_authority).into())
             }
         },
-        || {Err(StateError::MissingMint(msig_mint).into())},
+        || {if executor.setup {Err(StateError::MissingMint(msig_mint).into())} else {Ok(None)}},
     )?;
 
     // 2. Realm
@@ -279,7 +279,7 @@ pub fn setup_msig(wallet: &Wallet, client: &Client, executor: &TransactionExecut
                 Err(StateError::InvalidRealmAuthority(msig_realm.realm_address, d.authority).into())
             }
         },
-        || {Err(StateError::MissingRealm(msig_realm.realm_address).into())}
+        || {if executor.setup {Err(StateError::MissingRealm(msig_realm.realm_address).into())} else {Ok(None)}}
     )?;
     collector.execute_transaction()?;
 
