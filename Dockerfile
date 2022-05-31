@@ -1,4 +1,4 @@
-ARG SOLANA_REVISION=v1.9.12-testnet-with_trx_cap
+ARG SOLANA_REVISION=v1.9.12
 # Install BPF SDK
 FROM solanalabs/rust:latest AS builder
 RUN rustup toolchain install stable
@@ -21,7 +21,7 @@ WORKDIR /opt/neon-governance/solana-program-library/governance/program
 RUN cargo build-bpf
 
 # Define solana-image that contains utility
-FROM neonlabsorg/solana:${SOLANA_REVISION} AS solana
+FROM solanalabs/solana:${SOLANA_REVISION} AS solana
 
 # Build target image
 FROM ubuntu:20.04 AS base
