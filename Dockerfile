@@ -31,7 +31,7 @@ RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get -y install libssl1.1 && \
     rm -rf /var/lib/apt/lists/*
 
-COPY --from=solana /opt/solana/bin/solana /opt/solana/bin/solana-keygen /opt/solana/bin/
+COPY --from=solana /usr/bin/solana /usr/bin/solana-keygen /opt/solana/bin/
 COPY --from=governance-builder /usr/local/cargo/bin/spl-token /opt/solana/bin/
 COPY --from=governance-builder /opt/neon-governance/solana-program-library/target/deploy/*.so /opt/deploy/
 COPY --from=governance-builder /opt/neon-governance/target/deploy/*.so /opt/deploy/
