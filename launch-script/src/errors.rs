@@ -104,6 +104,9 @@ pub enum ScriptError {
     #[error("Pubkey error: {0:?}")]
     Pubkey(PubkeyError),
 
+    #[error("Missing signer keypair")]
+    MissingSignerKeypair,
+
 //    /// Solana Signer Error
 //    #[error("Solana signer error. {0:?}")]
 //    SignerError(SolanaSignerError),

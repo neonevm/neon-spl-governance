@@ -30,7 +30,8 @@ pub struct Wallet {
     pub community_keypair: Keypair,
 
     pub payer_keypair: Keypair,
-    pub creator_keypair: Keypair,
+    pub creator_pubkey: Pubkey,
+    pub creator_keypair: Option<Keypair>,
     pub creator_token_owner_keypair: Keypair,
     pub voter_keypairs: Vec<Keypair>,
 }
@@ -38,6 +39,7 @@ pub struct Wallet {
 impl Wallet {
     pub fn new() -> Result<Self,ScriptError> {
         let community_keypair = read_keypair_file(COMMUTINY_MINT_KEY_FILE_PATH)?;
+        let creator_keypair = read_keypair_file(CREATOR_KEY_FILE_PATH)?;
         Ok(Self {
             governance_program_id: read_keypair_file(GOVERNANCE_KEY_FILE_PATH)?.pubkey(),
             fixed_weight_addin_id: read_keypair_file(VOTER_WEIGHT_ADDIN_KEY_FILE_PATH)?.pubkey(),
@@ -47,7 +49,8 @@ impl Wallet {
             community_keypair,
 
             payer_keypair: read_keypair_file(PAYER_KEY_FILE_PATH)?,
-            creator_keypair: read_keypair_file(CREATOR_KEY_FILE_PATH)?,
+            creator_pubkey: creator_keypair.pubkey(),
+            creator_keypair: Some(creator_keypair),
             creator_token_owner_keypair: read_keypair_file(CREATOR_TOKEN_OWNER_KEY_FILE_PATH)?,
             voter_keypairs: {
                 let mut voter_keypairs = vec!();
@@ -59,6 +62,13 @@ impl Wallet {
         })
     }
 
+    pub fn get_creator_keypair(&self) -> Result<&Keypair, ScriptError> {
+        match &self.creator_keypair {
+            Some(keypair) => Ok(keypair),
+            None => Err(ScriptError::MissingSignerKeypair),
+        }
+    }
+
     pub fn display(&self) {
         println!("Governance Program Id:   {}", self.governance_program_id);
         println!("Fixed Weight Addin Id:   {}", self.fixed_weight_addin_id);
@@ -67,7 +77,9 @@ impl Wallet {
         println!("Community Token Mint:    {}", self.community_pubkey);
 
         println!("Payer Pubkey:            {}", self.payer_keypair.pubkey());
-        println!("Creator Pubkey:          {}", self.creator_keypair.pubkey());
+        println!("Creator Pubkey:          {}   private key {}", self.creator_pubkey,
+                if self.creator_keypair.is_some() {"PRESENT"} else {"MISSING"});
+
         println!("Creator token owner:     {}", self.creator_token_owner_keypair.pubkey());
         println!("Voter pubkeys:");
         for (i, keypair) in self.voter_keypairs.iter().enumerate() {
