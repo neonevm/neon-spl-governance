@@ -1,4 +1,4 @@
-ARG SOLANA_REVISION=v1.9.12-testnet-with_trx_cap
+ARG SOLANA_REVISION=v1.9.12
 # Install BPF SDK
 FROM solanalabs/rust:latest AS builder
 RUN rustup toolchain install stable
@@ -21,7 +21,7 @@ WORKDIR /opt/neon-governance/solana-program-library/governance/program
 RUN cargo build-bpf
 
 # Define solana-image that contains utility
-FROM neonlabsorg/solana:${SOLANA_REVISION} AS solana
+FROM solanalabs/solana:${SOLANA_REVISION} AS solana
 
 # Build target image
 FROM ubuntu:20.04 AS base
@@ -31,7 +31,7 @@ RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get -y install libssl1.1 && \
     rm -rf /var/lib/apt/lists/*
 
-COPY --from=solana /opt/solana/bin/solana /opt/solana/bin/solana-keygen /opt/solana/bin/
+COPY --from=solana /usr/bin/solana /usr/bin/solana-keygen /opt/solana/bin/
 COPY --from=governance-builder /usr/local/cargo/bin/spl-token /opt/solana/bin/
 COPY --from=governance-builder /opt/neon-governance/solana-program-library/target/deploy/*.so /opt/deploy/
 COPY --from=governance-builder /opt/neon-governance/target/deploy/*.so /opt/deploy/
