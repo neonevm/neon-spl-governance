@@ -12,7 +12,7 @@ done
 
 export NEON_GOVERNANCE_IMAGE=neonlabsorg/neon-governance:${IMAGETAG:-${BUILDKITE_COMMIT}}
 
-echo "Currently runned Docker-containers"
+echo "Currently running Docker-containers"
 docker ps -a
 
 function cleanup_docker {
@@ -35,7 +35,11 @@ fi
 # sleep 10
 
 echo "Run tests..."
-docker exec -ti solana '/opt/run-tests.sh'
+docker run --rm --network neon-governance-run-test-net -ti \
+     -e SOLANA_URL=http://solana:8899 \
+     ${EXTRA_ARGS:-} \
+     $NEON_GOVERNANCE_IMAGE '/opt/run-tests.sh'
+#docker exec -ti solana '/opt/run-tests.sh'
 echo "Run tests return"
 
 exit $?
