@@ -34,7 +34,7 @@ if ! docker-compose -f docker-compose-test.yml up -d; then
 fi
 
 # waiting for solana to launch
-# sleep 10
+sleep 10
 
 echo "Run tests..."
 docker run --rm --network neon-governance-run-test-net -ti \
