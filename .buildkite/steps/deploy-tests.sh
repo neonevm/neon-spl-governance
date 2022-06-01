@@ -1,6 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
+set ${SOLANA_REVISION:=v1.9.12}
+
 while getopts t: option; do
 case "${option}" in
     t) IMAGETAG=${OPTARG};;
