@@ -15,7 +15,7 @@ FROM builder AS governance-builder
 COPY ./ /opt/neon-governance/
 
 WORKDIR /opt/neon-governance
-RUN cargo clippy && cargo build-bpf
+RUN cargo clippy && cargo test-bpf && cargo build-bpf
 
 WORKDIR /opt/neon-governance/solana-program-library/governance/program
 RUN cargo build-bpf
@@ -38,6 +38,8 @@ COPY --from=governance-builder /opt/neon-governance/target/deploy/*.so /opt/depl
 COPY artifacts/creator.keypair /root/.config/solana/id.json
 COPY artifacts/*.keypair /opt/artifacts/
 COPY artifacts/voters/*.keypair /opt/artifacts/voters/
+COPY solana-run-neon.sh /opt/solana/bin/
 COPY init-governance.sh /opt/
+COPY run-tests.sh /opt/
 
 ENV PATH=/opt/solana/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt

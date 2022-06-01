@@ -1,4 +1,6 @@
 #!/bin/bash
+set -euo pipefail
+
 solana -v --url http://localhost:8899 --keypair artifacts/creator.keypair airdrop 100
 solana -v --url http://localhost:8899 --keypair artifacts/payer.keypair airdrop 100
 
