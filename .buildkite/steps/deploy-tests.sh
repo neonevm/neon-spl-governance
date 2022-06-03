@@ -41,7 +41,6 @@ docker run --rm --network neon-governance-run-test-net -ti \
      -e SOLANA_URL=http://solana:8899 \
      ${EXTRA_ARGS:-} \
      $NEON_GOVERNANCE_IMAGE '/opt/run-tests.sh'
-#docker exec -ti solana '/opt/run-tests.sh'
 echo "Run tests return"
 
 exit $?

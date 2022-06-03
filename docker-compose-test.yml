@@ -19,20 +19,6 @@ services:
       - "9900"
       - "8900"
       - "8003/udp"
-    #entrypoint:
-      # /opt/solana/bin/solana-run-neon.sh
-      # /opt/solana/bin/solana-run.sh
-
-#  proxy:
-#    container_name: proxy
-#    image: proxy.py:latest
-#    hostname: proxy
-#    environment:
-#      - SOLANA_URL=http://solana:8899
-#    ports:
-#      - 9090:9090
-#    expose:
-#      - "9090"
 
 networks:
   default:

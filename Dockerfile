@@ -38,7 +38,6 @@ COPY --from=governance-builder /opt/neon-governance/target/deploy/*.so /opt/depl
 COPY artifacts/creator.keypair /root/.config/solana/id.json
 COPY artifacts/*.keypair /opt/artifacts/
 COPY artifacts/voters/*.keypair /opt/artifacts/voters/
-COPY solana-run-neon.sh /opt/solana/bin/
 COPY init-governance.sh /opt/
 COPY run-tests.sh /opt/
 
