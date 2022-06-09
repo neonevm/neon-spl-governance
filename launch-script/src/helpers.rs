@@ -26,31 +26,34 @@ use governance_lib::{
 
 macro_rules! println_bold {
     ($format:literal, $($item:expr),*) => {
-        println!(concat!("\x1b[1m", $format, "\x1b[0m"), $($item),*);
-    }
+        println!(concat!("\x1b[1m", $format, "\x1b[0m"), $($item),*)
+    };
+    ($format:literal) => {
+        println!(concat!("\x1b[1m", $format, "\x1b[0m"))
+    };
 }
 
 macro_rules! println_item {
     ($format:literal, $($item:expr),*) => {
-        println!(concat!("\x1b[34m", $format, "\x1b[0m"), $($item),*);
+        println!(concat!("\x1b[34m", $format, "\x1b[0m"), $($item),*)
     }
 }
 
 macro_rules! println_correct {
     ($format:literal, $($item:expr),*) => {
-        println!(concat!("\x1b[32m", $format, "\x1b[0m"), $($item),*);
+        println!(concat!("\x1b[32m", $format, "\x1b[0m"), $($item),*)
     }
 }
 
 macro_rules! println_update {
     ($format:literal, $($item:expr),*) => {
-        println!(concat!("\x1b[33m", $format, "\x1b[0m"), $($item),*);
+        println!(concat!("\x1b[33m", $format, "\x1b[0m"), $($item),*)
     }
 }
 
 macro_rules! println_error {
     ($format:literal, $($item:expr),*) => {
-        println!(concat!("\x1b[31m", $format, "\x1b[0m"), $($item),*);
+        println!(concat!("\x1b[31m", $format, "\x1b[0m"), $($item),*)
     }
 }
 
@@ -272,7 +275,7 @@ impl<'a> ProposalTransactionInserter<'a> {
             if self.verbose {
                 for instruction in &instructions {
                     println_item!("{:?}", instruction);
-                    println_item!("BASE64: {}", base64::encode(instruction.try_to_vec()?));
+                    println_bold!("BASE64: {}", base64::encode(instruction.try_to_vec()?));
                 }
             }
         }

@@ -16,11 +16,17 @@ use governance_lib::errors::GovernanceLibError;
 
 #[derive(Debug, Error)]
 pub enum StateError {
+    #[error("Invalid precision for mint {0:?}")]
+    InvalidMintPrecision(Pubkey),
+
     #[error("Invalid mint-authority {1:?} for mint {0:?}")]
     InvalidMintAuthority(Pubkey,COption<Pubkey>),
 
     #[error("Invalid freeze-authority {1:?} for mint {0:?}")]
     InvalidFreezeAuthority(Pubkey,COption<Pubkey>),
+
+    #[error("Invalid Realm {0:?}")]
+    InvalidRealm(Pubkey),
 
     #[error("Invalid community mint {1:?} for realm {0:?}")]
     InvalidRealmCommunityMint(Pubkey,Pubkey),

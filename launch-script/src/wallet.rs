@@ -1,65 +1,69 @@
 use {
     crate::ScriptError,
     solana_sdk::{
-        pubkey::Pubkey,
+        pubkey::{Pubkey, read_pubkey_file},
         signer::{
             Signer,
             keypair::{Keypair, read_keypair_file},
         },
     },
-    std::{
-        fs,
-    },
+    std::path::Path,
 };
 
-const GOVERNANCE_KEY_FILE_PATH:             &str = "artifacts/spl-governance.keypair";
-const VOTER_WEIGHT_ADDIN_KEY_FILE_PATH:     &str = "artifacts/addin-fixed-weights.keypair";
-const VESTING_ADDIN_KEY_FILE_PATH:          &str = "artifacts/addin-vesting.keypair";
-const COMMUTINY_MINT_KEY_FILE_PATH:         &str = "launch-script/community_mint.keypair";
-const PAYER_KEY_FILE_PATH:                  &str = "artifacts/payer.keypair";
-const CREATOR_KEY_FILE_PATH:                &str = "artifacts/creator.keypair";
-const CREATOR_TOKEN_OWNER_KEY_FILE_PATH:    &str = "artifacts/creator_token_owner.keypair";
-const VOTERS_KEY_FILE_DIR:                  &str = "artifacts/voters/";
+const PAYER_KEYPAIR_FILENAME: &str = "payer.keypair";
+
+const GOVERNANCE_PROGRAM_KEY_FILENAME: &str = "spl-governance";
+const FIXED_WEIGHT_ADDIN_KEY_FILENAME: &str = "addin-fixed-weights";
+const VESTING_ADDIN_KEY_FILENAME: &str = "addin-vesting";
+const COMMUNITY_MINT_KEY_FILENAME: &str = "community-mint";
+const CREATOR_KEY_FILENAME: &str = "creator";
+const VOTERS_FILE_DIR: &str = "voters";
 
 pub struct Wallet {
     pub governance_program_id: Pubkey,
     pub fixed_weight_addin_id: Pubkey,
     pub vesting_addin_id: Pubkey,
-
     pub community_pubkey: Pubkey,
-    pub community_keypair: Keypair,
 
     pub payer_keypair: Keypair,
     pub creator_pubkey: Pubkey,
     pub creator_keypair: Option<Keypair>,
-    pub creator_token_owner_keypair: Keypair,
     pub voter_keypairs: Vec<Keypair>,
 }
 
 impl Wallet {
-    pub fn new() -> Result<Self,ScriptError> {
-        let community_keypair = read_keypair_file(COMMUTINY_MINT_KEY_FILE_PATH)?;
-        let creator_keypair = read_keypair_file(CREATOR_KEY_FILE_PATH)?;
+    pub fn new(artifacts: &Path) -> Result<Self,ScriptError> {
+        let (creator_pubkey, creator_keypair) = Self::read_keypair_or_pubkey(artifacts, CREATOR_KEY_FILENAME)?;
         Ok(Self {
-            governance_program_id: read_keypair_file(GOVERNANCE_KEY_FILE_PATH)?.pubkey(),
-            fixed_weight_addin_id: read_keypair_file(VOTER_WEIGHT_ADDIN_KEY_FILE_PATH)?.pubkey(),
-            vesting_addin_id: read_keypair_file(VESTING_ADDIN_KEY_FILE_PATH)?.pubkey(),
+            governance_program_id: Self::read_keypair_or_pubkey(artifacts, GOVERNANCE_PROGRAM_KEY_FILENAME)?.0,
+            fixed_weight_addin_id: Self::read_keypair_or_pubkey(artifacts, FIXED_WEIGHT_ADDIN_KEY_FILENAME)?.0,
+            vesting_addin_id: Self::read_keypair_or_pubkey(artifacts, VESTING_ADDIN_KEY_FILENAME)?.0,
 
-            community_pubkey: community_keypair.pubkey(),
-            community_keypair,
+            community_pubkey: Self::read_keypair_or_pubkey(artifacts, COMMUNITY_MINT_KEY_FILENAME)?.0,
 
-            payer_keypair: read_keypair_file(PAYER_KEY_FILE_PATH)?,
-            creator_pubkey: creator_keypair.pubkey(),
-            creator_keypair: Some(creator_keypair),
-            creator_token_owner_keypair: read_keypair_file(CREATOR_TOKEN_OWNER_KEY_FILE_PATH)?,
+            payer_keypair: read_keypair_file(artifacts.join(PAYER_KEYPAIR_FILENAME))?,
+            creator_pubkey,
+            creator_keypair,
             voter_keypairs: {
                 let mut voter_keypairs = vec!();
-                for file in fs::read_dir(VOTERS_KEY_FILE_DIR)? {
+                for file in artifacts.join(VOTERS_FILE_DIR).as_path().read_dir()? {
                     voter_keypairs.push(read_keypair_file(file?.path())?);
                 }
                 voter_keypairs
             },
         })
+    }
+
+    fn read_keypair_or_pubkey(artifacts: &Path, filename: &str) -> Result<(Pubkey,Option<Keypair>), ScriptError> {
+        let mut filepath = artifacts.join(filename);
+        filepath.set_extension("keypair");
+        read_keypair_file(filepath.as_path())
+            .map(|keypair| (keypair.pubkey(),Some(keypair),))
+            .or_else(|_| {
+                filepath.set_extension("pubkey");
+                read_pubkey_file(filepath.to_str().unwrap()).map(|pubkey| (pubkey,None,))
+            })
+            .map_err(|err| err.into())
     }
 
     pub fn get_creator_keypair(&self) -> Result<&Keypair, ScriptError> {
@@ -80,7 +84,6 @@ impl Wallet {
         println!("Creator Pubkey:          {}   private key {}", self.creator_pubkey,
                 if self.creator_keypair.is_some() {"PRESENT"} else {"MISSING"});
 
-        println!("Creator token owner:     {}", self.creator_token_owner_keypair.pubkey());
         println!("Voter pubkeys:");
         for (i, keypair) in self.voter_keypairs.iter().enumerate() {
             println!("\t{} {}", i, keypair.pubkey());
