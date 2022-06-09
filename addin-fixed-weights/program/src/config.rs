@@ -154,10 +154,10 @@ cfg_if! {
                 ("tstnGPJyiQMUJqZxqvK4857xeWp7ZrczqZwsf4SB7R8",     2_000_000 * TOKEN_MULT),
                 ("tstPSu5sHGrZQraZ3Ef8MFmeSfKWxQSwQQviv7cYWwb",     1_440_000 * TOKEN_MULT),
                 ("11111111111111111111111111111111",              168_247_600 * TOKEN_MULT),
-                ("Dsc7huV17uZQWW4LG7K2o3TEiGKXTZNjxkARz2xzFu1d",   60_000_000 * TOKEN_MULT),
-                ("26kiPimzAioocLxZAmCvkPqgLtQL6xUSCMwkRvCSFc6j",   11_250_000 * TOKEN_MULT),
-                ("GUSDGuq94QYpj3YysYfnkgiKWeNcXanV2LgMrqFnsLBs",  142_700_000 * TOKEN_MULT),
-                ("DyDYCzoxQ2UpmXJrEZofh721VWXy2N7832Bz7JtK8q2k",    1_000_000 * TOKEN_MULT),
+                ("D1VdVYJsTnAyVd8wznnKC8LhwBDDVTJmUygt48xVsrcz",   60_000_000 * TOKEN_MULT),
+                ("3QipQG9fPa6DfntMp9WKrNYGZnfW1Zm1bHBb4CrRvqHU",   11_250_000 * TOKEN_MULT),
+                ("CP5ahcGtMWJPtxFHtzShRNnzacE3RCV9M3kBwzcybhgy",  142_700_000 * TOKEN_MULT),
+                ("6at3UwYwSSUWT3Q1rTTcKJdJPzDFdXZjzMKZYtJedfRC",    1_000_000 * TOKEN_MULT),
             ]
         );
     
