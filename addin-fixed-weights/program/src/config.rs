@@ -142,8 +142,8 @@ cfg_if! {
         voter_weight_array!(
             VOTER_LIST,
             [
-                ("69GA1mJCEqyYxj57CCeamy2WGx7wM3ABEwuUFMmatu2d",   40_000_000 * TOKEN_MULT),
-                ("5CmWF9DMrcCtpuw3g1rnx9zYLX39bNwEX7dSEeaKFPPf",   40_000_000 * TOKEN_MULT),
+                ("keyBcYtD2h6PTWvx8Ewwrak2w72hoM5VdBNbwNqwmuX",    40_000_000 * TOKEN_MULT),
+                ("keyNBBcjcqbTGiEyihcS6FodYh68sPkWs6RG5yfLDCN",    40_000_000 * TOKEN_MULT),
                 ("HFTXn5oTGo9dgSJfgCAU59caaiwLWx1ZDy7VjE1qu4w",    20_000_000 * TOKEN_MULT),
                 ("tst18qx7Kd3ELAsM3Qxn4nKNRZeg26Zi7GKGHaeWFm6",    20_000_000 * TOKEN_MULT),
                 ("tst6RG7t1J8XN3NYLNHkA3acfZcjurhurG7Kk3gAw9k",     4_000_000 * TOKEN_MULT),
@@ -156,7 +156,8 @@ cfg_if! {
                 ("11111111111111111111111111111111",              168_247_600 * TOKEN_MULT),
                 ("Dsc7huV17uZQWW4LG7K2o3TEiGKXTZNjxkARz2xzFu1d",   60_000_000 * TOKEN_MULT),
                 ("26kiPimzAioocLxZAmCvkPqgLtQL6xUSCMwkRvCSFc6j",   11_250_000 * TOKEN_MULT),
-                ("GUSDGuq94QYpj3YysYfnkgiKWeNcXanV2LgMrqFnsLBs",  143_700_000 * TOKEN_MULT),
+                ("GUSDGuq94QYpj3YysYfnkgiKWeNcXanV2LgMrqFnsLBs",  142_700_000 * TOKEN_MULT),
+                ("DyDYCzoxQ2UpmXJrEZofh721VWXy2N7832Bz7JtK8q2k",    1_000_000 * TOKEN_MULT),
             ]
         );
     

@@ -146,7 +146,7 @@ impl<'a> Client<'a> {
                         format!("Invalid account owner: expect {}, actual {}", owner_program_id, account_info.owner)));
             }
         
-            let account: T = T::unpack(&account_info.data).unwrap(); //try_from_slice_unchecked(&account_info.data).unwrap();
+            let account: T = T::unpack(&account_info.data)?;
             if !account.is_initialized() {
                 return Err(GovernanceLibError::StateError(*account_key, "Uninitialized account".to_string()));
             }
@@ -170,7 +170,7 @@ impl<'a> Client<'a> {
                         format!("Invalid account owner: expect {}, actual {}", owner_program_id, account_info.owner)));
             }
         
-            let account: T = try_from_slice_unchecked(&account_info.data).unwrap();
+            let account: T = try_from_slice_unchecked(&account_info.data)?;
             if !account.is_initialized() {
                 return Err(GovernanceLibError::StateError(*account_key, "Uninitialized account".to_string()));
             }

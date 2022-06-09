@@ -33,7 +33,6 @@ use {
 #[derive(Debug)]
 pub struct Proposal<'a> {
     pub governance: &'a Governance<'a>,
-    pub proposal_index: u32,
     pub proposal_address: Pubkey,
 }
 
@@ -42,7 +41,6 @@ impl<'a> fmt::Display for Proposal<'a> {
         f.debug_struct("Proposal")
             .field("client", self.governance.realm.client)
             .field("governance", &self.governance.governance_address)
-            .field("proposal_index", &self.proposal_index)
             .field("proposal_address", &self.proposal_address)
             .finish()
     }
@@ -59,7 +57,7 @@ impl<'a> Proposal<'a> {
         self.get_data().map(|v| v.unwrap().state)
     }
 
-    pub fn create_proposal_instruction(&self, create_authority: &Pubkey, token_owner: &TokenOwner, proposal_name: &str, proposal_description: &str) -> Instruction {
+    pub fn create_proposal_instruction(&self, create_authority: &Pubkey, token_owner: &TokenOwner, proposal_index: u32, proposal_name: &str, proposal_description: &str) -> Instruction {
         create_proposal(
                 &self.governance.realm.program_id,
                 &self.governance.governance_address,
@@ -75,16 +73,17 @@ impl<'a> Proposal<'a> {
                 VoteType::SingleChoice,
                 vec!["Yes".to_string()],
                 true,
-                self.proposal_index,
+                proposal_index,
             )
     }
 
-    pub fn create_proposal(&self, create_authority: &Keypair, token_owner: &TokenOwner, proposal_name: &str, proposal_description: &str) -> ClientResult<Signature> {
+    pub fn create_proposal(&self, create_authority: &Keypair, token_owner: &TokenOwner, proposal_index: u32, proposal_name: &str, proposal_description: &str) -> ClientResult<Signature> {
         self.governance.realm.client.send_and_confirm_transaction(
                 &[
                     self.create_proposal_instruction(
                             &create_authority.pubkey(),
                             token_owner,
+                            proposal_index,
                             proposal_name,
                             proposal_description
                         ),
@@ -207,7 +206,7 @@ impl<'a> Proposal<'a> {
             )
     }
 
-    pub fn finalize_vote(&self, creator_token_owner: &TokenOwner) -> ClientResult<Signature> {
+    pub fn finalize_vote(&self, proposal_owner_record: &Pubkey) -> ClientResult<Signature> {
         self.governance.realm.client.send_and_confirm_transaction_with_payer_only(
                 &[
                     finalize_vote(
@@ -215,7 +214,7 @@ impl<'a> Proposal<'a> {
                         &self.governance.realm.realm_address,
                         &self.governance.governance_address,
                         &self.proposal_address,
-                        &creator_token_owner.token_owner_record_address,
+                        proposal_owner_record,
                         &self.governance.realm.community_mint,
                         self.governance.realm.settings().max_voter_weight_record_address,
                     ),
@@ -239,7 +238,7 @@ impl<'a> Proposal<'a> {
             )
     }
 
-    pub fn cast_vote(&self, proposal_owner: &TokenOwner, voter_authority: &Keypair, voter: &TokenOwner, vote_yes_no: bool) -> ClientResult<Signature> {
+    pub fn cast_vote(&self, proposal_owner_record: &Pubkey, voter_authority: &Keypair, voter: &TokenOwner, vote_yes_no: bool) -> ClientResult<Signature> {
         let payer = self.get_client().payer;
 
         let vote: Vote =
@@ -261,7 +260,7 @@ impl<'a> Proposal<'a> {
                         &self.governance.realm.realm_address,
                         &self.governance.governance_address,
                         &self.proposal_address,
-                        &proposal_owner.token_owner_record_address,
+                        proposal_owner_record,
                         &voter.token_owner_record_address,
                         &voter_authority.pubkey(),
                         &self.governance.realm.community_mint,

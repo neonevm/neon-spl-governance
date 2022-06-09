@@ -1515,6 +1515,7 @@ checksum = "f9b7d56ba4a8344d6be9729995e6b06f928af29998cdf79fe390cbf6b1fee838"
 name = "launch-script"
 version = "0.1.0"
 dependencies = [
+ "base64 0.13.0",
  "borsh",
  "chrono",
  "chronoutil",
@@ -1523,6 +1524,7 @@ dependencies = [
  "governance-lib",
  "log",
  "question",
+ "solana-clap-utils",
  "solana-client",
  "solana-sdk",
  "spl-associated-token-account 1.0.5",

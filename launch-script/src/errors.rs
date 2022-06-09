@@ -16,11 +16,17 @@ use governance_lib::errors::GovernanceLibError;
 
 #[derive(Debug, Error)]
 pub enum StateError {
+    #[error("Invalid precision for mint {0:?}")]
+    InvalidMintPrecision(Pubkey),
+
     #[error("Invalid mint-authority {1:?} for mint {0:?}")]
     InvalidMintAuthority(Pubkey,COption<Pubkey>),
 
     #[error("Invalid freeze-authority {1:?} for mint {0:?}")]
     InvalidFreezeAuthority(Pubkey,COption<Pubkey>),
+
+    #[error("Invalid Realm {0:?}")]
+    InvalidRealm(Pubkey),
 
     #[error("Invalid community mint {1:?} for realm {0:?}")]
     InvalidRealmCommunityMint(Pubkey,Pubkey),
@@ -37,8 +43,14 @@ pub enum StateError {
     #[error("Missing Mint {0:?}")]
     MissingMint(Pubkey),
 
+    #[error("Missing spl-token account {0:?}")]
+    MissingSplTokenAccount(Pubkey),
+
     #[error("Missing realm {0:?}")]
     MissingRealm(Pubkey),
+
+    #[error("Missing proposal {0:?}")]
+    MissingProposal(Pubkey),
 
     #[error("Invalid program upgrade authority {1:?} for {0:?}")]
     InvalidProgramUpgradeAuthority(Pubkey,Option<Pubkey>),
@@ -51,6 +63,9 @@ pub enum StateError {
 
     #[error("Invalid proposal_index")]
     InvalidProposalIndex,
+
+    #[error("Invalid proposal")]
+    InvalidProposal,
 
     #[error("Invalid proposal transaction {0:?}")]
     InvalidProposalTransaction(u16),
@@ -94,6 +109,9 @@ pub enum ScriptError {
 
     #[error("Pubkey error: {0:?}")]
     Pubkey(PubkeyError),
+
+    #[error("Missing signer keypair")]
+    MissingSignerKeypair,
 
 //    /// Solana Signer Error
 //    #[error("Solana signer error. {0:?}")]

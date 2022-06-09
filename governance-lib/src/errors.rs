@@ -1,5 +1,6 @@
 use log::error;
 
+use solana_sdk::program_error::ProgramError;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::decode_error::DecodeError;
 use solana_client::client_error::ClientError as SolanaClientError;
@@ -19,6 +20,9 @@ pub enum GovernanceLibError {
     #[error("Std I/O error. {0:?}")]
     StdIoError(std::io::Error),
 
+    #[error("Program error {0:?}")]
+    ProgramError(ProgramError),
+
     #[error("Unknown error")]
     UnknownError,
 }
@@ -32,6 +36,12 @@ impl<T> DecodeError<T> for GovernanceLibError {
 impl From<SolanaClientError> for GovernanceLibError {
     fn from(e: SolanaClientError) -> GovernanceLibError {
         GovernanceLibError::ClientError(e)
+    }
+}
+
+impl From<ProgramError> for GovernanceLibError {
+    fn from(e: ProgramError) -> GovernanceLibError {
+        GovernanceLibError::ProgramError(e)
     }
 }
 

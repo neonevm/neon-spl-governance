@@ -896,7 +896,7 @@ fn main() {
     let governance_program_id = pubkey_of(&matches, "governance_program_id").unwrap();
     let vesting_addin_program_id = pubkey_of(&matches, "vesting_program_id").unwrap();
 
-    let _ = match matches.subcommand() {
+    match matches.subcommand() {
         ("deposit", Some(arg_matches)) => {
             let source_keypair = keypair_of(arg_matches, "source_owner").unwrap();
             let source_token_pubkey = pubkey_of(arg_matches, "source_token_address");

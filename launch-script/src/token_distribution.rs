@@ -56,7 +56,7 @@ impl<'a> TokenDistribution<'a> {
     pub fn get_unique_owners(&self) -> Vec<AccountOwner> {
         let mut unique_owners: Vec<AccountOwner> = Vec::new();
         for extra_account in self.extra_token_accounts.iter() {
-            if unique_owners.iter().any(|u| *u == extra_account.owner) {
+            if !unique_owners.iter().any(|u| *u == extra_account.owner) {
                 unique_owners.push(extra_account.owner);
             }
         }

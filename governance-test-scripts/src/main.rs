@@ -139,11 +139,12 @@ fn main() {
 //        } else {
 //            0
 //        };
-    let proposal = governance.proposal(proposal_number);
+    let proposal = governance.proposal_by_index(proposal_number);
     if !client.account_exists(&proposal.proposal_address) {
         proposal.create_proposal(
             &voter_keypairs[0],
             &token_owners[0],
+            proposal_number,
             PROPOSAL_NAME,
             PROPOSAL_DESCRIPTION,
         ).unwrap();
@@ -162,7 +163,7 @@ fn main() {
     for (i, owner) in token_owners.iter().enumerate() {
         let yes = i == 0 || i == 3 || i == 4;
         let result = proposal.cast_vote(
-                &token_owners[0],
+                &token_owners[0].token_owner_record_address,
                 &voter_keypairs[i],
                 owner, yes);
         println!("CastVote {} {:?}", i, result);
