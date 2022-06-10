@@ -325,7 +325,7 @@ pub fn process_close_maintenance(
         return Err(MaintenanceError::MaintenanceRecordAccountMatchesSpillAccount.into());
     }
 
-    let (maintained_program_data, _) = Pubkey::find_program_address(&[maintained_program_info.key.as_ref()], &bpf_loader_program_info.key);
+    let (maintained_program_data, _) = Pubkey::find_program_address(&[maintained_program_info.key.as_ref()], bpf_loader_program_info.key);
     let maintenance_record = get_account_data::<MaintenanceRecord>(program_id, maintenance_record_info)?;
 
     if *maintained_program_data_info.key != maintained_program_data ||
