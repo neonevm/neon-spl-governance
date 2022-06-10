@@ -240,7 +240,9 @@ pub fn close_maintenance(
     let (maintenance_record, _): (Pubkey, u8) = get_maintenance_record_address(program_id, program_address);
 
     let accounts = vec![
+        AccountMeta::new_readonly(bpf_loader_upgradeable::id(), false),
         AccountMeta::new(maintenance_record, false),
+        AccountMeta::new_readonly(*program_address, false),
         AccountMeta::new_readonly(programdata_address, false),
         AccountMeta::new_readonly(*authority, true),
         AccountMeta::new(*spill, false),

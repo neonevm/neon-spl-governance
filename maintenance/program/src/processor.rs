@@ -92,6 +92,7 @@ pub fn process_create_maintenance(
 
     let maintenance_record_data = MaintenanceRecord {
         account_type: MaintenanceAccountType::MaintenanceRecord,
+        address: *address_info.key,
         authority: *authority_info.key,
         delegate: Vec::new(),
         hashes: Vec::new(),
@@ -128,6 +129,10 @@ pub fn process_set_delegates(
         return Err(MaintenanceError::MissingRequiredSigner.into());
     }
 
+    if delegate.len() > 10 {
+        return Err(MaintenanceError::NumberOfDelegatesExceedsLimit.into());
+    }
+
     let mut maintenance_record = get_account_data::<MaintenanceRecord>(program_id, maintenance_record_info)?;
 
     if *authority_info.key != maintenance_record.authority {
@@ -154,6 +159,10 @@ pub fn process_set_code_hashes(
 
     if !authority_info.is_signer {
         return Err(MaintenanceError::MissingRequiredSigner.into());
+    }
+
+    if hashes.len() > 10 {
+        return Err(MaintenanceError::NumberOfCodeHashesExceedsLimit.into());
     }
 
     let mut maintenance_record = get_account_data::<MaintenanceRecord>(program_id, maintenance_record_info)?;
@@ -193,7 +202,7 @@ pub fn process_upgrade(
     let maintenance_record = get_account_data::<MaintenanceRecord>(program_id, maintenance_record_info)?;
 
     if maintenance_record.authority != *authority_info.key &&
-        maintenance_record.delegate.iter().any(|&item| item == *authority_info.key )
+        !maintenance_record.delegate.iter().any(|&item| item == *authority_info.key )
     {
         return Err(MaintenanceError::WrongDelegate.into());
     }
@@ -206,7 +215,7 @@ pub fn process_upgrade(
     };
     // msg!("MAINTENANCE-INSTRUCTION: UPGRADE Buffer Hash {:?}", buffer_hash);
 
-    if maintenance_record.hashes.iter().any(|&item| item == buffer_hash ) {
+    if !maintenance_record.hashes.iter().any(|&item| item == buffer_hash ) {
         return Err(MaintenanceError::WrongCodeHash.into());
     }
 
@@ -301,27 +310,35 @@ pub fn process_close_maintenance(
 ) -> ProgramResult {
     let account_info_iter = &mut accounts.iter();
 
-    let maintenance_record_info = next_account_info(account_info_iter)?; // 0
-    let program_data_info = next_account_info(account_info_iter)?; // 1
-    let authority_info = next_account_info(account_info_iter)?; // 2
-    let spill_info = next_account_info(account_info_iter)?; // 3
+    let bpf_loader_program_info = next_account_info(account_info_iter)?; // 0
+    let maintenance_record_info = next_account_info(account_info_iter)?; // 1
+    let maintained_program_info = next_account_info(account_info_iter)?; // 2
+    let maintained_program_data_info = next_account_info(account_info_iter)?; // 3
+    let authority_info = next_account_info(account_info_iter)?; // 4
+    let spill_info = next_account_info(account_info_iter)?; // 5
 
     if !authority_info.is_signer {
         return Err(MaintenanceError::MissingRequiredSigner.into());
     }
 
     if maintenance_record_info.key == spill_info.key {
-        return Err(ProgramError::InvalidAccountData);
+        return Err(MaintenanceError::MaintenanceRecordAccountMatchesSpillAccount.into());
     }
 
+    let (maintained_program_data, _) = Pubkey::find_program_address(&[maintained_program_info.key.as_ref()], &bpf_loader_program_info.key);
     let maintenance_record = get_account_data::<MaintenanceRecord>(program_id, maintenance_record_info)?;
+
+    if *maintained_program_data_info.key != maintained_program_data ||
+        *maintained_program_info.key != maintenance_record.address {
+        return Err(MaintenanceError::WrongProgramDataForMaintenanceRecord.into());
+    }
 
     if *authority_info.key != maintenance_record.authority {
         return Err(MaintenanceError::WrongAuthority.into());
     }
 
     let upgradeable_loader_state: UpgradeableLoaderState =
-        bincode::deserialize(&program_data_info.data.borrow()).map_err(|_| ProgramError::from(MaintenanceError::AuthorityDeserializationError) )?;
+        bincode::deserialize(&maintained_program_data_info.data.borrow()).map_err(|_| ProgramError::from(MaintenanceError::AuthorityDeserializationError) )?;
     
     let program_authority: Pubkey = 
         match upgradeable_loader_state {

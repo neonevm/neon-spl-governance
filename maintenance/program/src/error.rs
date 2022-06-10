@@ -23,12 +23,24 @@ pub enum MaintenanceError {
     /// Authority Deserialization Error
     #[error("Authority Deserialization Error")]
     AuthorityDeserializationError,
+    /// Number of Delegates Exceeds Limit
+    #[error("Number of Delegates Exceeds Limit")]
+    NumberOfDelegatesExceedsLimit,
+    /// Number of Code Hashes Exceeds Limit
+    #[error("Number of Code Hashes Exceeds Limit")]
+    NumberOfCodeHashesExceedsLimit,
     /// Wrong Authority Delegate
     #[error("Wrong Authority Delegate")]
     WrongDelegate,
     /// Wrong Upgrade Code Hash
     #[error("Wrong Upgrade Code Hash")]
     WrongCodeHash,
+    /// Maintenance Record Account Matches Spill Account And Can't Be Closed
+    #[error("Maintenance Record Account Matches Spill Account")]
+    MaintenanceRecordAccountMatchesSpillAccount,
+    /// Wrong Program Data For Maintenance Record
+    #[error("Wrong Program Data For Maintenance Record")]
+    WrongProgramDataForMaintenanceRecord,
     /// Maintenance Record Must be Inactive
     #[error("Maintenance record must be inactive")]
     RecordMustBeInactive,

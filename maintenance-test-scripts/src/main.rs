@@ -37,11 +37,11 @@ use maintenance::{
 };
 
 const MAINTENANCE_KEY_FILE_PATH: &str = "../artifacts/maintenance.keypair";
-const MAINTAIN_AUTHORITY_KEY_FILE_PATH: &str = "../artifacts/voter1.keypair";
-const NEW_MAINTAIN_AUTHORITY_KEY_FILE_PATH: &str = "../artifacts/voter2.keypair";
-const ADDIN_INITIAL_AUTHORITY_KEY_FILE_PATH: &str = "../artifacts/voter3.keypair";
+const MAINTAIN_AUTHORITY_KEY_FILE_PATH: &str = "../artifacts/voters/voter1.keypair";
+const NEW_MAINTAIN_AUTHORITY_KEY_FILE_PATH: &str = "../artifacts/voters/voter2.keypair";
+const ADDIN_INITIAL_AUTHORITY_KEY_FILE_PATH: &str = "../artifacts/creator.keypair";
 const ADDIN_KEY_FILE_PATH: &str = "../artifacts/addin-fixed-weights.keypair";
-const BUFFER_ADDRESS: &str = "447xS9Kc6m1Dg8UEnyMFrnao5ZL82HTaq7UEjfLZDWEb";
+const BUFFER_ADDRESS: &str = "8U2jtFxrqij5iqna99DFFpndSj5M388TB2eYbwfzmvYg";
 
 fn main() {
 
