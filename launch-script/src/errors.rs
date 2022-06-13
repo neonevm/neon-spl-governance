@@ -79,6 +79,9 @@ pub enum StateError {
     #[error("Unknown MultiSig {0:?}")]
     UnknownMultiSig(String),
 
+    #[error("Unknown MultiSig governed {0:?} {1:?}")]
+    UnknownMultiSigGoverned(String, Pubkey),
+
     #[error("Invalid voter list")]
     InvalidVoterList,
 }

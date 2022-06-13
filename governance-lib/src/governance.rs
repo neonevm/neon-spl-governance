@@ -1,6 +1,7 @@
 use {
     crate::{
         client::{Client, ClientResult},
+        errors::GovernanceLibError,
         realm::Realm,
         token_owner::TokenOwner,
         proposal::Proposal,
@@ -50,8 +51,9 @@ impl<'a> Governance<'a> {
         self.realm.client.get_account_data_borsh::<GovernanceV2>(&self.realm.program_id, &self.governance_address)
     }
 
-    pub fn get_proposals_count(&self) -> u32 {
-        self.get_data().unwrap().unwrap().proposals_count
+    pub fn get_proposals_count(&self) -> ClientResult<u32> {
+        let data = self.get_data()?.ok_or(GovernanceLibError::StateError(self.governance_address, "Missed governance".to_string()))?;
+        Ok(data.proposals_count)
     }
 
     pub fn create_governance_instruction(&self, creator: &Pubkey, token_owner: &TokenOwner,
