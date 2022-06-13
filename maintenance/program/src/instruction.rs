@@ -71,10 +71,12 @@ pub enum MaintenanceInstruction {
 
     /// Closes MaintenanceRecord owned by the program
     ///
-    /// 0. `[writable]` MaintenanceRecord
-    /// 1. `[]` Maintained program data account
-    /// 2. `[signer]` Authority
-    /// 3. `[writable]` Spill destination
+    /// 0. `[]` Bpf Loader Upgradeable Program Id
+    /// 1. `[writable]` MaintenanceRecord
+    /// 2. `[]` Maintained program account
+    /// 3. `[]` Maintained program data account
+    /// 4. `[signer]` Authority
+    /// 5. `[writable]` Spill destination
     CloseMaintenance { },
 }
 

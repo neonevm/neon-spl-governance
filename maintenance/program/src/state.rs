@@ -19,7 +19,7 @@ pub enum MaintenanceAccountType {
 #[derive(Clone, Debug, PartialEq, BorshDeserialize, BorshSerialize, BorshSchema)]
 pub struct MaintenanceRecord {
     pub account_type: MaintenanceAccountType,
-    pub address: Pubkey,
+    pub maintained_address: Pubkey,
     pub authority: Pubkey,
     pub delegate: Vec<Pubkey>,
     pub hashes: Vec<Hash>,
@@ -49,7 +49,7 @@ mod tests {
     fn test_maintenance_record_packing() {
         let maintenance_record_source = MaintenanceRecord {
             account_type: MaintenanceAccountType::MaintenanceRecord,
-            address: Pubkey::new_unique(),
+            maintained_address: Pubkey::new_unique(),
             authority: Pubkey::new_unique(),
             delegate: Vec::new(),
             hashes: Vec::new(),

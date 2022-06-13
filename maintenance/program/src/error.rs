@@ -17,6 +17,9 @@ pub enum MaintenanceError {
     /// Wrong Authority
     #[error("Wrong Authority")]
     WrongAuthority,
+    /// Incorrect Bpf-Loader-Upgradeable Program Id
+    #[error("Incorrect Bpf-Loader-Upgradeable Program Id")]
+    IncorrectBpfLoaderProgramId,
     /// Buffer Data Offset Error
     #[error("Buffer Data Offset Error")]
     BufferDataOffsetError,

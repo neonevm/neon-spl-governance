@@ -5,6 +5,7 @@ use borsh::{ BorshDeserialize, BorshSerialize };
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     bpf_loader_upgradeable::{
+        self,
         set_upgrade_authority,
         upgrade,
         UpgradeableLoaderState,
@@ -92,7 +93,7 @@ pub fn process_create_maintenance(
 
     let maintenance_record_data = MaintenanceRecord {
         account_type: MaintenanceAccountType::MaintenanceRecord,
-        address: *address_info.key,
+        maintained_address: *address_info.key,
         authority: *authority_info.key,
         delegate: Vec::new(),
         hashes: Vec::new(),
@@ -321,6 +322,10 @@ pub fn process_close_maintenance(
         return Err(MaintenanceError::MissingRequiredSigner.into());
     }
 
+    if !bpf_loader_upgradeable::check_id(bpf_loader_program_info.key) {
+        return Err(MaintenanceError::IncorrectBpfLoaderProgramId.into());
+    }
+
     if maintenance_record_info.key == spill_info.key {
         return Err(MaintenanceError::MaintenanceRecordAccountMatchesSpillAccount.into());
     }
@@ -329,7 +334,7 @@ pub fn process_close_maintenance(
     let maintenance_record = get_account_data::<MaintenanceRecord>(program_id, maintenance_record_info)?;
 
     if *maintained_program_data_info.key != maintained_program_data ||
-        *maintained_program_info.key != maintenance_record.address {
+        *maintained_program_info.key != maintenance_record.maintained_address {
         return Err(MaintenanceError::WrongProgramDataForMaintenanceRecord.into());
     }
 
