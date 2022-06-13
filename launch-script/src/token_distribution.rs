@@ -1,6 +1,7 @@
 use crate::{
-    AccountOwner, AccountOwnerResolver,
+    AccountOwner,
     ExtraTokenAccount,
+    Configuration,
     TOKEN_MULT,
     errors::{StateError, ScriptError},
 };
@@ -19,14 +20,13 @@ pub struct Info {
 }
 
 pub struct TokenDistribution<'a> {
-    pub resolver: &'a AccountOwnerResolver<'a>,
-    pub extra_token_accounts: &'a[ExtraTokenAccount],
+    pub configuration: &'a Configuration<'a>,
     pub voter_list: Vec<VoterWeight>,
     pub info: Info,
 }
 
 impl<'a> TokenDistribution<'a> {
-    pub fn new(fixed_weight_addin: &AddinFixedWeights, resolver: &'a AccountOwnerResolver, extra_token_accounts: &'a [ExtraTokenAccount]) -> Result<Self,ScriptError> {
+    pub fn new(configuration: &'a Configuration<'a>, fixed_weight_addin: &AddinFixedWeights) -> Result<Self,ScriptError> {
 
         let params = fixed_weight_addin.get_params()?;
         let unlocked_amount = params.get("PARAM_EXTRA_TOKENS").ok_or(StateError::InvalidVoterList)?.parse::<u64>().unwrap();
@@ -42,8 +42,7 @@ impl<'a> TokenDistribution<'a> {
 
 
         Ok(Self {
-            resolver,
-            extra_token_accounts,
+            configuration,
             voter_list,
             info: Info {
                 vesting_amount,
@@ -53,9 +52,13 @@ impl<'a> TokenDistribution<'a> {
         })
     }
 
+    pub fn extra_token_accounts(&self) -> &[ExtraTokenAccount] {
+        &self.configuration.extra_token_accounts
+    }
+
     pub fn get_unique_owners(&self) -> Vec<AccountOwner> {
         let mut unique_owners: Vec<AccountOwner> = Vec::new();
-        for extra_account in self.extra_token_accounts.iter() {
+        for extra_account in self.configuration.extra_token_accounts.iter() {
             if !unique_owners.iter().any(|u| *u == extra_account.owner) {
                 unique_owners.push(extra_account.owner);
             }
@@ -65,14 +68,14 @@ impl<'a> TokenDistribution<'a> {
 
     pub fn get_special_accounts(&self) -> Vec<Pubkey> {
         let unique_owners = self.get_unique_owners();
-        unique_owners.iter().map(|v| self.resolver.get_owner_pubkey(v).unwrap()).collect()
+        unique_owners.iter().map(|v| self.configuration.get_owner_address(v).unwrap()).collect()
     }
 
     pub fn validate(&self) -> Result<(),ScriptError> {
         let mut result = true;
 
         // 1. check sum extra_token_account with NoLockup equals extra_tokens
-        let unlocked_amount = self.extra_token_accounts.iter()
+        let unlocked_amount = self.configuration.extra_token_accounts.iter()
                 .filter_map(|v| if !v.lockup.is_locked() {Some(v.amount)} else {None})
                 .sum::<u64>();
         if self.info.unlocked_amount != unlocked_amount {
@@ -83,10 +86,10 @@ impl<'a> TokenDistribution<'a> {
 
         // 2. for each MultiSig exists corresponded record in voter_list with appropriate amount
         for owner in self.get_unique_owners().iter() {
-            let locked_amount = self.extra_token_accounts.iter()
+            let locked_amount = self.configuration.extra_token_accounts.iter()
                 .filter_map(|v| if v.lockup.is_locked() && v.owner == *owner {Some(v.amount)} else {None})
                 .sum::<u64>();
-            let owner_address = self.resolver.get_owner_pubkey(owner).unwrap();
+            let owner_address = self.configuration.get_owner_address(owner)?;
             print!(" {:45} {:10}.{:09} {:?}:  ", owner_address.to_string(), locked_amount/TOKEN_MULT, locked_amount%TOKEN_MULT, owner);
             let voter_item = self.voter_list.iter().find(|v| v.voter == owner_address);
             if locked_amount > 0 {

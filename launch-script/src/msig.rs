@@ -36,14 +36,16 @@ use governance_lib::{
 
 use spl_governance_addin_vesting::state::VestingSchedule;
 
+use chrono::Duration;
+
 
 #[derive(Debug)]
 pub struct MultiSig {
-    pub name: &'static str,
+    pub name: String,
     pub threshold: u16,
-    pub signers: &'static [Pubkey],
+    pub signers: Vec<Pubkey>,
+    pub governed_accounts: Vec<Pubkey>,
 }
-
 
 pub fn setup_msig(wallet: &Wallet, client: &Client, executor: &TransactionExecutor, msig: &MultiSig) -> Result<Pubkey, ScriptError>
 {
@@ -202,7 +204,7 @@ pub fn setup_msig(wallet: &Wallet, client: &Client, executor: &TransactionExecut
             vote_threshold_percentage: VoteThresholdPercentage::YesVote(threshold.try_into().unwrap()),
             min_community_weight_to_create_proposal: 1,
             min_transaction_hold_up_time: 0,
-            max_voting_time: 78200,
+            max_voting_time: Duration::days(2).num_seconds() as u32,
             vote_tipping: VoteTipping::Early,
             proposal_cool_off_time: 0,
             min_council_weight_to_create_proposal: 0,
@@ -216,7 +218,7 @@ pub fn setup_msig(wallet: &Wallet, client: &Client, executor: &TransactionExecut
                     msig_governance.create_governance_instruction(
                         &wallet.creator_pubkey,
                         &creator_token_owner,
-                        gov_config
+                        gov_config.clone(),
                     ),
                 ],
                 &[wallet.get_creator_keypair()?]
@@ -224,6 +226,26 @@ pub fn setup_msig(wallet: &Wallet, client: &Client, executor: &TransactionExecut
             Ok(Some(transaction))
         }
     )?;
+
+    for governed in &msig.governed_accounts {
+        let governance = msig_realm.governance(governed);
+        executor.check_and_create_object(&format!("{} Governance for {}", msig.name, governed), governance.get_data()?,
+            |_| {Ok(None)},
+            || {
+                let transaction = client.create_transaction(
+                    &[
+                        governance.create_governance_instruction(
+                            &wallet.creator_pubkey,
+                            &creator_token_owner,
+                            gov_config.clone(),
+                        ),
+                    ],
+                    &[wallet.get_creator_keypair()?]
+                )?;
+                Ok(Some(transaction))
+            }
+        )?;
+    };
 
     // --------------- Pass token and programs to governance ------
     let mut collector = TransactionCollector::new(client, executor.setup, executor.verbose,

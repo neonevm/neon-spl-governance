@@ -1,37 +1,30 @@
-use chrono::prelude::*;
+use chrono::{Duration, NaiveDateTime};
 use chronoutil::delta::{shift_months, shift_years};
-use chrono::Duration;
-use crate::Lockup;
-use spl_governance_addin_vesting::state::VestingSchedule;
+pub use spl_governance_addin_vesting::state::VestingSchedule;
 
-pub struct ScheduleCreator {
-    pub current: NaiveDateTime,
-    pub testing: bool,
+#[allow(clippy::enum_variant_names)]
+#[derive(Debug,PartialEq,Copy,Clone)]
+pub enum Lockup {
+    NoLockup,
+    For4Years,
+    For1year1yearLinear,
 }
 
-impl ScheduleCreator {
-    pub fn new(testing: bool) -> Self {
-        let current = if testing {
-            Utc::now().naive_utc()
-        } else {
-            Utc::today().naive_utc().and_hms(0, 0, 0)
-        };
-        Self {
-            current,
-            testing,
+impl Lockup {
+    pub fn default() -> Self {Lockup::For1year1yearLinear}
+
+    pub fn is_locked(&self) -> bool {*self != Lockup::NoLockup}
+
+    pub fn get_schedule_size(&self) -> u32 {
+        match *self {
+            Lockup::NoLockup => 1,
+            Lockup::For4Years => 1,
+            Lockup::For1year1yearLinear => 12,
         }
     }
 
-    pub fn get_schedule(&self, amount: u64, lockup: Lockup) -> Vec<VestingSchedule> {
-        if self.testing {
-            self._get_schedule_testing(amount, &lockup)
-        } else {
-            self._get_schedule_real(amount, lockup)
-        }
-    }
-
-    fn _get_schedule_real(&self, amount: u64, lockup: Lockup) -> Vec<VestingSchedule> {
-        match lockup {
+    pub fn get_mainnet_schedule(&self, start_time: NaiveDateTime, amount: u64) -> Vec<VestingSchedule> {
+        match self {
             Lockup::NoLockup => {
                 vec![
                     VestingSchedule {release_time: 0, amount}
@@ -40,14 +33,14 @@ impl ScheduleCreator {
             Lockup::For4Years => {
                 vec![
                     VestingSchedule {
-                        release_time: shift_years(self.current, 4).timestamp() as u64,
+                        release_time: shift_years(start_time, 4).timestamp() as u64,
                         amount
                     }
                 ]
             },
             Lockup::For1year1yearLinear => {
                 let mut schedules = vec!();
-                let start = shift_years(self.current, 1);
+                let start = shift_years(start_time, 1);
                 for i in 1i32..=12 {
                     let prev = (amount as u128)
                         .checked_mul((i-1) as u128).unwrap()
@@ -66,8 +59,8 @@ impl ScheduleCreator {
         }
     }
 
-    fn _get_schedule_testing(&self, amount: u64, lockup: &Lockup) -> Vec<VestingSchedule> {
-        match lockup {
+    pub fn get_testing_schedule(&self, start_time: NaiveDateTime, amount: u64) -> Vec<VestingSchedule> {
+        match self {
             Lockup::NoLockup => {
                 vec![
                     VestingSchedule {release_time: 0, amount}
@@ -76,14 +69,14 @@ impl ScheduleCreator {
             Lockup::For4Years => {
                 vec![
                     VestingSchedule {
-                        release_time: (self.current + Duration::minutes(4*12)).timestamp() as u64,
+                        release_time: (start_time + Duration::minutes(4*12)).timestamp() as u64,
                         amount
                     }
                 ]
             },
             Lockup::For1year1yearLinear => {
                 let mut schedules = vec!();
-                let start = self.current + Duration::minutes(12);
+                let start = start_time + Duration::minutes(12);
                 for i in 1i32..=12 {
                     let prev = (amount as u128)
                         .checked_mul((i-1) as u128).unwrap()
@@ -106,22 +99,6 @@ impl ScheduleCreator {
 #[cfg(test)]
 mod test {
     use super::*;
-
-    #[test]
-    fn test_schedule_creator_testing() {
-        let schedule_creator = ScheduleCreator::new(true);
-        println!("{:?}", schedule_creator.get_schedule(11, Lockup::NoLockup));
-        println!("{:?}", schedule_creator.get_schedule(11, Lockup::For4Years));
-        println!("{:?}", schedule_creator.get_schedule(11, Lockup::For1year1yearLinear));
-    }
-
-    #[test]
-    fn test_schedule_creator_real() {
-        let schedule_creator = ScheduleCreator::new(false);
-        println!("{:?}", schedule_creator.get_schedule(1_000_000, Lockup::NoLockup));
-        println!("{:?}", schedule_creator.get_schedule(1_000_000, Lockup::For4Years));
-        println!("{:?}", schedule_creator.get_schedule(1_000_000, Lockup::For1year1yearLinear));
-    }
 
     #[test]
     fn test_date() {

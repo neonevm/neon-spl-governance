@@ -4,7 +4,6 @@
 ## Preparing steps:
 ```
 solana-keygen new -f -o governance-test-scripts/community_mint.keypair --no-bip39-passphrase
-spl-token --url http://localhost:8899 create-token --decimals 6 --fee-payer artifacts/payer.keypair launch-script/community-mint.keypair
 
 solana config set -u http://localhost:8899
 solana airdrop 1000 artifacts/payer.keypair

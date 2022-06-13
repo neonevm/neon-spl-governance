@@ -157,7 +157,7 @@ cfg_if! {
                 ("Dsc7huV17uZQWW4LG7K2o3TEiGKXTZNjxkARz2xzFu1d",   60_000_000 * TOKEN_MULT),
                 ("26kiPimzAioocLxZAmCvkPqgLtQL6xUSCMwkRvCSFc6j",   11_250_000 * TOKEN_MULT),
                 ("GUSDGuq94QYpj3YysYfnkgiKWeNcXanV2LgMrqFnsLBs",  142_700_000 * TOKEN_MULT),
-                ("DyDYCzoxQ2UpmXJrEZofh721VWXy2N7832Bz7JtK8q2k",    1_000_000 * TOKEN_MULT),
+                ("8sz14WSG3ykPFL2WHni31P6RH5F2S71JprBJKVYjZEPy",    1_000_000 * TOKEN_MULT),
             ]
         );
     
