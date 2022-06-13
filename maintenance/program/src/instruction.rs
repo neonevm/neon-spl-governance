@@ -71,10 +71,12 @@ pub enum MaintenanceInstruction {
 
     /// Closes MaintenanceRecord owned by the program
     ///
-    /// 0. `[writable]` MaintenanceRecord
-    /// 1. `[]` Maintained program data account
-    /// 2. `[signer]` Authority
-    /// 3. `[writable]` Spill destination
+    /// 0. `[]` Bpf Loader Upgradeable Program Id
+    /// 1. `[writable]` MaintenanceRecord
+    /// 2. `[]` Maintained program account
+    /// 3. `[]` Maintained program data account
+    /// 4. `[signer]` Authority
+    /// 5. `[writable]` Spill destination
     CloseMaintenance { },
 }
 
@@ -240,7 +242,9 @@ pub fn close_maintenance(
     let (maintenance_record, _): (Pubkey, u8) = get_maintenance_record_address(program_id, program_address);
 
     let accounts = vec![
+        AccountMeta::new_readonly(bpf_loader_upgradeable::id(), false),
         AccountMeta::new(maintenance_record, false),
+        AccountMeta::new_readonly(*program_address, false),
         AccountMeta::new_readonly(programdata_address, false),
         AccountMeta::new_readonly(*authority, true),
         AccountMeta::new(*spill, false),
