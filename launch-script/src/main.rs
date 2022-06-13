@@ -205,9 +205,9 @@ impl<'a> Configuration<'a> {
                         pubkey!("tstTLYLzy9Q5meFUmhhiXfnaGai96hc7Ludu3gQz8nh"),
                         wallet.payer_keypair.pubkey(),
                     ]} else {vec![
-                        pubkey!("tstUPDM1tDgRgC8KALbXQ3hJeKQQTxDywyDVvxv51Lu"),
-                        pubkey!("tstTLYLzy9Q5meFUmhhiXfnaGai96hc7Ludu3gQz8nh"),
-                        wallet.payer_keypair.pubkey(),
+                        pubkey!("BU6N2Z68JPXLf247iYnHUTUv1B7p8AFWGTYkcjfeSwY8"),
+                        pubkey!("C16ojhtyjzqenxHcg9hNjhAwZhdLJrCBKavfc4gqa1v3"),
+                        pubkey!("4vdhzpPYPABJe9WvZA8pFzdbzYaHrj7yNwDQmjBCtts5"),
                     ]},
                 },
             ],
@@ -258,7 +258,7 @@ impl<'a> Configuration<'a> {
             },
             AccountOwner::MultiSig(msig_name, governed_address) => {
                 let msig = self.multi_sigs.iter().find(|v| v.name == *msig_name)
-                    .ok_or(StateError::UnknownMultiSig(msig_name.to_string()))?;
+                    .ok_or_else(|| StateError::UnknownMultiSig(msig_name.to_string()))?;
                 if let Some(governed) = governed_address {
                     if !msig.governed_accounts.iter().any(|v| v == governed) {
                         return Err(StateError::UnknownMultiSigGoverned(msig_name.to_string(), *governed).into());
@@ -303,7 +303,7 @@ fn process_environment(wallet: &Wallet, client: &Client, cfg: &Configuration) ->
 
     println!("Install MultiSig accounts");
     for msig in &cfg.multi_sigs {
-        msig::setup_msig(wallet, client, &executor, &msig)?; 
+        msig::setup_msig(wallet, client, &executor, msig)?; 
     }
 
     // ----------- Check or create community mint ----------------------
@@ -1604,8 +1604,8 @@ fn main() {
                 "COMMUNITY" => (REALM_NAME, wallet.community_pubkey, wallet.community_pubkey),
                 "EMERGENCY" => (REALM_NAME, wallet.community_pubkey, wallet.governance_program_id),
                 name if name.starts_with("MSIG_") => {
-                    if name.contains(".") {
-                        let (msig_name, governed) = name.split_once(".").unwrap();
+                    if name.contains('.') {
+                        let (msig_name, governed) = name.split_once('.').unwrap();
                         let msig_mint = cfg.account_by_seed(msig_name, &spl_token::id());
                         (msig_name, msig_mint, Pubkey::try_from(governed).unwrap())
                     } else {

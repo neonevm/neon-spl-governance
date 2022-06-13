@@ -2,6 +2,7 @@ use chrono::{Duration, NaiveDateTime};
 use chronoutil::delta::{shift_months, shift_years};
 pub use spl_governance_addin_vesting::state::VestingSchedule;
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug,PartialEq,Copy,Clone)]
 pub enum Lockup {
     NoLockup,

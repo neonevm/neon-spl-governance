@@ -52,7 +52,7 @@ impl<'a> Governance<'a> {
     }
 
     pub fn get_proposals_count(&self) -> ClientResult<u32> {
-        let data = self.get_data()?.ok_or(GovernanceLibError::StateError(self.governance_address, "Missed governance".to_string()))?;
+        let data = self.get_data()?.ok_or_else(|| GovernanceLibError::StateError(self.governance_address, "Missed governance".to_string()))?;
         Ok(data.proposals_count)
     }
 

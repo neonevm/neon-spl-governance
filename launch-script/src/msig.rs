@@ -228,7 +228,7 @@ pub fn setup_msig(wallet: &Wallet, client: &Client, executor: &TransactionExecut
     )?;
 
     for governed in &msig.governed_accounts {
-        let governance = msig_realm.governance(&governed);
+        let governance = msig_realm.governance(governed);
         executor.check_and_create_object(&format!("{} Governance for {}", msig.name, governed), governance.get_data()?,
             |_| {Ok(None)},
             || {
