@@ -1,12 +1,6 @@
 //! Vote for proposal
 
-use crate::{
-    errors::{ScriptError, StateError},
-    helpers::{ProposalTransactionInserter, TransactionExecutor},
-    wallet::Wallet,
-};
-use governance_lib::{client::Client, realm::Realm};
-use solana_sdk::{pubkey::Pubkey, rent::Rent, signer::Signer, system_instruction};
+use crate::prelude::*;
 
 pub fn setup_proposal_vote_proposal(
     wallet: &Wallet,

@@ -1,14 +1,6 @@
 //! Proposal for set transfer authority
 
-use crate::{
-    errors::{ScriptError, StateError},
-    helpers::{ProposalTransactionInserter, TransactionExecutor},
-    tokens::{assert_is_valid_account_data, get_account_data},
-    wallet::Wallet,
-    Configuration,
-};
-use governance_lib::client::Client;
-use solana_sdk::pubkey::Pubkey;
+use crate::prelude::*;
 
 pub fn setup_set_transfer_auth(
     wallet: &Wallet,

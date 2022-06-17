@@ -1,12 +1,6 @@
 //! Upgrade program
 
-use crate::{
-    errors::{ScriptError, StateError},
-    helpers::{ProposalTransactionInserter, TransactionExecutor},
-    wallet::Wallet,
-};
-use governance_lib::client::Client;
-use solana_sdk::{pubkey::Pubkey, signer::Signer};
+use crate::prelude::*;
 
 pub fn setup_proposal_upgrade_program(
     _wallet: &Wallet,

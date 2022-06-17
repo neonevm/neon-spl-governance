@@ -1,19 +1,4 @@
-use crate::{
-    errors::{ScriptError, StateError},
-    helpers::{TransactionCollector, TransactionExecutor},
-    lockup::Lockup,
-    msig,
-    tokens::{assert_is_valid_account_data, get_account_data, get_mint_data, get_multisig_data},
-    wallet::Wallet,
-    Configuration, REALM_NAME,
-};
-use governance_lib::{
-    addin_fixed_weights::AddinFixedWeights, addin_vesting::AddinVesting, client::Client,
-    realm::Realm,
-};
-use msig::setup_msig;
-use solana_sdk::{rent::Rent, signer::Signer, system_instruction};
-use spl_governance::state::realm::SetRealmAuthorityAction;
+use crate::prelude::*;
 
 pub fn process_environment_dao(
     wallet: &Wallet,

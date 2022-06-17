@@ -1,11 +1,6 @@
 //! Create TGE proposal (Token Genesis Event)
 
-use crate::{
-    errors::ScriptError, helpers::ProposalTransactionInserter, lockup::Lockup, wallet::Wallet,
-    Configuration, REALM_NAME,
-};
-use governance_lib::{addin_vesting::AddinVesting, client::Client, realm::Realm};
-use spl_governance::state::realm::SetRealmAuthorityAction;
+use crate::prelude::*;
 
 pub fn setup_proposal_tge(
     wallet: &Wallet,

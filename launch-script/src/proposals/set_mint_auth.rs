@@ -1,14 +1,6 @@
 //! Proposal for set mint authority
 
-use crate::{
-    errors::{ScriptError, StateError},
-    helpers::{ProposalTransactionInserter, TransactionExecutor},
-    tokens::get_mint_data,
-    wallet::Wallet,
-    Configuration,
-};
-use governance_lib::client::Client;
-use solana_sdk::pubkey::Pubkey;
+use crate::prelude::*;
 
 pub fn setup_set_mint_auth(
     _wallet: &Wallet,

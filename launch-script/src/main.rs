@@ -11,21 +11,35 @@ mod process;
 mod proposals;
 mod token_distribution;
 
-use crate::{
-    clap_utils::is_valid_pubkey_or_none,
-    errors::{ScriptError, StateError},
-    lockup::Lockup,
-    wallet::Wallet,
-};
-use clap::{crate_description, crate_name, crate_version, App, AppSettings, Arg, SubCommand};
-pub use config::Configuration;
-use governance_lib::{client::Client, proposal::Proposal, realm::Realm, token_owner::TokenOwner};
-use process::process_environment_dao;
-use proposals::{process_proposal_create, ProposalInfo};
-use solana_clap_utils::input_parsers::{pubkey_of, value_of};
-use solana_sdk::{pubkey::Pubkey, signer::Signer};
-use spl_governance::state::enums::ProposalState;
-use std::path::Path;
+pub mod prelude {
+    pub use crate::{
+        clap_utils::is_valid_pubkey_or_none,
+        config::Configuration,
+        errors::{ScriptError, StateError},
+        helpers::{ProposalTransactionInserter, TransactionCollector, TransactionExecutor},
+        lockup::Lockup,
+        msig::setup_msig,
+        process::prelude::*,
+        proposals::prelude::*,
+        tokens::{
+            assert_is_valid_account_data, get_account_data, get_mint_data, get_multisig_data,
+        },
+        wallet::Wallet,
+        REALM_NAME,
+    };
+    pub use clap::{
+        crate_description, crate_name, crate_version, App, AppSettings, Arg, ArgMatches, SubCommand,
+    };
+    pub use governance_lib::{
+        addin_fixed_weights::AddinFixedWeights, addin_vesting::AddinVesting, client::Client,
+        governance::Governance, proposal::Proposal, realm::Realm, token_owner::TokenOwner,
+    };
+    pub use solana_clap_utils::input_parsers::{pubkey_of, value_of};
+    pub use solana_sdk::{pubkey::Pubkey, rent::Rent, signer::Signer, system_instruction};
+    pub use spl_governance::state::{enums::ProposalState, realm::SetRealmAuthorityAction};
+    pub use std::path::Path;
+}
+use prelude::*;
 
 pub const TOKEN_MULT: u64 = u64::pow(10, 9);
 pub const REALM_NAME: &str = "NEON";
@@ -53,88 +67,6 @@ impl ExtraTokenAccount {
             owner,
         }
     }
-}
-
-fn finalize_vote_proposal(
-    _wallet: &Wallet,
-    _client: &Client,
-    proposal: &Proposal,
-    _verbose: bool,
-) -> Result<(), ScriptError> {
-    let proposal_data = proposal
-        .get_data()?
-        .ok_or(StateError::InvalidProposalIndex)?;
-    proposal.finalize_vote(&proposal_data.token_owner_record)?;
-
-    Ok(())
-}
-
-fn sign_off_proposal(
-    wallet: &Wallet,
-    _client: &Client,
-    proposal_owner: &TokenOwner,
-    proposal: &Proposal,
-    _verbose: bool,
-) -> Result<(), ScriptError> {
-    let proposal_data = proposal
-        .get_data()?
-        .ok_or(StateError::InvalidProposalIndex)?;
-    if proposal_data.state == ProposalState::Draft {
-        proposal.sign_off_proposal(&wallet.payer_keypair, proposal_owner)?;
-    }
-
-    Ok(())
-}
-
-fn approve_proposal(
-    wallet: &Wallet,
-    client: &Client,
-    proposal: &Proposal,
-    _verbose: bool,
-) -> Result<(), ScriptError> {
-    use spl_governance::state::vote_record::get_vote_record_address;
-    let proposal_data = proposal
-        .get_data()?
-        .ok_or(StateError::InvalidProposalIndex)?;
-
-    for voter in wallet.voter_keypairs.iter() {
-        let token_owner = proposal
-            .governance
-            .realm
-            .token_owner_record(&voter.pubkey());
-        if (token_owner.get_data()?).is_some() {
-            token_owner.update_voter_weight_record_address()?;
-
-            let vote_record_address = get_vote_record_address(
-                &proposal.governance.realm.program_id,
-                &proposal.proposal_address,
-                &token_owner.token_owner_record_address,
-            );
-            if !client.account_exists(&vote_record_address) {
-                let signature = proposal.cast_vote(
-                    &proposal_data.token_owner_record,
-                    voter,
-                    &token_owner,
-                    true,
-                )?;
-                println!("CastVote {} {:?}", voter.pubkey(), signature);
-            }
-        }
-    }
-
-    Ok(())
-}
-
-fn execute_proposal(
-    _wallet: &Wallet,
-    _client: &Client,
-    proposal: &Proposal,
-    _verbose: bool,
-) -> Result<(), ScriptError> {
-    let result = proposal.execute_transactions(0)?;
-    println!("Execute transactions from proposal option 0: {:?}", result);
-
-    Ok(())
 }
 
 fn main() {

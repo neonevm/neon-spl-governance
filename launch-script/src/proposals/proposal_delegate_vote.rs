@@ -1,12 +1,6 @@
 //! Delegate vote
 
-use crate::{
-    errors::{ScriptError, StateError},
-    helpers::{ProposalTransactionInserter, TransactionExecutor},
-    wallet::Wallet,
-};
-use governance_lib::{client::Client, realm::Realm};
-use solana_sdk::pubkey::Pubkey;
+use crate::prelude::*;
 
 pub fn setup_proposal_delegate_vote(
     _wallet: &Wallet,

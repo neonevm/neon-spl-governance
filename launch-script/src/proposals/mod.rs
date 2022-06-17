@@ -6,6 +6,16 @@ mod proposal_vote_proposal;
 mod set_mint_auth;
 mod set_transfer_auth;
 
+pub mod prelude {
+    pub use super::approve_proposal;
+    pub use super::execute_proposal;
+    pub use super::finalize_vote_proposal;
+    pub use super::process_proposal_create;
+    pub use super::sign_off_proposal;
+    pub use super::ProposalInfo;
+}
+
+use crate::prelude::*;
 use proposal_delegate_vote::setup_proposal_delegate_vote;
 use proposal_tge::setup_proposal_tge;
 use proposal_transfer::setup_proposal_transfer;
@@ -13,17 +23,6 @@ use proposal_upgrade_program::setup_proposal_upgrade_program;
 use proposal_vote_proposal::setup_proposal_vote_proposal;
 use set_mint_auth::setup_set_mint_auth;
 use set_transfer_auth::setup_set_transfer_auth;
-
-use crate::{
-    errors::{ScriptError, StateError},
-    helpers::{ProposalTransactionInserter, TransactionExecutor},
-    wallet::Wallet,
-    Configuration,
-};
-use clap::ArgMatches;
-use governance_lib::{client::Client, governance::Governance, proposal::Proposal};
-use solana_clap_utils::input_parsers::pubkey_of;
-use solana_sdk::{pubkey::Pubkey, signer::Signer};
 
 pub enum ProposalInfo {
     Create(String, String), // name, description
@@ -212,6 +211,88 @@ pub fn process_proposal_create(
         }
         _ => unreachable!(),
     }
+
+    Ok(())
+}
+
+pub fn finalize_vote_proposal(
+    _wallet: &Wallet,
+    _client: &Client,
+    proposal: &Proposal,
+    _verbose: bool,
+) -> Result<(), ScriptError> {
+    let proposal_data = proposal
+        .get_data()?
+        .ok_or(StateError::InvalidProposalIndex)?;
+    proposal.finalize_vote(&proposal_data.token_owner_record)?;
+
+    Ok(())
+}
+
+pub fn sign_off_proposal(
+    wallet: &Wallet,
+    _client: &Client,
+    proposal_owner: &TokenOwner,
+    proposal: &Proposal,
+    _verbose: bool,
+) -> Result<(), ScriptError> {
+    let proposal_data = proposal
+        .get_data()?
+        .ok_or(StateError::InvalidProposalIndex)?;
+    if proposal_data.state == ProposalState::Draft {
+        proposal.sign_off_proposal(&wallet.payer_keypair, proposal_owner)?;
+    }
+
+    Ok(())
+}
+
+pub fn approve_proposal(
+    wallet: &Wallet,
+    client: &Client,
+    proposal: &Proposal,
+    _verbose: bool,
+) -> Result<(), ScriptError> {
+    use spl_governance::state::vote_record::get_vote_record_address;
+    let proposal_data = proposal
+        .get_data()?
+        .ok_or(StateError::InvalidProposalIndex)?;
+
+    for voter in wallet.voter_keypairs.iter() {
+        let token_owner = proposal
+            .governance
+            .realm
+            .token_owner_record(&voter.pubkey());
+        if (token_owner.get_data()?).is_some() {
+            token_owner.update_voter_weight_record_address()?;
+
+            let vote_record_address = get_vote_record_address(
+                &proposal.governance.realm.program_id,
+                &proposal.proposal_address,
+                &token_owner.token_owner_record_address,
+            );
+            if !client.account_exists(&vote_record_address) {
+                let signature = proposal.cast_vote(
+                    &proposal_data.token_owner_record,
+                    voter,
+                    &token_owner,
+                    true,
+                )?;
+                println!("CastVote {} {:?}", voter.pubkey(), signature);
+            }
+        }
+    }
+
+    Ok(())
+}
+
+pub fn execute_proposal(
+    _wallet: &Wallet,
+    _client: &Client,
+    proposal: &Proposal,
+    _verbose: bool,
+) -> Result<(), ScriptError> {
+    let result = proposal.execute_transactions(0)?;
+    println!("Execute transactions from proposal option 0: {:?}", result);
 
     Ok(())
 }
