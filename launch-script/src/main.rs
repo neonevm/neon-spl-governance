@@ -17,26 +17,33 @@ pub mod prelude {
         config::Configuration,
         errors::{ScriptError, StateError},
         helpers::{ProposalTransactionInserter, TransactionCollector, TransactionExecutor},
-        lockup::Lockup,
-        msig::setup_msig,
+        lockup::{Lockup, VestingSchedule},
+        msig::{setup_msig, MultiSig},
         process::prelude::*,
         proposals::prelude::*,
+        token_distribution::TokenDistribution,
         tokens::{
             assert_is_valid_account_data, get_account_data, get_mint_data, get_multisig_data,
         },
         wallet::Wallet,
-        REALM_NAME,
+        AccountOwner, ExtraTokenAccount, REALM_NAME, TOKEN_MULT,
     };
+    pub use chrono::{Duration, NaiveDateTime, Utc};
     pub use clap::{
         crate_description, crate_name, crate_version, App, AppSettings, Arg, ArgMatches, SubCommand,
     };
     pub use governance_lib::{
         addin_fixed_weights::AddinFixedWeights, addin_vesting::AddinVesting, client::Client,
-        governance::Governance, proposal::Proposal, realm::Realm, token_owner::TokenOwner,
+        governance::Governance, proposal::Proposal, realm::Realm, realm::RealmConfig,
+        token_owner::TokenOwner,
     };
     pub use solana_clap_utils::input_parsers::{pubkey_of, value_of};
-    pub use solana_sdk::{pubkey::Pubkey, rent::Rent, signer::Signer, system_instruction};
-    pub use spl_governance::state::{enums::ProposalState, realm::SetRealmAuthorityAction};
+    pub use solana_sdk::{pubkey, pubkey::Pubkey, rent::Rent, signer::Signer, system_instruction};
+    pub use spl_governance::state::{
+        enums::{MintMaxVoteWeightSource, ProposalState, VoteThresholdPercentage, VoteTipping},
+        governance::GovernanceConfig,
+        realm::SetRealmAuthorityAction,
+    };
     pub use std::path::Path;
 }
 use prelude::*;

@@ -1,22 +1,4 @@
-use crate::{
-    errors::{ScriptError, StateError},
-    lockup::{Lockup, VestingSchedule},
-    msig::MultiSig,
-    token_distribution::TokenDistribution,
-    wallet::Wallet,
-    AccountOwner, ExtraTokenAccount, REALM_NAME, TOKEN_MULT,
-};
-use chrono::{Duration, NaiveDateTime, Utc};
-use governance_lib::{
-    addin_fixed_weights::AddinFixedWeights,
-    client::Client,
-    realm::{Realm, RealmConfig},
-};
-use solana_sdk::{pubkey, pubkey::Pubkey, signer::Signer};
-use spl_governance::state::{
-    enums::{MintMaxVoteWeightSource, VoteThresholdPercentage, VoteTipping},
-    governance::GovernanceConfig,
-};
+use crate::prelude::*;
 
 pub struct Configuration<'a> {
     pub wallet: &'a Wallet,
