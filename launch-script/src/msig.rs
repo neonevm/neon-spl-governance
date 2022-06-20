@@ -96,11 +96,11 @@ pub fn setup_msig(wallet: &Wallet, client: &Client, executor: &TransactionExecut
                         None,
                         0,
                     )?,
-                    spl_associated_token_account::instruction::create_associated_token_account(
+                    spl_associated_token_account::create_associated_token_account(
                         &wallet.payer_keypair.pubkey(),
                         &wallet.creator_pubkey,
                         &msig_mint,
-                        &spl_token::id(),
+                        //&spl_token::id(),
                     ),
                     spl_token::instruction::mint_to(
                         &spl_token::id(),

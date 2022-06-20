@@ -633,11 +633,11 @@ fn process_environment(wallet: &Wallet, client: &Client, cfg: &Configuration) ->
         || {
             let transaction = client.create_transaction_with_payer_only(
                 &[
-                    spl_associated_token_account::instruction::create_associated_token_account(
+                    spl_associated_token_account::create_associated_token_account(
                         &wallet.payer_keypair.pubkey(),
                         &main_governance.governance_address,
                         &wallet.community_pubkey,
-                        &spl_token::id(),
+                        //&spl_token::id(),
                     ),
                 ],
             )?;
@@ -1587,6 +1587,7 @@ fn main() {
 
     let url = matches.value_of("url").unwrap();
     let client = Client::new(url, &wallet.payer_keypair);
+    println!("url: {}, client: {}", url, client);
 
     let send_trx: bool = matches.is_present("send_trx");
     let verbose: bool = matches.is_present("verbose");
