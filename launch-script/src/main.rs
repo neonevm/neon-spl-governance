@@ -5,9 +5,9 @@ mod wallet;
 mod helpers;
 mod clap_utils;
 mod config;
+mod env;
 mod lockup;
 mod msig;
-mod process;
 mod proposals;
 mod token_distribution;
 
@@ -15,11 +15,11 @@ pub mod prelude {
     pub use crate::{
         clap_utils::is_valid_pubkey_or_none,
         config::Configuration,
+        env::prelude::*,
         errors::{ScriptError, StateError},
         helpers::{ProposalTransactionInserter, TransactionCollector, TransactionExecutor},
         lockup::{Lockup, VestingSchedule},
         msig::{setup_msig, MultiSig},
-        process::prelude::*,
         proposals::prelude::*,
         token_distribution::TokenDistribution,
         tokens::{
