@@ -1524,6 +1524,8 @@ dependencies = [
  "governance-lib",
  "log",
  "question",
+ "serde",
+ "serde_json",
  "solana-clap-utils",
  "solana-client",
  "solana-sdk",

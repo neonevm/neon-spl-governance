@@ -1,5 +1,7 @@
 use {
     crate::ScriptError,
+    crate::errors::StateError,
+    crate::config_file::ConfigFile,
     solana_sdk::{
         pubkey::{Pubkey, read_pubkey_file},
         signer::{
@@ -8,6 +10,7 @@ use {
         },
     },
     std::path::Path,
+    std::str::FromStr,
 };
 
 const PAYER_KEYPAIR_FILENAME: &str = "payer.keypair";
@@ -55,6 +58,42 @@ impl Wallet {
                 voter_keypairs
             },
         })
+    }
+
+    pub fn new_from_config(config: &ConfigFile) -> Result<Self,ScriptError> {
+        let (creator_pubkey, creator_keypair) = Self::parse_pubkey_or_read_keypair(&config.creator)?;
+        Ok(Self {
+            governance_program_id: Self::parse_pubkey_or_read_keypair(&config.governance_program)?.0,
+            fixed_weight_addin_id: Self::parse_pubkey_or_read_keypair(&config.fixed_weight_addin)?.0,
+            vesting_addin_id: Self::parse_pubkey_or_read_keypair(&config.vesting_addin)?.0,
+
+            community_pubkey: Self::parse_pubkey_or_read_keypair(&config.community_mint)?.0,
+            neon_evm_program_id: Self::parse_pubkey_or_read_keypair(&config.neon_evm_program)?.0,
+
+            payer_keypair: read_keypair_file(&config.payer)?,
+            creator_pubkey,
+            creator_keypair,
+            voter_keypairs: if config.voters_dir.is_empty() {vec!()} else {
+                let mut voter_keypairs = vec!();
+                for file in Path::new(&config.voters_dir).read_dir()
+                    .map_err(|err| StateError::ConfigError(format!("'{}' should be a directory: {}", config.voters_dir, err)))?
+                {
+                    let path = file?.path();
+                    let keypair = read_keypair_file(path.clone())
+                        .map_err(|err| StateError::ConfigError(format!("'{}' should be a keypair: {}", path.display(), err)))?;
+                    voter_keypairs.push(keypair);
+                }
+                voter_keypairs
+            },
+        })
+    }
+
+    fn parse_pubkey_or_read_keypair(value: &str) -> Result<(Pubkey, Option<Keypair>), ScriptError> {
+        Pubkey::from_str(value).map(|v| (v, None))
+        .or_else(|_|
+            read_keypair_file(value).map(|keypair| (keypair.pubkey(), Some(keypair)))
+        )
+        .map_err(|err| StateError::ConfigError(format!("'{}' should be pubkey or keypair file: {}", value, err)).into())
     }
 
     fn read_keypair_or_pubkey(artifacts: &Path, filename: &str) -> Result<(Pubkey,Option<Keypair>), ScriptError> {

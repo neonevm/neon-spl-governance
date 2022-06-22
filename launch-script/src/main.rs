@@ -5,6 +5,7 @@ mod wallet;
 mod helpers;
 mod clap_utils;
 mod config;
+mod config_file;
 mod env;
 mod lockup;
 mod msig;
@@ -15,6 +16,7 @@ pub mod prelude {
     pub use crate::{
         clap_utils::is_valid_pubkey_or_none,
         config::Configuration,
+        config_file::ConfigFile,
         env::prelude::*,
         errors::{ScriptError, StateError},
         helpers::{ProposalTransactionInserter, TransactionCollector, TransactionExecutor},
@@ -96,10 +98,13 @@ fn main() {
                 .help("Send transactions to blockchain")
         )
         .arg(
-            Arg::with_name("testing")
-                .long("testing")
-                .takes_value(false)
-                .help("Configure testing environment")
+            Arg::with_name("config")
+                .long("config")
+                .short("c")
+                .takes_value(true)
+                //.global(true)
+                .required(true)
+                .help("Configuration file")
         )
         .arg(
             Arg::with_name("url")
@@ -109,13 +114,6 @@ fn main() {
                 .global(true)
                 .default_value("http://localhost:8899")
                 .help("Url to solana cluster")
-        )
-        .arg(
-            Arg::with_name("artifacts")
-                .long("artifacts")
-                .default_value("artifacts")
-                .takes_value(true)
-                .help("Directory with keypair- or pubkey-files")
         )
 
         .subcommand(SubCommand::with_name("environment")
@@ -300,7 +298,12 @@ fn main() {
             )
         ).get_matches();
 
-    let wallet = Wallet::new(Path::new(matches.value_of("artifacts").unwrap())).unwrap();
+    let config_file = std::fs::File::open(matches.value_of("config").unwrap())
+        .expect("config file should exists");
+    let config: ConfigFile = serde_json::from_reader(config_file)
+        .expect("file should be proper JSON");
+
+    let wallet = Wallet::new_from_config(&config).expect("invalid wallet configuration");
     wallet.display();
 
     let url = matches.value_of("url").unwrap();
@@ -308,9 +311,7 @@ fn main() {
 
     let send_trx: bool = matches.is_present("send_trx");
     let verbose: bool = matches.is_present("verbose");
-    let testing: bool = matches.is_present("testing");
-    // TODO: parse `start_time`
-    let cfg = Configuration::create(&wallet, &client, send_trx, verbose, testing, None);
+    let cfg = Configuration::create_from_config(&wallet, &client, send_trx, verbose, &config);
 
     match matches.subcommand() {
         ("environment", Some(arg_matches)) => {
