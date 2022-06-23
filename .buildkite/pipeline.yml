@@ -17,3 +17,5 @@ steps:
   - label: ":floppy_disk: publish image"
     command: ".buildkite/steps/publish-image.sh"
     branches: "main ci-* v*.*.*"
+    agents:
+      queue: "testing"
