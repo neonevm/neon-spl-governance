@@ -8,8 +8,6 @@ use {
 pub struct ConfigFile {
     #[serde(default)]
     pub payer: String,
-    #[serde(default)]
-    pub voters_dir: String,
 
     pub creator: String,
     pub community_mint: String,
@@ -71,7 +69,6 @@ mod test {
     fn test_deserialize() {
         let data = r#"{
             "payer": "../artifacts/payer.keypair",
-            "voters_dir": "../artifacts/voters",
             "creator": "5mAkTXJMyFxvEeUNpfiwAqUfD3qRSRmdh6j6YgXDwqrm",
             "community-mint": "../artifacts/community-mint.keypair",
             "governance-program": "../artifacts/spl-governance.keypair",

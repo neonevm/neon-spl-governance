@@ -289,6 +289,13 @@ fn main() {
             )
             .subcommand(SubCommand::with_name("approve")
                 .about("Approve proposal")
+                .arg(
+                    Arg::with_name("voters")
+                        .long("voters")
+                        .required(true)
+                        .takes_value(true)
+                        .help("Path to directory with voters keypairs")
+                )
             )
             .subcommand(SubCommand::with_name("finalize-vote")
                 .about("Finalize vote for proposal")
@@ -374,7 +381,7 @@ fn main() {
                     &cfg,
                 )
                 .unwrap(),
-                (cmd, _) if ["sign-off", "approve", "finalize-vote", "execute"].contains(&cmd) => {
+                (cmd, Some(cmd_matches)) if ["sign-off", "approve", "finalize-vote", "execute"].contains(&cmd) => {
                     let proposal = match proposal_info {
                         ProposalInfo::Last => {
                             let proposal_index = governance.get_proposals_count().unwrap() - 1;
@@ -401,7 +408,8 @@ fn main() {
                                 .unwrap()
                         }
                         "approve" => {
-                            approve_proposal(&wallet, &client, &proposal, verbose).unwrap()
+                            let voters_dir: String = value_of(cmd_matches, "voters").unwrap();
+                            approve_proposal(&wallet, &client, &proposal, verbose, &voters_dir).unwrap()
                         }
                         "finalize-vote" => {
                             finalize_vote_proposal(&wallet, &client, &proposal, verbose).unwrap()

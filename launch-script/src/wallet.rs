@@ -21,7 +21,6 @@ const VESTING_ADDIN_KEY_FILENAME: &str = "addin-vesting";
 const COMMUNITY_MINT_KEY_FILENAME: &str = "community-mint";
 const NEON_EVM_PROGRAM_KEY_FILENAME: &str = "neon-evm";
 const CREATOR_KEY_FILENAME: &str = "creator";
-const VOTERS_FILE_DIR: &str = "voters";
 
 pub struct Wallet {
     pub governance_program_id: Pubkey,
@@ -33,7 +32,6 @@ pub struct Wallet {
     pub payer_keypair: Keypair,
     pub creator_pubkey: Pubkey,
     pub creator_keypair: Option<Keypair>,
-    pub voter_keypairs: Vec<Keypair>,
 }
 
 impl Wallet {
@@ -50,13 +48,6 @@ impl Wallet {
             payer_keypair: read_keypair_file(artifacts.join(PAYER_KEYPAIR_FILENAME))?,
             creator_pubkey,
             creator_keypair,
-            voter_keypairs: {
-                let mut voter_keypairs = vec!();
-                for file in artifacts.join(VOTERS_FILE_DIR).as_path().read_dir()? {
-                    voter_keypairs.push(read_keypair_file(file?.path())?);
-                }
-                voter_keypairs
-            },
         })
     }
 
@@ -73,18 +64,6 @@ impl Wallet {
             payer_keypair: read_keypair_file(&config.payer)?,
             creator_pubkey,
             creator_keypair,
-            voter_keypairs: if config.voters_dir.is_empty() {vec!()} else {
-                let mut voter_keypairs = vec!();
-                for file in Path::new(&config.voters_dir).read_dir()
-                    .map_err(|err| StateError::ConfigError(format!("'{}' should be a directory: {}", config.voters_dir, err)))?
-                {
-                    let path = file?.path();
-                    let keypair = read_keypair_file(path.clone())
-                        .map_err(|err| StateError::ConfigError(format!("'{}' should be a keypair: {}", path.display(), err)))?;
-                    voter_keypairs.push(keypair);
-                }
-                voter_keypairs
-            },
         })
     }
 
@@ -130,10 +109,5 @@ impl Wallet {
         println!("Payer Pubkey:            {}", self.payer_keypair.pubkey());
         println!("Creator Pubkey:          {}   private key {}", self.creator_pubkey,
                 if self.creator_keypair.is_some() {"PRESENT"} else {"MISSING"});
-
-        println!("Voter pubkeys:");
-        for (i, keypair) in self.voter_keypairs.iter().enumerate() {
-            println!("\t{} {}", i, keypair.pubkey());
-        }
     }
 }
