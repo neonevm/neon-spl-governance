@@ -1,7 +1,11 @@
 // =========================================================================
 // Deploy evm_loader from buffer account
 // =========================================================================
-
+use solana_sdk::{
+    account::Account,
+    bpf_loader_upgradeable,
+};
+use spl_governance::state::proposal_transaction::InstructionData;
 use crate::prelude::*;
 
 pub fn deploy_evm_loader_from_buffer(_wallet: &Wallet, client: &Client,
