@@ -32,11 +32,13 @@ use crate::{
 };
 use solana_sdk::{
     pubkey,
-    pubkey::Pubkey,
+    account::Account,
+    pubkey::{ Pubkey },
     signer::{
         Signer,
     },
     system_instruction,
+    bpf_loader_upgradeable,
     rent::Rent,
 };
 use solana_clap_utils::{
@@ -53,6 +55,7 @@ use spl_governance::{
         },
         governance::GovernanceConfig,
         realm::SetRealmAuthorityAction,
+        proposal_transaction::InstructionData,
     },
 };
 use clap::{
@@ -840,7 +843,6 @@ fn setup_proposal_vote_proposal(wallet: &Wallet, client: &Client,
             realm::RealmV2,
             proposal::ProposalV2,
             vote_record::{Vote, VoteChoice, get_vote_record_address},
-            proposal_transaction::InstructionData,
         },
     };
 
@@ -1184,6 +1186,84 @@ fn setup_proposal_tge(wallet: &Wallet, client: &Client, transaction_inserter: &m
     Ok(())
 }
 
+// =========================================================================
+// Create collateral pool accounts
+// =========================================================================
+fn create_collateral_pool_accounts(_wallet: &Wallet, _client: &Client,
+        transaction_inserter: &mut ProposalTransactionInserter,
+        cfg: &Configuration,
+        evm_loader_pubkey: Pubkey,
+        collateral_pool_base_pubkey: Pubkey,
+) -> Result<(), ScriptError> {
+
+    let mut seed: String = String::with_capacity(25);
+    let minimum_balance_for_rent_exemption = cfg.client.get_minimum_balance_for_rent_exemption(0).unwrap();
+
+    for index in 0u32..10 {
+        seed.push_str("collateral_seed_");
+        seed.push_str(index.to_string().as_str());
+        println!("\nCollateral Poool Seed: {}", seed);
+
+        let collateral_pool_account: Pubkey =  Pubkey::create_with_seed(&collateral_pool_base_pubkey, &seed, &evm_loader_pubkey).unwrap();
+
+        transaction_inserter.insert_transaction_checked(
+                &format!("Create collateral pool account [{}] - {}", index, collateral_pool_account),
+                vec![
+                    system_instruction::create_account_with_seed(
+                        &collateral_pool_base_pubkey,
+                        &collateral_pool_account,
+                        &collateral_pool_base_pubkey,
+                        seed.as_str(),
+                        minimum_balance_for_rent_exemption,
+                        0,
+                        &evm_loader_pubkey,
+                    ).into(),
+                ],
+            )?;
+    }
+
+    Ok(())
+}
+
+// =========================================================================
+// Deploy evm_loader from buffer account
+// =========================================================================
+fn deploy_evm_loader_from_buffer(_wallet: &Wallet, client: &Client,
+        transaction_inserter: &mut ProposalTransactionInserter,
+        cfg: &Configuration,
+        evm_loader_pubkey: Pubkey,
+        buffer_pubkey: Pubkey,
+        upgrade_authority_pubkey: Pubkey,
+) -> Result<(), ScriptError> {
+
+    let buffer_account_opt: Option<Account> = client.get_account(&buffer_pubkey)?;
+    if let Some(buffer_account) = buffer_account_opt {
+        let data_len: usize = buffer_account.data.len();
+        let minimum_balance_for_rent_exemption = cfg.client.get_minimum_balance_for_rent_exemption(data_len).unwrap();
+
+        let instructions: Vec<InstructionData> =
+            bpf_loader_upgradeable::deploy_with_max_program_len(
+                &client.payer.pubkey(),
+                &evm_loader_pubkey,
+                &buffer_pubkey,
+                &upgrade_authority_pubkey,
+                minimum_balance_for_rent_exemption,
+                data_len * 2,
+            )?
+            .drain(..)
+            .map(|instruction| instruction.into() )
+            .collect();
+
+        transaction_inserter.insert_transaction_checked(
+                &format!("Deploy evm_loader from buffer at address {}", buffer_pubkey),
+                instructions,
+            )?;
+    }
+
+    Ok(())
+}
+
+
 fn finalize_vote_proposal(_wallet: &Wallet, _client: &Client, proposal: &Proposal, _verbose: bool) -> Result<(), ScriptError> {
     let proposal_data = proposal.get_data()?.ok_or(StateError::InvalidProposalIndex)?;
     proposal.finalize_vote(&proposal_data.token_owner_record)?;
@@ -1355,6 +1435,17 @@ fn process_proposal_create(wallet: &Wallet, client: &Client, governance: &Govern
             let mint: Pubkey = pubkey_of(cmd_matches, "mint").unwrap();
             let new_auth: Pubkey = pubkey_of(cmd_matches, "new-auth").unwrap();
             setup_set_mint_auth(wallet, client, &mut transaction_inserter, cfg, &mint, &new_auth)?
+        },
+        "create-start-evm" => {
+            let evm_loader: Pubkey = pubkey_of(cmd_matches, "evm-loader").unwrap();
+            let collateral_pool_base: Pubkey = pubkey_of(cmd_matches, "collateral-pool-base").unwrap();
+            create_collateral_pool_accounts(wallet, client, &mut transaction_inserter, cfg, evm_loader, collateral_pool_base)?
+        },
+        "create-evm-from-buffer" => {
+            let evm_loader: Pubkey = pubkey_of(cmd_matches, "evm-loader").unwrap();
+            let buffer_pubkey: Pubkey = pubkey_of(cmd_matches, "buffer").unwrap();
+            let upgrade_authority_pubkey: Pubkey = pubkey_of(cmd_matches, "upgrade_authority").unwrap();
+            deploy_evm_loader_from_buffer(wallet, client, &mut transaction_inserter, cfg, evm_loader, buffer_pubkey, upgrade_authority_pubkey)?
         },
         _ => unreachable!(),
     }
@@ -1566,6 +1657,52 @@ fn main() {
                         .takes_value(true)
                         .value_name("VOTE_PROPOSAL")
                         .help("Proposal for vote")
+                )
+            )
+            .subcommand(SubCommand::with_name("create-start-evm")
+                .about("Create proposal for Neon EVM start")
+                .arg(
+                    Arg::with_name("collateral-pool-base")
+                        .long("collateral-pool-base")
+                        .required(true)
+                        .takes_value(true)
+                        .value_name("COLLATERAL_POOL_BASE")
+                        .help("Collateral pool base")
+                )
+                .arg(
+                    Arg::with_name("evm-loader")
+                        .long("evm-loader")
+                        .required(true)
+                        .takes_value(true)
+                        .value_name("EVM_LOADER_ADDRESS")
+                        .help("EVM loader address")
+                )
+            )
+            .subcommand(SubCommand::with_name("create-evm-from-buffer")
+                .about("Deploy EVM from buffer")
+                .arg(
+                    Arg::with_name("evm-loader")
+                        .long("evm-loader")
+                        .required(true)
+                        .takes_value(true)
+                        .value_name("EVM_LOADER_ADDRESS")
+                        .help("EVM loader address")
+                )
+                .arg(
+                    Arg::with_name("buffer")
+                        .long("buffer")
+                        .required(true)
+                        .takes_value(true)
+                        .value_name("PROGRAM_BUFFER")
+                        .help("Program buffer")
+                )
+                .arg(
+                    Arg::with_name("upgrade_authority")
+                        .long("upgrade_authority")
+                        .required(true)
+                        .takes_value(true)
+                        .value_name("UPGRADE_AUTHORITY")
+                        .help("Upgrade authority")
                 )
             )
             .subcommand(SubCommand::with_name("sign-off")

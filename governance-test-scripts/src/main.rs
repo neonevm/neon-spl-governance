@@ -26,18 +26,18 @@ use governance_lib::{
     addin_fixed_weights::AddinFixedWeights,
 };
 
-const GOVERNANCE_KEY_FILE_PATH: &str = "../artifacts/spl_governance-keypair.json";
+const GOVERNANCE_KEY_FILE_PATH: &str = "../artifacts/spl-governance.keypair";
 const VOTER_WEIGHT_ADDIN_KEY_FILE_PATH: &str = "../artifacts/addin-fixed-weights.keypair";
-const COMMUTINY_MINT_KEY_FILE_PATH: &str = "../governance-test-scripts/community_mint.keypair";
-const GOVERNED_MINT_KEY_FILE_PATH: &str = "../governance-test-scripts/governance.keypair";
+const COMMUTINY_MINT_KEY_FILE_PATH: &str = "../artifacts/community-mint.keypair";
+const GOVERNED_MINT_KEY_FILE_PATH: &str = "../artifacts/maintenance.keypair";
 const PAYER_KEY_FILE_PATH: &str = "../artifacts/payer.keypair";
 
 const VOTERS_KEY_FILE_PATH: [&str;5] = [
-    "../artifacts/voter1.keypair",
-    "../artifacts/voter2.keypair",
-    "../artifacts/voter3.keypair",
-    "../artifacts/voter4.keypair",
-    "../artifacts/voter5.keypair",
+    "../artifacts/voters/voter1.keypair",
+    "../artifacts/voters/voter2.keypair",
+    "../artifacts/voters/voter3.keypair",
+    "../artifacts/voters/voter4.keypair",
+    "../artifacts/voters/voter5.keypair",
 ];
 
 // const REALM_NAME: &str = "Test Realm";
@@ -105,10 +105,10 @@ fn main() {
         token_owner.set_voter_weight_record_address(Some(voter_weight_record));
         println!("Token Owner {} \n{:?}, voter_weight_record: {}", i, token_owner, voter_weight_record);
         token_owners.push(token_owner);
-        if i == 2 {
-            let result = fixed_weight_addin.set_vote_percentage_fixed(&realm, keypair, 5000);
-            println!("{:?}", result);
-        }
+        // if i == 2 {
+        //     let result = fixed_weight_addin.set_vote_percentage_fixed(&realm, keypair, 5000);
+        //     println!("{:?}", result);
+        // }
     }
 
     let gov_config: GovernanceConfig =

@@ -266,6 +266,10 @@ impl<'a> Client<'a> {
         self.solana_client.get_account(address).is_ok()
     }
 
+    pub fn get_minimum_balance_for_rent_exemption(&self, data_size: usize) -> ClientResult<u64> {
+        self.solana_client.get_minimum_balance_for_rent_exemption(data_size).map_err(|e| e.into() )
+    }
+
 /*    pub fn _add_signatory(&self, realm: &Realm, _governance: &Governance, proposal: &Proposal, token_owner: &TokenOwner) -> Result<Signature,GovernanceLibError> {
         let realm_authority_pubkey: Pubkey = realm.authority.pubkey();
         // let signatory_record_address = get_signatory_record_address(&self.spl_governance_program_address, &proposal.address, &token_owner.authority.pubkey());

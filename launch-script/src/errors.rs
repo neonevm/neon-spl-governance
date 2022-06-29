@@ -7,6 +7,7 @@ use log::error;
 use solana_sdk::pubkey::{Pubkey, PubkeyError};
 //use solana_sdk::signer::SignerError as SolanaSignerError;
 use solana_sdk::decode_error::DecodeError;
+use solana_sdk::instruction::InstructionError;
 use solana_sdk::program_option::COption;
 use solana_sdk::program_error::ProgramError as SolanaProgramError;
 use solana_client::client_error::ClientError as SolanaClientError;
@@ -103,6 +104,10 @@ pub enum ScriptError {
     /// Solana Client Error
     #[error("Solana client error. {0:?}")]
     Client(SolanaClientError),
+
+    /// Solana Instruction Error
+    #[error("Solana instruction error. {0:?}")]
+    Instruction(InstructionError),
 
     #[error("Governance lib error {0:?}")]
     GovernanceLib(GovernanceLibError),
@@ -227,6 +232,12 @@ impl From<Box<dyn std::error::Error>> for ScriptError {
 impl From<SolanaClientError> for ScriptError {
     fn from(e: SolanaClientError) -> ScriptError {
         ScriptError::Client(e)
+    }
+}
+
+impl From<InstructionError> for ScriptError {
+    fn from(e: InstructionError) -> ScriptError {
+        ScriptError::Instruction(e)
     }
 }
 
