@@ -115,7 +115,7 @@ fn main() {
                 .short("u")
                 .takes_value(true)
                 .global(true)
-                .help("Url to solana cluster [overrides 'url' value in config file, default: http://localhost:8899]")
+                .help("Url to solana cluster [overrides 'url' value in config file, default: solana cli RPC URL]")
         )
         .arg(
             Arg::with_name("payer")
@@ -319,19 +319,19 @@ fn main() {
     let config = {
         let mut config: ConfigFile = serde_json::from_reader(config_file)
             .expect("file should be proper JSON");
+        let solana_config = SolanaCliConfig::load(SOLANA_CLI_CONFIG_FILE.as_ref().unwrap())
+            .expect("Solana cli config file");
 
         if let Some(payer) = matches.value_of("payer") {
             config.payer = payer.to_string();
         } else if config.payer.is_empty() {
-            let solana_config = SolanaCliConfig::load(SOLANA_CLI_CONFIG_FILE.as_ref().unwrap())
-                .expect("Solana cli config file");
             config.payer = solana_config.keypair_path;
         }
 
         if let Some(url) = matches.value_of("url") {
             config.url = url.to_string();
         } else if config.url.is_empty() {
-            config.url = "http://localhost:8899".to_string();
+            config.url = solana_config.json_rpc_url;
         }
 
         config
