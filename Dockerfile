@@ -35,7 +35,8 @@ COPY --from=solana /usr/bin/solana /usr/bin/solana-keygen /opt/solana/bin/
 COPY --from=governance-builder /usr/local/cargo/bin/spl-token /opt/solana/bin/
 COPY --from=governance-builder /opt/neon-governance/solana-program-library/target/deploy/*.so /opt/deploy/
 COPY --from=governance-builder /opt/neon-governance/target/deploy/*.so /opt/deploy/
-COPY --from=governance-builder /opt/neon-governance/target/release/launch-scrupt /opt/
+COPY --from=governance-builder /opt/neon-governance/target/release/launch-script /opt/
+COPY --from=governance-builder /opt/neon-governance/target/release/vesting-contract-cli /opt/
 COPY artifacts/creator.keypair /root/.config/solana/id.json
 COPY artifacts/*.keypair /opt/artifacts/
 COPY artifacts/voters/*.keypair /opt/artifacts/voters/
