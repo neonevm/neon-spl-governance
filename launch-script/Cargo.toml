@@ -11,6 +11,7 @@ goblin = "0.4.2"
 solana-sdk = "1.10.16"
 solana-client = "1.10.16"
 solana-clap-utils = "1.10.16"
+solana-program = "1.10.16"
 borsh = "0.9.1"
 log = "0.4.11"
 clap = "2.33.3"
@@ -23,8 +24,7 @@ spl-associated-token-account = { path = "../solana-program-library/associated-to
 spl-governance = { version = "2.2", path = "../solana-program-library/governance/program" }
 spl-governance-addin-api= { version = "0.1.1", path = "../solana-program-library/governance/addin-api"}
 spl-governance-addin-mock = { version = "0.1", path = "../solana-program-library/governance/addin-mock/program" }
-
 spl-governance-addin-fixed-weights = { version = "0.1", path = "../addin-fixed-weights/program" }
 spl-governance-addin-vesting = { path = "../addin-vesting/program" }
-
 governance-lib = { path = "../governance-lib" }
+maintenance = { path = "../maintenance/program" }

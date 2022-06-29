@@ -37,7 +37,9 @@ pub mod prelude {
         governance::Governance, proposal::Proposal, realm::Realm, realm::RealmConfig,
         token_owner::TokenOwner,
     };
+    pub use maintenance::instruction::{create_maintenance, get_maintenance_record_address};
     pub use solana_clap_utils::input_parsers::{pubkey_of, value_of};
+    pub use solana_program::instruction::Instruction;
     pub use solana_sdk::{pubkey, pubkey::Pubkey, rent::Rent, signer::Signer, system_instruction};
     pub use spl_governance::state::{
         enums::{MintMaxVoteWeightSource, ProposalState, VoteThresholdPercentage, VoteTipping},
@@ -122,6 +124,9 @@ fn main() {
             .about("Prepare environment for launching")
             .subcommand(SubCommand::with_name("dao")
                 .about("Prepare environment for DAO")
+            )
+            .subcommand(SubCommand::with_name("evm")
+                .about("Prepare environment for EVM")
             )
         )
         .subcommand(SubCommand::with_name("proposal")
@@ -317,6 +322,7 @@ fn main() {
             let (cmd, _) = arg_matches.subcommand();
             match cmd {
                 "dao" => process_environment_dao(&wallet, &client, &cfg).unwrap(),
+                "evm" => process_environment_evm(&wallet, &client, &cfg).unwrap(),
                 _ => unreachable!(),
             }
         }
