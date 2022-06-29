@@ -49,6 +49,10 @@ pub mod prelude {
     pub use std::path::Path;
 }
 use prelude::*;
+use solana_cli_config::{
+    Config as SolanaCliConfig,
+    CONFIG_FILE as SOLANA_CLI_CONFIG_FILE,
+};
 
 pub const TOKEN_MULT: u64 = u64::pow(10, 9);
 pub const REALM_NAME: &str = "NEON";
@@ -102,7 +106,6 @@ fn main() {
                 .long("config")
                 .short("c")
                 .takes_value(true)
-                //.global(true)
                 .required(true)
                 .help("Configuration file")
         )
@@ -112,8 +115,14 @@ fn main() {
                 .short("u")
                 .takes_value(true)
                 .global(true)
-                .default_value("http://localhost:8899")
-                .help("Url to solana cluster")
+                .help("Url to solana cluster [overrides 'url' value in config file, default: http://localhost:8899]")
+        )
+        .arg(
+            Arg::with_name("payer")
+                .long("payer")
+                .takes_value(true)
+                .global(true)
+                .help("Path to payer keypair [overrides 'payer' value in config file, default: solana cli keypair]")
         )
 
         .subcommand(SubCommand::with_name("environment")
@@ -307,14 +316,32 @@ fn main() {
 
     let config_file = std::fs::File::open(matches.value_of("config").unwrap())
         .expect("config file should exists");
-    let config: ConfigFile = serde_json::from_reader(config_file)
-        .expect("file should be proper JSON");
+    let config = {
+        let mut config: ConfigFile = serde_json::from_reader(config_file)
+            .expect("file should be proper JSON");
 
+        if let Some(payer) = matches.value_of("payer") {
+            config.payer = payer.to_string();
+        } else if config.payer.is_empty() {
+            let solana_config = SolanaCliConfig::load(SOLANA_CLI_CONFIG_FILE.as_ref().unwrap())
+                .expect("Solana cli config file");
+            config.payer = solana_config.keypair_path;
+        }
+
+        if let Some(url) = matches.value_of("url") {
+            config.url = url.to_string();
+        } else if config.url.is_empty() {
+            config.url = "http://localhost:8899".to_string();
+        }
+
+        config
+    };
+
+    println!("ConfigFile: {:#?}", config);
     let wallet = Wallet::new_from_config(&config).expect("invalid wallet configuration");
     wallet.display();
 
-    let url = matches.value_of("url").unwrap();
-    let client = Client::new(url, &wallet.payer_keypair);
+    let client = Client::new(&config.url, &wallet.payer_keypair);
 
     let send_trx: bool = matches.is_present("send_trx");
     let verbose: bool = matches.is_present("verbose");

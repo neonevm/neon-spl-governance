@@ -9,6 +9,9 @@ pub struct ConfigFile {
     #[serde(default)]
     pub payer: String,
 
+    #[serde(default)]
+    pub url: String,
+
     pub creator: String,
     pub community_mint: String,
 
