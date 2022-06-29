@@ -4,7 +4,7 @@
 
 use log::error;
 
-use solana_sdk::pubkey::{Pubkey, PubkeyError};
+use solana_sdk::pubkey::{Pubkey, ParsePubkeyError, PubkeyError};
 //use solana_sdk::signer::SignerError as SolanaSignerError;
 use solana_client::client_error::ClientError as SolanaClientError;
 use solana_sdk::decode_error::DecodeError;
@@ -88,6 +88,9 @@ pub enum StateError {
     #[error("Unknown MultiSig governed {0:?} {1:?}")]
     UnknownMultiSigGoverned(String, Pubkey),
 
+    #[error("ConfigError {0:?}")]
+    ConfigError(String),
+
     #[error("Invalid voter list")]
     InvalidVoterList,
 }
@@ -118,6 +121,9 @@ pub enum ScriptError {
 
     #[error("Pubkey error: {0:?}")]
     Pubkey(PubkeyError),
+
+    #[error("Parse Pubkey error: {0:?}")]
+    ParsePubkey(ParsePubkeyError),
 
     #[error("Missing signer keypair")]
     MissingSignerKeypair,
@@ -250,6 +256,12 @@ impl From<StateError> for ScriptError {
 impl From<PubkeyError> for ScriptError {
     fn from(e: PubkeyError) -> ScriptError {
         ScriptError::Pubkey(e)
+    }
+}
+
+impl From<ParsePubkeyError> for ScriptError {
+    fn from(e: ParsePubkeyError) -> ScriptError {
+        ScriptError::ParsePubkey(e)
     }
 }
 

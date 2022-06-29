@@ -5,6 +5,7 @@ mod wallet;
 mod helpers;
 mod clap_utils;
 mod config;
+mod config_file;
 mod env;
 mod lockup;
 mod msig;
@@ -15,6 +16,7 @@ pub mod prelude {
     pub use crate::{
         clap_utils::is_valid_pubkey_or_none,
         config::Configuration,
+        config_file::ConfigFile,
         env::prelude::*,
         errors::{ScriptError, StateError},
         helpers::{ProposalTransactionInserter, TransactionCollector, TransactionExecutor},
@@ -49,6 +51,10 @@ pub mod prelude {
     pub use std::path::Path;
 }
 use prelude::*;
+use solana_cli_config::{
+    Config as SolanaCliConfig,
+    CONFIG_FILE as SOLANA_CLI_CONFIG_FILE,
+};
 
 pub const TOKEN_MULT: u64 = u64::pow(10, 9);
 pub const REALM_NAME: &str = "NEON";
@@ -98,10 +104,12 @@ fn main() {
                 .help("Send transactions to blockchain")
         )
         .arg(
-            Arg::with_name("testing")
-                .long("testing")
-                .takes_value(false)
-                .help("Configure testing environment")
+            Arg::with_name("config")
+                .long("config")
+                .short("c")
+                .takes_value(true)
+                .required(true)
+                .help("Configuration file")
         )
         .arg(
             Arg::with_name("url")
@@ -109,15 +117,14 @@ fn main() {
                 .short("u")
                 .takes_value(true)
                 .global(true)
-                .default_value("http://localhost:8899")
-                .help("Url to solana cluster")
+                .help("Url to solana cluster [overrides 'url' value in config file, default: solana cli RPC URL]")
         )
         .arg(
-            Arg::with_name("artifacts")
-                .long("artifacts")
-                .default_value("artifacts")
+            Arg::with_name("payer")
+                .long("payer")
                 .takes_value(true)
-                .help("Directory with keypair- or pubkey-files")
+                .global(true)
+                .help("Path to payer keypair [overrides 'payer' value in config file, default: solana cli keypair]")
         )
 
         .subcommand(SubCommand::with_name("environment")
@@ -296,6 +303,13 @@ fn main() {
             )
             .subcommand(SubCommand::with_name("approve")
                 .about("Approve proposal")
+                .arg(
+                    Arg::with_name("voters")
+                        .long("voters")
+                        .required(true)
+                        .takes_value(true)
+                        .help("Path to directory with voters keypairs")
+                )
             )
             .subcommand(SubCommand::with_name("finalize-vote")
                 .about("Finalize vote for proposal")
@@ -305,17 +319,38 @@ fn main() {
             )
         ).get_matches();
 
-    let wallet = Wallet::new(Path::new(matches.value_of("artifacts").unwrap())).unwrap();
+    let config_file = std::fs::File::open(matches.value_of("config").unwrap())
+        .expect("config file should exists");
+    let config = {
+        let mut config: ConfigFile = serde_json::from_reader(config_file)
+            .expect("file should be proper JSON");
+        let solana_config = SolanaCliConfig::load(SOLANA_CLI_CONFIG_FILE.as_ref().unwrap())
+            .expect("Solana cli config file");
+
+        if let Some(payer) = matches.value_of("payer") {
+            config.payer = payer.to_string();
+        } else if config.payer.is_empty() {
+            config.payer = solana_config.keypair_path;
+        }
+
+        if let Some(url) = matches.value_of("url") {
+            config.url = url.to_string();
+        } else if config.url.is_empty() {
+            config.url = solana_config.json_rpc_url;
+        }
+
+        config
+    };
+
+    println!("ConfigFile: {:#?}", config);
+    let wallet = Wallet::new_from_config(&config).expect("invalid wallet configuration");
     wallet.display();
 
-    let url = matches.value_of("url").unwrap();
-    let client = Client::new(url, &wallet.payer_keypair);
+    let client = Client::new(&config.url, &wallet.payer_keypair);
 
     let send_trx: bool = matches.is_present("send_trx");
     let verbose: bool = matches.is_present("verbose");
-    let testing: bool = matches.is_present("testing");
-    // TODO: parse `start_time`
-    let cfg = Configuration::create(&wallet, &client, send_trx, verbose, testing, None);
+    let cfg = Configuration::create_from_config(&wallet, &client, send_trx, verbose, &config);
 
     match matches.subcommand() {
         ("environment", Some(arg_matches)) => {
@@ -379,7 +414,7 @@ fn main() {
                     &cfg,
                 )
                 .unwrap(),
-                (cmd, _) if ["sign-off", "approve", "finalize-vote", "execute"].contains(&cmd) => {
+                (cmd, Some(cmd_matches)) if ["sign-off", "approve", "finalize-vote", "execute"].contains(&cmd) => {
                     let proposal = match proposal_info {
                         ProposalInfo::Last => {
                             let proposal_index = governance.get_proposals_count().unwrap() - 1;
@@ -406,7 +441,8 @@ fn main() {
                                 .unwrap()
                         }
                         "approve" => {
-                            approve_proposal(&wallet, &client, &proposal, verbose).unwrap()
+                            let voters_dir: String = value_of(cmd_matches, "voters").unwrap();
+                            approve_proposal(&wallet, &client, &proposal, verbose, &voters_dir).unwrap()
                         }
                         "finalize-vote" => {
                             finalize_vote_proposal(&wallet, &client, &proposal, verbose).unwrap()
