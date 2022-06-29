@@ -15,6 +15,8 @@ pub mod prelude {
     pub use super::ProposalInfo;
 }
 
+use solana_sdk::signer::keypair::read_keypair_file;
+
 use crate::prelude::*;
 use proposal_delegate_vote::setup_proposal_delegate_vote;
 use proposal_tge::setup_proposal_tge;
@@ -247,17 +249,32 @@ pub fn sign_off_proposal(
 }
 
 pub fn approve_proposal(
-    wallet: &Wallet,
+    _wallet: &Wallet,
     client: &Client,
     proposal: &Proposal,
     _verbose: bool,
+    voters_dir: &str,
 ) -> Result<(), ScriptError> {
     use spl_governance::state::vote_record::get_vote_record_address;
     let proposal_data = proposal
         .get_data()?
         .ok_or(StateError::InvalidProposalIndex)?;
 
-    for voter in wallet.voter_keypairs.iter() {
+    let voter_keypairs = {
+        let mut voter_keypairs = vec!();
+        for file in Path::new(voters_dir).read_dir()
+            .map_err(|err| StateError::ConfigError(format!("'{}' should be a directory: {}", voters_dir, err)))?
+        {
+            let path = file?.path();
+            match read_keypair_file(path.clone()) {
+                Ok(keypair) => voter_keypairs.push(keypair),
+                Err(err) => println!("Skip '{}' due to {}", path.display(), err),
+            };
+        }
+        voter_keypairs
+    };
+
+    for voter in voter_keypairs.iter() {
         let token_owner = proposal
             .governance
             .realm

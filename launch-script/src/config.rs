@@ -20,6 +20,23 @@ pub struct Configuration<'a> {
 }
 
 impl<'a> Configuration<'a> {
+    pub fn create_from_config(
+        wallet: &'a Wallet,
+        client: &'a Client,
+        send_trx: bool,
+        verbose: bool,
+        config: &ConfigFile,
+    ) -> Self {
+        Self::create(
+            wallet,
+            client,
+            send_trx,
+            verbose, 
+            config.testing,
+            Some(config.start_time),
+        )
+    }
+
     pub fn create(
         wallet: &'a Wallet,
         client: &'a Client,

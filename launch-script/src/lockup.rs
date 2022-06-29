@@ -99,6 +99,7 @@ impl Lockup {
 #[cfg(test)]
 mod test {
     use super::*;
+    use chrono::{TimeZone, Utc};
 
     #[test]
     fn test_date() {
