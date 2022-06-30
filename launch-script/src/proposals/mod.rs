@@ -6,7 +6,7 @@ mod proposal_vote_proposal;
 mod set_mint_auth;
 mod set_transfer_auth;
 mod create_treasury_pool;
-mod deploy_evm_loader_from_buffer;
+mod create_upgrade_evm;
 
 pub mod prelude {
     pub use super::approve_proposal;
@@ -28,7 +28,7 @@ use proposal_vote_proposal::setup_proposal_vote_proposal;
 use set_mint_auth::setup_set_mint_auth;
 use set_transfer_auth::setup_set_transfer_auth;
 use create_treasury_pool::create_collateral_pool_accounts;
-use deploy_evm_loader_from_buffer::deploy_evm_loader_from_buffer;
+use create_upgrade_evm::create_upgrade_evm;
 
 pub enum ProposalInfo {
     Create(String, String), // name, description
@@ -216,15 +216,9 @@ pub fn process_proposal_create(
             )?
         },
         "create-start-evm" => {
-            let evm_loader: Pubkey = pubkey_of(cmd_matches, "evm-loader").unwrap();
-            let collateral_pool_base: Pubkey = pubkey_of(cmd_matches, "collateral-pool-base").unwrap();
-            create_collateral_pool_accounts(wallet, client, &mut transaction_inserter, cfg, evm_loader, collateral_pool_base)?
-        },
-        "create-evm-from-buffer" => {
-            let evm_loader: Pubkey = pubkey_of(cmd_matches, "evm-loader").unwrap();
             let buffer_pubkey: Pubkey = pubkey_of(cmd_matches, "buffer").unwrap();
-            let upgrade_authority_pubkey: Pubkey = pubkey_of(cmd_matches, "upgrade_authority").unwrap();
-            deploy_evm_loader_from_buffer(wallet, client, &mut transaction_inserter, cfg, evm_loader, buffer_pubkey, upgrade_authority_pubkey)?
+            create_collateral_pool_accounts(&mut transaction_inserter, cfg)?;
+            create_upgrade_evm(client, &mut transaction_inserter, cfg, buffer_pubkey)?
         },
         _ => unreachable!(),
     }

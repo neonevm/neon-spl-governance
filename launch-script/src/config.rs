@@ -1,3 +1,4 @@
+use std::str::FromStr;
 use crate::prelude::*;
 
 pub struct Configuration<'a> {
@@ -8,6 +9,8 @@ pub struct Configuration<'a> {
     pub verbose: bool,
     pub testing: bool,
     pub start_time: NaiveDateTime,
+
+    pub maintenance_program_address: Pubkey,
 
     pub startup_realm_config: RealmConfig,
     pub working_realm_config: RealmConfig,
@@ -34,6 +37,7 @@ impl<'a> Configuration<'a> {
             verbose, 
             config.testing,
             Some(config.start_time),
+            Pubkey::from_str(&config.maintenance_program).unwrap(),
         )
     }
 
@@ -44,6 +48,7 @@ impl<'a> Configuration<'a> {
         verbose: bool,
         testing: bool,
         start_time: Option<NaiveDateTime>,
+        maintenance_pubkey: Pubkey,
     ) -> Self {
         let account = |seed, program| wallet.account_by_seed(seed, program);
         Self {
@@ -59,6 +64,7 @@ impl<'a> Configuration<'a> {
                     Utc::today().naive_utc().and_hms(0, 0, 0)
                 }
             }),
+            maintenance_program_address: maintenance_pubkey,
             startup_realm_config: RealmConfig {
                 council_token_mint: None,
                 community_voter_weight_addin: Some(wallet.fixed_weight_addin_id),
