@@ -41,7 +41,6 @@ pub mod prelude {
     };
     pub use maintenance::instruction::{create_maintenance, get_maintenance_record_address};
     pub use solana_clap_utils::input_parsers::{pubkey_of, value_of};
-    pub use solana_program::instruction::Instruction;
     pub use solana_sdk::{pubkey, pubkey::Pubkey, rent::Rent, signer::Signer, system_instruction};
     pub use spl_governance::state::{
         enums::{MintMaxVoteWeightSource, ProposalState, VoteThresholdPercentage, VoteTipping},
@@ -51,10 +50,7 @@ pub mod prelude {
     pub use std::path::Path;
 }
 use prelude::*;
-use solana_cli_config::{
-    Config as SolanaCliConfig,
-    CONFIG_FILE as SOLANA_CLI_CONFIG_FILE,
-};
+use solana_cli_config::{Config as SolanaCliConfig, CONFIG_FILE as SOLANA_CLI_CONFIG_FILE};
 
 pub const TOKEN_MULT: u64 = u64::pow(10, 9);
 pub const REALM_NAME: &str = "NEON";
@@ -322,8 +318,8 @@ fn main() {
     let config_file = std::fs::File::open(matches.value_of("config").unwrap())
         .expect("config file should exists");
     let config = {
-        let mut config: ConfigFile = serde_json::from_reader(config_file)
-            .expect("file should be proper JSON");
+        let mut config: ConfigFile =
+            serde_json::from_reader(config_file).expect("file should be proper JSON");
         let solana_config = SolanaCliConfig::load(SOLANA_CLI_CONFIG_FILE.as_ref().unwrap())
             .expect("Solana cli config file");
 
@@ -414,7 +410,9 @@ fn main() {
                     &cfg,
                 )
                 .unwrap(),
-                (cmd, Some(cmd_matches)) if ["sign-off", "approve", "finalize-vote", "execute"].contains(&cmd) => {
+                (cmd, Some(cmd_matches))
+                    if ["sign-off", "approve", "finalize-vote", "execute"].contains(&cmd) =>
+                {
                     let proposal = match proposal_info {
                         ProposalInfo::Last => {
                             let proposal_index = governance.get_proposals_count().unwrap() - 1;
@@ -442,7 +440,8 @@ fn main() {
                         }
                         "approve" => {
                             let voters_dir: String = value_of(cmd_matches, "voters").unwrap();
-                            approve_proposal(&wallet, &client, &proposal, verbose, &voters_dir).unwrap()
+                            approve_proposal(&wallet, &client, &proposal, verbose, &voters_dir)
+                                .unwrap()
                         }
                         "finalize-vote" => {
                             finalize_vote_proposal(&wallet, &client, &proposal, verbose).unwrap()

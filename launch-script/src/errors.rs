@@ -4,7 +4,7 @@
 
 use log::error;
 
-use solana_sdk::pubkey::{Pubkey, ParsePubkeyError, PubkeyError};
+use solana_sdk::pubkey::{ParsePubkeyError, Pubkey, PubkeyError};
 //use solana_sdk::signer::SignerError as SolanaSignerError;
 use solana_client::client_error::ClientError as SolanaClientError;
 use solana_sdk::decode_error::DecodeError;
@@ -57,6 +57,9 @@ pub enum StateError {
 
     #[error("Missing governance for {0:?}")]
     MissingGovernance(Pubkey),
+
+    #[error("Missing upgrade authority for {0:?}")]
+    MissingUpgradeAuthority(Pubkey),
 
     #[error("Invalid program upgrade authority {1:?} for {0:?}")]
     InvalidProgramUpgradeAuthority(Pubkey, Option<Pubkey>),

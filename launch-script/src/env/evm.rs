@@ -96,7 +96,7 @@ fn check_neon_evm(
                 .into())
             }
         },
-        || unreachable!(),
+        || Err(StateError::MissingUpgradeAuthority(*neon_evm_program_id).into()),
     )?;
     collector.execute_transaction()?;
 
@@ -113,16 +113,18 @@ fn create_neon_balance_token(
     let neon_evm_program_id = &wallet.neon_evm_program_id;
     let governance_program_id = &wallet.governance_program_id;
     let community_pubkey = &wallet.community_pubkey;
+    let creator_pubkey = &wallet.creator_pubkey;
     let payer = &wallet.payer_keypair.pubkey();
 
     let realm = Realm::new(client, governance_program_id, REALM_NAME, community_pubkey);
     let maintenance_dao = realm.governance(neon_evm_program_id);
 
+    let neon_token_program_id = Pubkey::find_program_address(&[b"Deposit"], &neon_evm_program_id).0;
     let neon_evm_token_account =
         spl_associated_token_account::get_associated_token_address_with_program_id(
-            &maintenance_dao.governance_address,
+            &creator_pubkey,
             community_pubkey,
-            &spl_token::id(),
+            &neon_token_program_id,
         );
     println!(
         "Neon-EVM governance address: {}",
