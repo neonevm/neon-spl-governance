@@ -12,6 +12,11 @@ solana config set --url ${SOLANA_URL:-http://localhost:8899}
 DELEGATED_BALANCE=$(solana create-address-with-seed MSIG_5.1 TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA --from artifacts/creator.keypair)
 
 # Address for NEON realm (PDA for spl-governance with seeds:['governance',name='NEON'])
+# Can be calculated like this:
+# ```
+# SPL_GOVERNANCE_ID=$(solana address -k artifacts/spl-governance.keypair)
+# NEON_REALM=$(python3 -c "from solana.publickey import PublicKey; print(PublicKey.find_program_address([b'governance',b'NEON'], PublicKey('$SPL_GOVERNANCE_ID'))[0])")
+# ```
 NEON_REALM=HQ2gGKpAqFHoUWViJNHa8ARTiwBGisMDDrL2A8q4WiiC
 
 # Stage 0: Preparing Governance subsystem (all contracts already loaded in ./init-governance.sh step)
