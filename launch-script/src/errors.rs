@@ -58,8 +58,8 @@ pub enum StateError {
     #[error("Missing governance for {0:?}")]
     MissingGovernance(Pubkey),
 
-    #[error("Missing upgrade authority for {0:?}")]
-    MissingUpgradeAuthority(Pubkey),
+    #[error("Invalid program for {0:?}")]
+    InvalidProgram(Pubkey),
 
     #[error("Invalid program upgrade authority {1:?} for {0:?}")]
     InvalidProgramUpgradeAuthority(Pubkey, Option<Pubkey>),
