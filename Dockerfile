@@ -37,10 +37,11 @@ COPY --from=governance-builder /opt/neon-governance/solana-program-library/targe
 COPY --from=governance-builder /opt/neon-governance/target/deploy/*.so /opt/deploy/
 COPY --from=governance-builder /opt/neon-governance/target/release/launch-script /opt/
 COPY --from=governance-builder /opt/neon-governance/target/release/vesting-contract-cli /opt/
-COPY artifacts/creator.keypair /root/.config/solana/id.json
+COPY artifacts/payer.keypair /root/.config/solana/id.json
 COPY artifacts/*.keypair /opt/artifacts/
 COPY artifacts/voters/*.keypair /opt/artifacts/voters/
 COPY init-governance.sh /opt/
 COPY run-tests.sh /opt/
+COPY testing.cfg /opt/
 
 ENV PATH=/opt/solana/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt
