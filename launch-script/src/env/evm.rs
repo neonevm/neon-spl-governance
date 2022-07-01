@@ -113,7 +113,6 @@ fn create_neon_balance_token(
     let neon_evm_program_id = &wallet.neon_evm_program_id;
     let governance_program_id = &wallet.governance_program_id;
     let community_pubkey = &wallet.community_pubkey;
-    let creator_pubkey = &wallet.creator_pubkey;
     let payer = &wallet.payer_keypair.pubkey();
 
     let realm = Realm::new(client, governance_program_id, REALM_NAME, community_pubkey);
