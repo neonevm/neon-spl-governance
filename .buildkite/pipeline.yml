@@ -11,6 +11,8 @@ steps:
     command:
       - ".buildkite/steps/deploy-tests.sh"
     timeout: 60
+    agents:
+      queue: "testing"
 
   - wait
 
