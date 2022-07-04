@@ -4,15 +4,15 @@
 
 use log::error;
 
-use solana_sdk::pubkey::{Pubkey, ParsePubkeyError, PubkeyError};
+use solana_sdk::pubkey::{ParsePubkeyError, Pubkey, PubkeyError};
 //use solana_sdk::signer::SignerError as SolanaSignerError;
-use solana_sdk::decode_error::DecodeError;
-use solana_sdk::program_option::COption;
-use solana_sdk::program_error::ProgramError as SolanaProgramError;
 use solana_client::client_error::ClientError as SolanaClientError;
+use solana_sdk::decode_error::DecodeError;
+use solana_sdk::program_error::ProgramError as SolanaProgramError;
+use solana_sdk::program_option::COption;
 //use solana_client::tpu_client::TpuSenderError as SolanaTpuSenderError;
-use thiserror::Error;
 use governance_lib::errors::GovernanceLibError;
+use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum StateError {
@@ -20,25 +20,28 @@ pub enum StateError {
     InvalidMintPrecision(Pubkey),
 
     #[error("Invalid mint-authority {1:?} for mint {0:?}")]
-    InvalidMintAuthority(Pubkey,COption<Pubkey>),
+    InvalidMintAuthority(Pubkey, COption<Pubkey>),
 
     #[error("Invalid freeze-authority {1:?} for mint {0:?}")]
-    InvalidFreezeAuthority(Pubkey,COption<Pubkey>),
+    InvalidFreezeAuthority(Pubkey, COption<Pubkey>),
 
     #[error("Invalid Realm {0:?}")]
     InvalidRealm(Pubkey),
 
     #[error("Invalid community mint {1:?} for realm {0:?}")]
-    InvalidRealmCommunityMint(Pubkey,Pubkey),
+    InvalidRealmCommunityMint(Pubkey, Pubkey),
 
     #[error("Invalid authority {1:?} for realm {0:?}")]
-    InvalidRealmAuthority(Pubkey,Option<Pubkey>),
+    InvalidRealmAuthority(Pubkey, Option<Pubkey>),
 
     #[error("Missing token_owner record for {0:?}")]
     MissingTokenOwnerRecord(Pubkey),
 
     #[error("Invalid delegate {1:?} for {0:?}")]
-    InvalidDelegate(Pubkey,Option<Pubkey>),
+    InvalidDelegate(Pubkey, Option<Pubkey>),
+
+    #[error("Invalid MaintenanceRecord {1:?} for {0:?}")]
+    InvalidMaintenanceRecord(Pubkey, Pubkey),
 
     #[error("Missing Mint {0:?}")]
     MissingMint(Pubkey),
@@ -52,14 +55,20 @@ pub enum StateError {
     #[error("Missing proposal {0:?}")]
     MissingProposal(Pubkey),
 
+    #[error("Missing governance for {0:?}")]
+    MissingGovernance(Pubkey),
+
+    #[error("Invalid program for {0:?}")]
+    InvalidProgram(Pubkey),
+
     #[error("Invalid program upgrade authority {1:?} for {0:?}")]
-    InvalidProgramUpgradeAuthority(Pubkey,Option<Pubkey>),
+    InvalidProgramUpgradeAuthority(Pubkey, Option<Pubkey>),
 
     #[error("Invalid token account mint {1:?} for {0:?}")]
-    InvalidTokenAccountMint(Pubkey,Pubkey),
+    InvalidTokenAccountMint(Pubkey, Pubkey),
 
     #[error("Invalid token account owner {1:?} for {0:?}")]
-    InvalidTokenAccountOwner(Pubkey,Pubkey),
+    InvalidTokenAccountOwner(Pubkey, Pubkey),
 
     #[error("Invalid proposal_index")]
     InvalidProposalIndex,
@@ -122,73 +131,72 @@ pub enum ScriptError {
     #[error("Missing signer keypair")]
     MissingSignerKeypair,
 
-//    /// Solana Signer Error
-//    #[error("Solana signer error. {0:?}")]
-//    SignerError(SolanaSignerError),
-//
-//    /// TPU Sender Error
-//    #[error("TPU sender error. {0:?}")]
-//    TpuSenderError(SolanaTpuSenderError),
-//
-//    /// Need specify evm_loader
-//    #[error("EVM loader must be specified.")]
-//    EvmLoaderNotSpecified,
-//
-//    /// Need specify fee payer
-//    #[error("Fee payer must be specified.")]
-//    FeePayerNotSpecified,
-//
-//    /// Account is already initialized.
-//    #[error("Account is already initialized.  account={0:?}, code_account={1:?}")]
-//    AccountAlreadyInitialized(Pubkey,Pubkey),
-//
-//    /// Invalid storage account owner
-//    #[error("Invalid storage account owner {0:?}.")]
-//    InvalidStorageAccountOwner(Pubkey),
-//
-//    /// Account data too small
-//    #[error("Account data too small. account_data.len()={0:?} < end={1:?}")]
-//    AccountDataTooSmall(usize,usize),
-//
-//    /// Account not found
-//    #[error("Account not found {0:?}.")]
-//    AccountNotFound(Pubkey),
-//
-//    /// Account is not BFP
-//    #[error("Account is not BPF {0:?}.")]
-//    AccountIsNotBpf(Pubkey),
-//
-//    /// Account is not upgradeable
-//    #[error("Account is not upgradeable {0:?}.")]
-//    AccountIsNotUpgradeable(Pubkey),
-//
-//    /// Program data account not found
-//    #[error("Associated PDA not found {0:?} for Program {1:?}.")]
-//    AssociatedPdaNotFound(Pubkey,Pubkey),
-//
-//    /// Program data account not found
-//    #[error("Invalid Associated PDA {0:?} for Program {1:?}.")]
-//    InvalidAssociatedPda(Pubkey,Pubkey),
-//
-//    /// Invalid message verbosity
-//    #[error("Invalid verbosity message.")]
-//    InvalidVerbosityMessage,
-//
-//    /// Transaction failed
-//    #[error("Transaction failed.")]
-//    TransactionFailed,
-//
-//    /// too many steps
-//    #[error("Too many steps")]
-//    TooManySteps,
-//
-//    // Account nonce exceeds u64::max
-//    #[error("Transaction count overflow")]
-//    TrxCountOverflow,
-
+    //    /// Solana Signer Error
+    //    #[error("Solana signer error. {0:?}")]
+    //    SignerError(SolanaSignerError),
+    //
+    //    /// TPU Sender Error
+    //    #[error("TPU sender error. {0:?}")]
+    //    TpuSenderError(SolanaTpuSenderError),
+    //
+    //    /// Need specify evm_loader
+    //    #[error("EVM loader must be specified.")]
+    //    EvmLoaderNotSpecified,
+    //
+    //    /// Need specify fee payer
+    //    #[error("Fee payer must be specified.")]
+    //    FeePayerNotSpecified,
+    //
+    //    /// Account is already initialized.
+    //    #[error("Account is already initialized.  account={0:?}, code_account={1:?}")]
+    //    AccountAlreadyInitialized(Pubkey,Pubkey),
+    //
+    //    /// Invalid storage account owner
+    //    #[error("Invalid storage account owner {0:?}.")]
+    //    InvalidStorageAccountOwner(Pubkey),
+    //
+    //    /// Account data too small
+    //    #[error("Account data too small. account_data.len()={0:?} < end={1:?}")]
+    //    AccountDataTooSmall(usize,usize),
+    //
+    //    /// Account not found
+    //    #[error("Account not found {0:?}.")]
+    //    AccountNotFound(Pubkey),
+    //
+    //    /// Account is not BFP
+    //    #[error("Account is not BPF {0:?}.")]
+    //    AccountIsNotBpf(Pubkey),
+    //
+    //    /// Account is not upgradeable
+    //    #[error("Account is not upgradeable {0:?}.")]
+    //    AccountIsNotUpgradeable(Pubkey),
+    //
+    //    /// Program data account not found
+    //    #[error("Associated PDA not found {0:?} for Program {1:?}.")]
+    //    AssociatedPdaNotFound(Pubkey,Pubkey),
+    //
+    //    /// Program data account not found
+    //    #[error("Invalid Associated PDA {0:?} for Program {1:?}.")]
+    //    InvalidAssociatedPda(Pubkey,Pubkey),
+    //
+    //    /// Invalid message verbosity
+    //    #[error("Invalid verbosity message.")]
+    //    InvalidVerbosityMessage,
+    //
+    //    /// Transaction failed
+    //    #[error("Transaction failed.")]
+    //    TransactionFailed,
+    //
+    //    /// too many steps
+    //    #[error("Too many steps")]
+    //    TooManySteps,
+    //
+    //    // Account nonce exceeds u64::max
+    //    #[error("Transaction count overflow")]
+    //    TrxCountOverflow,
     /// Unknown Error.
     #[error("Unknown error.")]
-    UnknownError
+    UnknownError,
 }
 
 /*impl ScriptError {
@@ -283,4 +291,3 @@ impl<T> DecodeError<T> for ScriptError {
         "ScriptError"
     }
 }
-
