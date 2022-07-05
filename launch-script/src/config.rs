@@ -1,6 +1,10 @@
 use std::str::FromStr;
 use crate::prelude::*;
 
+use solana_sdk::{
+    hash::{ hash, Hash, },
+};
+
 pub struct Configuration<'a> {
     pub wallet: &'a Wallet,
     pub client: &'a Client<'a>,
@@ -10,7 +14,8 @@ pub struct Configuration<'a> {
     pub testing: bool,
     pub start_time: NaiveDateTime,
 
-    pub maintenance_program_address: Pubkey,
+    // pub community_mint: Pubkey,
+    // pub maintenance_program_address: Pubkey,
 
     pub startup_realm_config: RealmConfig,
     pub working_realm_config: RealmConfig,
@@ -18,8 +23,18 @@ pub struct Configuration<'a> {
     pub emergency_governance_config: GovernanceConfig,
     pub maintenance_governance_config: GovernanceConfig,
 
+    pub code_hashes: Vec<Hash>,
+    pub delegates: Vec<Pubkey>,
+    pub chain_id: u64,
+
     pub multi_sigs: Vec<MultiSig>,
     pub extra_token_accounts: Vec<ExtraTokenAccount>,
+}
+
+fn get_executable_hash(filepath: &str) -> Hash {
+    std::fs::read(filepath)
+        .map(|data| hash(&data) )
+        .unwrap()
 }
 
 impl<'a> Configuration<'a> {
@@ -34,10 +49,20 @@ impl<'a> Configuration<'a> {
             wallet,
             client,
             send_trx,
-            verbose, 
+            verbose,
+            config.delegates
+                .iter()
+                .map(|d| Pubkey::from_str(d.as_str()).unwrap() )
+                .collect(),
+            config.executables_paths
+                .iter()
+                .map(|fp| get_executable_hash(fp.as_str()) )
+                .collect(),
+            config.chain_id,
             config.testing,
             Some(config.start_time),
-            Pubkey::from_str(&config.maintenance_program).unwrap(),
+            // Pubkey::from_str(&config.community_mint).unwrap(),
+            // Pubkey::from_str(&config.maintenance_program).unwrap(),
         )
     }
 
@@ -46,9 +71,13 @@ impl<'a> Configuration<'a> {
         client: &'a Client,
         send_trx: bool,
         verbose: bool,
+        delegates: Vec<Pubkey>,
+        code_hashes: Vec<Hash>,
+        chain_id: u64,
         testing: bool,
         start_time: Option<NaiveDateTime>,
-        maintenance_pubkey: Pubkey,
+        // community_mint: Pubkey,
+        // maintenance_pubkey: Pubkey,
     ) -> Self {
         let account = |seed, program| wallet.account_by_seed(seed, program);
         Self {
@@ -64,7 +93,8 @@ impl<'a> Configuration<'a> {
                     Utc::today().naive_utc().and_hms(0, 0, 0)
                 }
             }),
-            maintenance_program_address: maintenance_pubkey,
+            // community_mint,
+            // maintenance_program_address: maintenance_pubkey,
             startup_realm_config: RealmConfig {
                 council_token_mint: None,
                 community_voter_weight_addin: Some(wallet.fixed_weight_addin_id),
@@ -128,6 +158,9 @@ impl<'a> Configuration<'a> {
                 proposal_cool_off_time: 0,
                 min_council_weight_to_create_proposal: 0,
             },
+            delegates,
+            code_hashes,
+            chain_id,
             multi_sigs: vec![
                 MultiSig {
                     name: "1".to_string(),

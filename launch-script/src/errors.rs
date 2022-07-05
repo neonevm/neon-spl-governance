@@ -97,6 +97,28 @@ pub enum StateError {
 
     #[error("Invalid voter list")]
     InvalidVoterList,
+
+    #[error("Missing EVM loader at address {0:?}")]
+    MissingEvmLoader(Pubkey),
+
+    #[error("Wrong EVM loader account owner {0:?}")]
+    WrongEvmLoaderAccountOwner(Pubkey),
+
+    #[error("Missing program buffer {0:?}")]
+    MissingProgramBuffer(Pubkey),
+
+    #[error("Invalid NEON mint")]
+    InvalidNeonMint,
+
+    #[error("Wrong NEON decimals")]
+    WrongNeonDecimals,
+
+    #[error("Missing creator {0:?} in delegates list")]
+    MissingCreatorInDelegates(Pubkey),
+
+    #[error("Wrong EVM loader buffer code hash")]
+    WrongCodeHash,
+
 }
 
 /// Errors that may be returned by the neon-cli program.

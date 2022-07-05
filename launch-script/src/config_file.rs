@@ -21,6 +21,10 @@ pub struct ConfigFile {
     pub neon_evm_program: String,
     pub maintenance_program: String,
 
+    pub delegates: Vec<String>,
+    pub executables_paths: Vec<String>,
+    pub chain_id: u64,
+
     pub testing: bool,
 
     #[serde(with = "serde_datetime")]
@@ -79,6 +83,8 @@ mod test {
             "vesting-addin": "../artifacts/addin-vesting.keypair",
             "neon-evm-program": "../artifacts/neon-evm.keypair",
             "maintenance-program": "../artifacts/maintenance.keypair",
+            "executables-paths": ["../../neon-evm/evm_loader/target/deploy/evm_loader.so"],
+            "chain-id": 111,
             "start-date": "2022-06-21T00:00:00",
             "testing": true
         }"#;
@@ -94,6 +100,8 @@ mod test {
             "vesting-addin":       "5tgpCGfXYaZhKWJsrNR4zyp4o4n3wSQ81i5MzPqKEeAK",
             "neon-evm-program":    "DCPSnJHB38e7vNK6o3AVLswJGRaP87iiNx2zvvapiKBz",
             "maintenance-program": "7aPH9mBAvUtJDGV2L1KyvpR5nKF7man5DZzBPaxmisg5",
+            "executables-paths": ["../../neon-evm/evm_loader/target/deploy/evm_loader.so"],
+            "chain-id": 111,
             "start-date":          "2022-06-21T00:00:00",
             "testing":             true
         }"#;
