@@ -105,10 +105,10 @@ fn main() {
         token_owner.set_voter_weight_record_address(Some(voter_weight_record));
         println!("Token Owner {} \n{:?}, voter_weight_record: {}", i, token_owner, voter_weight_record);
         token_owners.push(token_owner);
-        // if i == 2 {
-        //     let result = fixed_weight_addin.set_vote_percentage_fixed(&realm, keypair, 5000);
-        //     println!("{:?}", result);
-        // }
+        if i == 2 {
+            let result = fixed_weight_addin.set_vote_percentage_fixed(&realm, keypair, 5000);
+            println!("{:?}", result);
+        }
     }
 
     let gov_config: GovernanceConfig =

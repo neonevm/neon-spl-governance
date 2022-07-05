@@ -66,6 +66,7 @@ impl<'a> Configuration<'a> {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn create(
         wallet: &'a Wallet,
         client: &'a Client,

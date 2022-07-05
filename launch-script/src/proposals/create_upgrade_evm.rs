@@ -105,7 +105,7 @@ pub fn create_upgrade_evm(wallet: &Wallet, client: &Client,
     )?;
 
     transaction_inserter.insert_transaction_checked(
-            &format!("Set delegates for Neon EVM upgrade"),
+            "Set delegates for Neon EVM upgrade",
             vec![
                 maintenance::instruction::set_delegate(
                     &wallet.maintenance_program_id,
@@ -117,7 +117,7 @@ pub fn create_upgrade_evm(wallet: &Wallet, client: &Client,
         )?;
 
     transaction_inserter.insert_transaction_checked(
-            &format!("Set code hashes for Neon EVM upgrade"),
+            "Set code hashes for Neon EVM upgrade",
             vec![
                 maintenance::instruction::set_code_hashes(
                     &wallet.maintenance_program_id,
