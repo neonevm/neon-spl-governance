@@ -58,6 +58,18 @@ pub fn create_upgrade_evm(wallet: &Wallet, client: &Client,
     )?;
 
     executor.check_and_create_object(
+        "EVM loader upgrade authority",
+        client.get_program_upgrade_authority(&wallet.neon_evm_program_id)?,
+        |upgrade_authority_opt| {
+            if *upgrade_authority_opt != wallet.neon_evm_program_id {
+                return Err( StateError::WrongEvmLoaderUpgradeAuthority.into() );
+            }
+            Ok(None)
+        },
+        || Err( StateError::WrongEvmLoaderUpgradeAuthority.into() ),
+    )?;
+
+    executor.check_and_create_object(
         "Program Buffer",
         Some(client.get_program_data(&buffer_pubkey)?),
         |program_data| {
@@ -86,12 +98,7 @@ pub fn create_upgrade_evm(wallet: &Wallet, client: &Client,
                     .and_then(|value| value.parse().ok() )
                     .map(|chain_id: u64| chain_id != cfg.chain_id )
                     .unwrap_or(true) {
-                return Err( StateError::WrongNeonDecimals.into() );
-            }
-            if !cfg.delegates
-                    .iter()
-                    .any(|&delegate| delegate == wallet.creator_pubkey ) {
-                return Err( StateError::MissingCreatorInDelegates(wallet.creator_pubkey).into() );
+                return Err( StateError::WrongChainId.into() );
             }
             let buffer_hash: Hash = hash(program_data);
             if !cfg.code_hashes

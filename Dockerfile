@@ -9,6 +9,8 @@ RUN sh -c "$(curl -sSfL https://release.solana.com/stable/install)" && \
     /root/.local/share/solana/install/active_release/bin/sdk/bpf/scripts/install.sh
 ENV PATH=/root/.local/share/solana/install/active_release/bin:/usr/local/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
+FROM neonlabsorg/evm_loader:v0.8.1 AS evm-loader
+
 # Build governance
 # Note: create stub Cargo.toml to speedup build
 FROM builder AS governance-builder
@@ -32,6 +34,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=solana /usr/bin/solana /usr/bin/solana-keygen /opt/solana/bin/
+COPY --from=evm-loader /opt/evm_loader.so /opt/deploy/
 COPY --from=governance-builder /usr/local/cargo/bin/spl-token /opt/solana/bin/
 COPY --from=governance-builder /opt/neon-governance/solana-program-library/target/deploy/*.so /opt/deploy/
 COPY --from=governance-builder /opt/neon-governance/target/deploy/*.so /opt/deploy/

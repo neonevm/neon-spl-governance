@@ -104,6 +104,9 @@ pub enum StateError {
     #[error("Wrong EVM loader account owner {0:?}")]
     WrongEvmLoaderAccountOwner(Pubkey),
 
+    #[error("Wrong EVM loader upgrade authority")]
+    WrongEvmLoaderUpgradeAuthority,
+
     #[error("Missing program buffer {0:?}")]
     MissingProgramBuffer(Pubkey),
 
@@ -112,6 +115,9 @@ pub enum StateError {
 
     #[error("Wrong NEON decimals")]
     WrongNeonDecimals,
+
+    #[error("Wrong Chain Id")]
+    WrongChainId,
 
     #[error("Missing creator {0:?} in delegates list")]
     MissingCreatorInDelegates(Pubkey),
