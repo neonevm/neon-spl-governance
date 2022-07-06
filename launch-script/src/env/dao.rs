@@ -25,7 +25,7 @@ pub fn process_environment_dao(
     let neon_multisig = cfg.neon_multisig_address();
     let token_distribution = cfg.get_token_distribution()?;
 
-    println!("Install MultiSig accounts");
+    info!("Install MultiSig accounts");
     for msig in &cfg.multi_sigs {
         setup_msig(wallet, client, &executor, msig)?;
     }
@@ -181,7 +181,7 @@ pub fn process_environment_dao(
                     fixed_weight_addin.get_voter_weight_record_address(&realm, &voter_weight.voter);
                 let vesting_weight_record_address =
                     vesting_addin.get_voter_weight_record_address(&voter_weight.voter, &realm);
-                println!(
+                info!(
                     "VoterWeightRecords: fixed {}, vesting {}",
                     fixed_weight_record_address, vesting_weight_record_address
                 );
@@ -248,7 +248,7 @@ pub fn process_environment_dao(
         } else {
             cfg.get_owner_address(&token_account.owner)?
         };
-        println!(
+        info!(
             "Extra token account '{}' {} owned by {}",
             seed, token_account_address, token_account_owner
         );
@@ -385,11 +385,11 @@ pub fn process_environment_dao(
             &wallet.community_pubkey,
             &spl_token::id(),
         );
-    println!(
+    info!(
         "Main governance address: {}",
         main_governance.governance_address
     );
-    println!(
+    info!(
         "Main governance token account: {}",
         governance_token_account
     );

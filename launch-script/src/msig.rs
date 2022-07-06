@@ -1,43 +1,27 @@
 use crate::{
-    tokens::{get_mint_data},
-    errors::{StateError, ScriptError},
+    errors::{ScriptError, StateError},
+    helpers::{TransactionCollector, TransactionExecutor},
+    prelude::info,
+    tokens::get_mint_data,
     wallet::Wallet,
-    helpers::{
-        TransactionExecutor,
-        TransactionCollector,
-    },
 };
-use solana_sdk::{
-    pubkey::Pubkey,
-    signer::{
-        Signer,
-    },
-    system_instruction,
-    rent::Rent,
-};
+use solana_sdk::{pubkey::Pubkey, rent::Rent, signer::Signer, system_instruction};
 
-use spl_governance::{
-    state::{
-        enums::{
-            MintMaxVoteWeightSource,
-            VoteThresholdPercentage,
-            VoteTipping,
-        },
-        governance::GovernanceConfig,
-        realm::SetRealmAuthorityAction,
-    },
+use spl_governance::state::{
+    enums::{MintMaxVoteWeightSource, VoteThresholdPercentage, VoteTipping},
+    governance::GovernanceConfig,
+    realm::SetRealmAuthorityAction,
 };
 
 use governance_lib::{
-    client::Client,
-    realm::{RealmConfig, Realm},
     addin_vesting::AddinVesting,
+    client::Client,
+    realm::{Realm, RealmConfig},
 };
 
 use spl_governance_addin_vesting::state::VestingSchedule;
 
 use chrono::Duration;
-
 
 #[derive(Debug)]
 pub struct MultiSig {
@@ -47,8 +31,12 @@ pub struct MultiSig {
     pub governed_accounts: Vec<Pubkey>,
 }
 
-pub fn setup_msig(wallet: &Wallet, client: &Client, executor: &TransactionExecutor, msig: &MultiSig) -> Result<Pubkey, ScriptError>
-{
+pub fn setup_msig(
+    wallet: &Wallet,
+    client: &Client,
+    executor: &TransactionExecutor,
+    msig: &MultiSig,
+) -> Result<Pubkey, ScriptError> {
     let seed: String = format!("MSIG_{}", msig.name);
     let msig_mint = Pubkey::create_with_seed(&wallet.creator_pubkey, &seed, &spl_token::id())?;
     let msig_realm = Realm::new(client, &wallet.governance_program_id, &seed, &msig_mint);
@@ -60,19 +48,32 @@ pub fn setup_msig(wallet: &Wallet, client: &Client, executor: &TransactionExecut
     let mut creator_token_owner = msig_realm.token_owner_record(&wallet.creator_pubkey);
     creator_token_owner.set_voter_weight_record_address(Some(Pubkey::default()));
 
-    println!("- '{}', threshold {}/{}, mint {}, governance {}",
-            msig.name, msig.threshold, msig.signers.len(),
-            msig_mint, msig_governance.governance_address);
-    println!("\tsigners: {:?}", msig.signers);
+    info!(
+        "- '{}', threshold {}/{}, mint {}, governance {}",
+        msig.name,
+        msig.threshold,
+        msig.signers.len(),
+        msig_mint,
+        msig_governance.governance_address
+    );
+    info!("\tsigners: {:?}", msig.signers);
 
     // ----------- Check or create multi_sig mint ----------------------
-    let creator_token_account = spl_associated_token_account::get_associated_token_address_with_program_id(
-            &wallet.creator_pubkey, &msig_mint, &spl_token::id());
-    executor.check_and_create_object(&format!("{} Mint '{}'", msig.name, msig_mint),
+    let creator_token_account =
+        spl_associated_token_account::get_associated_token_address_with_program_id(
+            &wallet.creator_pubkey,
+            &msig_mint,
+            &spl_token::id(),
+        );
+    executor.check_and_create_object(
+        &format!("{} Mint '{}'", msig.name, msig_mint),
         get_mint_data(client, &msig_mint)?,
         |d| {
-            if !d.mint_authority.contains(&wallet.creator_pubkey) &&
-                    !d.mint_authority.contains(&msig_governance.governance_address) {
+            if !d.mint_authority.contains(&wallet.creator_pubkey)
+                && !d
+                    .mint_authority
+                    .contains(&msig_governance.governance_address)
+            {
                 return Err(StateError::InvalidMintAuthority(msig_mint, d.mint_authority).into());
             }
             Ok(None)
@@ -81,13 +82,13 @@ pub fn setup_msig(wallet: &Wallet, client: &Client, executor: &TransactionExecut
             let transaction = client.create_transaction(
                 &[
                     system_instruction::create_account_with_seed(
-                        &wallet.payer_keypair.pubkey(),              // from
-                        &msig_mint,                                  // to
-                        &wallet.creator_pubkey,                      // base
-                        &seed,                                       // seed
-                        Rent::default().minimum_balance(82),         // lamports
-                        82,                                          // space
-                        &spl_token::id(),                            // owner
+                        &wallet.payer_keypair.pubkey(),      // from
+                        &msig_mint,                          // to
+                        &wallet.creator_pubkey,              // base
+                        &seed,                               // seed
+                        Rent::default().minimum_balance(82), // lamports
+                        82,                                  // space
+                        &spl_token::id(),                    // owner
                     ),
                     spl_token::instruction::initialize_mint(
                         &spl_token::id(),
@@ -106,7 +107,8 @@ pub fn setup_msig(wallet: &Wallet, client: &Client, executor: &TransactionExecut
                         &spl_token::id(),
                         &msig_mint,
                         &creator_token_account,
-                        &wallet.creator_pubkey, &[],
+                        &wallet.creator_pubkey,
+                        &[],
                         msig.signers.len() as u64,
                     )?,
                 ],
@@ -117,33 +119,41 @@ pub fn setup_msig(wallet: &Wallet, client: &Client, executor: &TransactionExecut
     )?;
 
     // -------------- Check or create Realm ---------------------------
-    executor.check_and_create_object(&format!("{} Realm '{}'", msig.name, msig_realm.realm_address),
+    executor.check_and_create_object(
+        &format!("{} Realm '{}'", msig.name, msig_realm.realm_address),
         msig_realm.get_data()?,
         |d| {
             if d.community_mint != msig_realm.community_mint {
-                return Err(StateError::InvalidRealmCommunityMint(msig_realm.realm_address, d.community_mint).into());
+                return Err(StateError::InvalidRealmCommunityMint(
+                    msig_realm.realm_address,
+                    d.community_mint,
+                )
+                .into());
             }
-            if d.authority != Some(wallet.creator_pubkey) &&
-                    d.authority != Some(msig_governance.governance_address) {
-                return Err(StateError::InvalidRealmAuthority(msig_realm.realm_address, d.authority).into());
+            if d.authority != Some(wallet.creator_pubkey)
+                && d.authority != Some(msig_governance.governance_address)
+            {
+                return Err(StateError::InvalidRealmAuthority(
+                    msig_realm.realm_address,
+                    d.authority,
+                )
+                .into());
             }
             Ok(None)
         },
         || {
-            let transaction = client.create_transaction_with_payer_only(
-                &[
-                    msig_realm.create_realm_instruction(
-                        &wallet.creator_pubkey,
-                        &RealmConfig {
-                            council_token_mint: None,
-                            community_voter_weight_addin: Some(wallet.vesting_addin_id),
-                            max_community_voter_weight_addin: None,
-                            min_community_weight_to_create_governance: 1,            // TODO Verify parameters!
-                            community_mint_max_vote_weight_source: MintMaxVoteWeightSource::FULL_SUPPLY_FRACTION,
-                        },
-                    ),
-                ],
-            )?;
+            let transaction = client.create_transaction_with_payer_only(&[msig_realm
+                .create_realm_instruction(
+                    &wallet.creator_pubkey,
+                    &RealmConfig {
+                        council_token_mint: None,
+                        community_voter_weight_addin: Some(wallet.vesting_addin_id),
+                        max_community_voter_weight_addin: None,
+                        min_community_weight_to_create_governance: 1, // TODO Verify parameters!
+                        community_mint_max_vote_weight_source:
+                            MintMaxVoteWeightSource::FULL_SUPPLY_FRACTION,
+                    },
+                )])?;
             Ok(Some(transaction))
         },
     )?;
@@ -152,10 +162,15 @@ pub fn setup_msig(wallet: &Wallet, client: &Client, executor: &TransactionExecut
     for (i, owner) in msig.signers.iter().enumerate() {
         let token_owner_record = msig_realm.token_owner_record(owner);
         let seed: String = format!("{}_msig_{}", msig.name, i);
-        let vesting_token_account = Pubkey::create_with_seed(&wallet.creator_pubkey, &seed, &spl_token::id())?;
-        let schedule = vec!(VestingSchedule { release_time: 0, amount: 1 });
+        let vesting_token_account =
+            Pubkey::create_with_seed(&wallet.creator_pubkey, &seed, &spl_token::id())?;
+        let schedule = vec![VestingSchedule {
+            release_time: 0,
+            amount: 1,
+        }];
 
-        executor.check_and_create_object(&format!("{} owner {}", msig.name, owner),
+        executor.check_and_create_object(
+            &format!("{} owner {}", msig.name, owner),
             token_owner_record.get_data()?,
             |_| {
                 // TODO check that all accounts needed to this owner created correctly
@@ -179,124 +194,144 @@ pub fn setup_msig(wallet: &Wallet, client: &Client, executor: &TransactionExecut
                             &vesting_token_account,
                             &msig_mint,
                             &vesting_addin.find_vesting_account(&vesting_token_account),
-                        ).unwrap(),
+                        )
+                        .unwrap(),
                         vesting_addin.deposit_with_realm_instruction(
-                            &wallet.creator_pubkey,  // source_token_authority
-                            &creator_token_account,            // source_token_account
-                            owner,                             // vesting_owner
-                            &vesting_token_account,            // vesting_token_account
-                            schedule,                          // schedule
-                            &msig_realm,                       // realm
-                            None,                              // default payer
+                            &wallet.creator_pubkey, // source_token_authority
+                            &creator_token_account, // source_token_account
+                            owner,                  // vesting_owner
+                            &vesting_token_account, // vesting_token_account
+                            schedule,               // schedule
+                            &msig_realm,            // realm
+                            None,                   // default payer
                         )?,
                     ],
                     &[wallet.get_creator_keypair()?],
                 )?;
                 Ok(Some(transaction))
-            }
+            },
         )?;
     }
 
     // ------------- Setup main governance ------------------------
     let threshold = 100u16 * msig.threshold / msig.signers.len() as u16;
-    let gov_config: GovernanceConfig =
-        GovernanceConfig {
-            vote_threshold_percentage: VoteThresholdPercentage::YesVote(threshold.try_into().unwrap()),
-            min_community_weight_to_create_proposal: 1,
-            min_transaction_hold_up_time: 0,
-            max_voting_time: Duration::days(2).num_seconds() as u32,
-            vote_tipping: VoteTipping::Early,
-            proposal_cool_off_time: 0,
-            min_council_weight_to_create_proposal: 0,
-        };
+    let gov_config: GovernanceConfig = GovernanceConfig {
+        vote_threshold_percentage: VoteThresholdPercentage::YesVote(threshold.try_into().unwrap()),
+        min_community_weight_to_create_proposal: 1,
+        min_transaction_hold_up_time: 0,
+        max_voting_time: Duration::days(2).num_seconds() as u32,
+        vote_tipping: VoteTipping::Early,
+        proposal_cool_off_time: 0,
+        min_council_weight_to_create_proposal: 0,
+    };
 
-    executor.check_and_create_object(&format!("{} Governance", msig.name), msig_governance.get_data()?,
-        |_| {Ok(None)},
+    executor.check_and_create_object(
+        &format!("{} Governance", msig.name),
+        msig_governance.get_data()?,
+        |_| Ok(None),
         || {
             let transaction = client.create_transaction(
-                &[
-                    msig_governance.create_governance_instruction(
-                        &wallet.creator_pubkey,
-                        &creator_token_owner,
-                        gov_config.clone(),
-                    ),
-                ],
-                &[wallet.get_creator_keypair()?]
+                &[msig_governance.create_governance_instruction(
+                    &wallet.creator_pubkey,
+                    &creator_token_owner,
+                    gov_config.clone(),
+                )],
+                &[wallet.get_creator_keypair()?],
             )?;
             Ok(Some(transaction))
-        }
+        },
     )?;
 
     for governed in &msig.governed_accounts {
         let governance = msig_realm.governance(governed);
-        executor.check_and_create_object(&format!("{} Governance for {}", msig.name, governed), governance.get_data()?,
-            |_| {Ok(None)},
+        executor.check_and_create_object(
+            &format!("{} Governance for {}", msig.name, governed),
+            governance.get_data()?,
+            |_| Ok(None),
             || {
                 let transaction = client.create_transaction(
-                    &[
-                        governance.create_governance_instruction(
-                            &wallet.creator_pubkey,
-                            &creator_token_owner,
-                            gov_config.clone(),
-                        ),
-                    ],
-                    &[wallet.get_creator_keypair()?]
+                    &[governance.create_governance_instruction(
+                        &wallet.creator_pubkey,
+                        &creator_token_owner,
+                        gov_config.clone(),
+                    )],
+                    &[wallet.get_creator_keypair()?],
                 )?;
                 Ok(Some(transaction))
-            }
+            },
         )?;
-    };
+    }
 
     // --------------- Pass token and programs to governance ------
-    let mut collector = TransactionCollector::new(client, executor.setup, executor.verbose,
-            &format!("{} pass under governance", msig.name));
+    let mut collector = TransactionCollector::new(
+        client,
+        executor.setup,
+        executor.verbose,
+        &format!("{} pass under governance", msig.name),
+    );
     // 1. Mint
-    collector.check_and_create_object(&format!("{} token mint-authority", msig.name),
+    collector.check_and_create_object(
+        &format!("{} token mint-authority", msig.name),
         get_mint_data(client, &msig_mint)?,
         |d| {
             if d.mint_authority.contains(&wallet.creator_pubkey) {
-                let instructions = [
-                        spl_token::instruction::set_authority(
-                            &spl_token::id(),
-                            &msig_mint,
-                            Some(&msig_governance.governance_address),
-                            spl_token::instruction::AuthorityType::MintTokens,
-                            &wallet.creator_pubkey,
-                            &[],
-                        ).unwrap()
-                    ].to_vec();
+                let instructions = [spl_token::instruction::set_authority(
+                    &spl_token::id(),
+                    &msig_mint,
+                    Some(&msig_governance.governance_address),
+                    spl_token::instruction::AuthorityType::MintTokens,
+                    &wallet.creator_pubkey,
+                    &[],
+                )
+                .unwrap()]
+                .to_vec();
                 let signers = [wallet.get_creator_keypair()?].to_vec();
-                Ok(Some((instructions, signers,)))
-            } else if d.mint_authority.contains(&msig_governance.governance_address) {
+                Ok(Some((instructions, signers)))
+            } else if d
+                .mint_authority
+                .contains(&msig_governance.governance_address)
+            {
                 Ok(None)
             } else {
                 Err(StateError::InvalidMintAuthority(msig_mint, d.mint_authority).into())
             }
         },
-        || {if executor.setup {Err(StateError::MissingMint(msig_mint).into())} else {Ok(None)}},
+        || {
+            if executor.setup {
+                Err(StateError::MissingMint(msig_mint).into())
+            } else {
+                Ok(None)
+            }
+        },
     )?;
 
     // 2. Realm
-    collector.check_and_create_object(&format!("{} realm authority", msig.name),
+    collector.check_and_create_object(
+        &format!("{} realm authority", msig.name),
         msig_realm.get_data()?,
         |d| {
             if d.authority == Some(wallet.creator_pubkey) {
-                let instructions = [
-                        msig_realm.set_realm_authority_instruction(
-                            &wallet.creator_pubkey,
-                            Some(&msig_governance.governance_address),
-                            SetRealmAuthorityAction::SetChecked,
-                        )
-                    ].to_vec();
+                let instructions = [msig_realm.set_realm_authority_instruction(
+                    &wallet.creator_pubkey,
+                    Some(&msig_governance.governance_address),
+                    SetRealmAuthorityAction::SetChecked,
+                )]
+                .to_vec();
                 let signers = [wallet.get_creator_keypair()?].to_vec();
-                Ok(Some((instructions, signers,)))
+                Ok(Some((instructions, signers)))
             } else if d.authority == Some(msig_governance.governance_address) {
                 Ok(None)
             } else {
                 Err(StateError::InvalidRealmAuthority(msig_realm.realm_address, d.authority).into())
             }
         },
-        || {if executor.setup {Err(StateError::MissingRealm(msig_realm.realm_address).into())} else {Ok(None)}}
+        || {
+            if executor.setup {
+                Err(StateError::MissingRealm(msig_realm.realm_address).into())
+            } else {
+                Ok(None)
+            }
+        },
     )?;
     collector.execute_transaction()?;
 

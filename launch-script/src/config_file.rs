@@ -1,9 +1,7 @@
 use crate::prelude::*;
-use {
-    serde::Deserialize,
-};
+use serde::Deserialize;
 
-#[derive(Debug,Deserialize)]
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct ConfigFile {
     #[serde(default)]
@@ -41,11 +39,12 @@ pub struct ConfigFile {
 //}
 
 mod serde_datetime {
-    use serde::Deserialize;
     use chrono::NaiveDateTime;
+    use serde::Deserialize;
 
     pub fn deserialize<'de, D>(deserializer: D) -> Result<NaiveDateTime, D::Error>
-    where D: serde::Deserializer<'de>
+    where
+        D: serde::Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
         NaiveDateTime::parse_from_str(&s, "%FT%T").map_err(serde::de::Error::custom)
@@ -84,7 +83,7 @@ mod test {
         }"#;
 
         let config_file: ConfigFile = serde_json::from_str(data).unwrap();
-        println!("ConfigFile: {:#?}", config_file);
+        info!("ConfigFile: {:#?}", config_file);
 
         let data = r#"{
             "creator":             "5mAkTXJMyFxvEeUNpfiwAqUfD3qRSRmdh6j6YgXDwqrm",
@@ -99,7 +98,6 @@ mod test {
         }"#;
 
         let config_file: ConfigFile = serde_json::from_str(data).unwrap();
-        println!("ConfigFile2: {:#?}", config_file);
+        info!("ConfigFile2: {:#?}", config_file);
     }
 }
-

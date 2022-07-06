@@ -1,6 +1,7 @@
 use {
     crate::config_file::ConfigFile,
     crate::errors::StateError,
+    crate::prelude::info,
     crate::ScriptError,
     solana_sdk::{
         pubkey::{read_pubkey_file, Pubkey},
@@ -136,15 +137,15 @@ impl Wallet {
     }
 
     pub fn display(&self) {
-        println!("Governance Program Id:   {}", self.governance_program_id);
-        println!("Fixed Weight Addin Id:   {}", self.fixed_weight_addin_id);
-        println!("Vesting Addin Id:        {}", self.vesting_addin_id);
+        info!("Governance Program Id:   {}", self.governance_program_id);
+        info!("Fixed Weight Addin Id:   {}", self.fixed_weight_addin_id);
+        info!("Vesting Addin Id:        {}", self.vesting_addin_id);
 
-        println!("Community Token Mint:    {}", self.community_pubkey);
-        println!("Neon EVM Program Id:     {}", self.neon_evm_program_id);
+        info!("Community Token Mint:    {}", self.community_pubkey);
+        info!("Neon EVM Program Id:     {}", self.neon_evm_program_id);
 
-        println!("Payer Pubkey:            {}", self.payer_keypair.pubkey());
-        println!(
+        info!("Payer Pubkey:            {}", self.payer_keypair.pubkey());
+        info!(
             "Creator Pubkey:          {}   private key {}",
             self.creator_pubkey,
             if self.creator_keypair.is_some() {

@@ -48,6 +48,7 @@ pub mod prelude {
         realm::SetRealmAuthorityAction,
     };
     pub use std::path::Path;
+    pub use tracing::{error, info, Level};
 }
 use prelude::*;
 use solana_cli_config::{Config as SolanaCliConfig, CONFIG_FILE as SOLANA_CLI_CONFIG_FILE};
@@ -81,6 +82,8 @@ impl ExtraTokenAccount {
 }
 
 fn main() {
+    tracing_subscriber::fmt().with_max_level(Level::INFO).init();
+
     let matches = App::new(crate_name!())
         .about(crate_description!())
         .version(crate_version!())
@@ -338,7 +341,7 @@ fn main() {
         config
     };
 
-    println!("ConfigFile: {:#?}", config);
+    info!("ConfigFile: {:#?}", config);
     let wallet = Wallet::new_from_config(&config).expect("invalid wallet configuration");
     wallet.display();
 
@@ -431,7 +434,7 @@ fn main() {
                         .unwrap()
                         .unwrap();
                     owner_record.update_voter_weight_record_address().unwrap();
-                    println!("Owner record: {}", owner_record);
+                    info!("Owner record: {}", owner_record);
 
                     match cmd {
                         "sign-off" => {

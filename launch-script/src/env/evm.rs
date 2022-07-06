@@ -123,11 +123,11 @@ fn create_neon_balance_token(
         &neon_token_program_id,
         community_pubkey,
     );
-    println!(
+    info!(
         "Neon-EVM governance address: {}",
         maintenance_dao.governance_address
     );
-    println!("Neon-EVM token account: {}", neon_evm_token_account);
+    info!("Neon-EVM token account: {}", neon_evm_token_account);
 
     let executor = TransactionExecutor {
         client,
