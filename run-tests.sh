@@ -3,6 +3,7 @@ set -euo pipefail
 
 solana config set --url ${SOLANA_URL:-http://localhost:8899}
 
+solana -v airdrop 100
 ./init-governance.sh
 
 
@@ -24,6 +25,7 @@ launch-script --config testing.cfg --send-trx environment dao
 launch-script --config testing.cfg --send-trx proposal --name 'Delegate vote to payer' --governance MSIG_5.$DELEGATED_BALANCE create-delegate-vote --delegate $(solana address) --realm $NEON_REALM
 launch-script --config testing.cfg --send-trx proposal --governance MSIG_5.$DELEGATED_BALANCE --proposal LAST sign-off
 launch-script --config testing.cfg --send-trx proposal --governance MSIG_5.$DELEGATED_BALANCE --proposal LAST approve --voters artifacts/voters/
+sleep 5
 launch-script --config testing.cfg --send-trx proposal --governance MSIG_5.$DELEGATED_BALANCE --proposal LAST execute
 
 # Stage 1: Preparing Token Genesis Event and switch to vesting-addin
@@ -34,3 +36,6 @@ sleep 185
 launch-script --config testing.cfg --send-trx proposal --proposal LAST finalize-vote
 sleep 65
 launch-script --config testing.cfg --send-trx proposal --proposal LAST execute
+
+# launch-script --config testing.cfg --send-trx environment evm
+# launch-script --config testing.cfg --send-trx proposal --proposal LAST create-start-evm --buffer 
