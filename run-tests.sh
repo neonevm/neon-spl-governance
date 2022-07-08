@@ -21,6 +21,7 @@ launch-script --config testing.cfg --send-trx environment dao
 launch-script --config testing.cfg --send-trx proposal --name 'Delegate vote to payer' --governance MSIG_4.1 create-delegate-vote --delegate $(solana address) --realm $NEON_REALM
 launch-script --config testing.cfg --send-trx proposal --governance MSIG_4.1 --proposal LAST sign-off
 launch-script --config testing.cfg --send-trx proposal --governance MSIG_4.1 --proposal LAST approve --voters artifacts/voters/
+sleep 5
 launch-script --config testing.cfg --send-trx proposal --governance MSIG_4.1 --proposal LAST execute
 
 # Stage 1: Preparing Token Genesis Event and switch to vesting-addin
