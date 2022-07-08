@@ -167,7 +167,7 @@ pub fn process_environment_dao(
     )?;
 
     // -------------------- Create records for token_owner --------------------
-    for (owner, amount) in cfg.get_unique_vesting_owners()? {
+    for (owner, _) in cfg.get_unique_vesting_owners()? {
         let owner_address = cfg.get_owner_address(&owner)?;
         let token_owner_record = realm.token_owner_record(&owner_address);
         executor.check_and_create_object(
@@ -246,13 +246,13 @@ pub fn process_environment_dao(
                     )
                     .unwrap(),
                 ];
-                if token_account.lockup.is_locked() {
+                if account.lockup.is_locked() {
                     instructions.extend(vec![system_instruction::transfer(
                         // Charge VestingRecord
                         &wallet.payer_keypair.pubkey(),
                         &vesting_addin.find_vesting_account(&token_account_address),
                         Rent::default().minimum_balance(vesting_addin.get_vesting_account_size(
-                            cfg.get_schedule_size(&token_account.lockup),
+                            cfg.get_schedule_size(&account.lockup),
                             true,
                         )),
                     )]);

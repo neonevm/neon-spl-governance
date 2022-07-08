@@ -386,7 +386,7 @@ impl<'a> Configuration<'a> {
         let fixed_weight_addin = AddinFixedWeights::new(self.client, self.wallet.fixed_weight_addin_id);
         let params = fixed_weight_addin.get_params()?;
         let unlocked_amount = params.get("PARAM_EXTRA_TOKENS")
-                .ok_or(StateError::InvalidVoterList("Missing parameres in addin".to_string()))?.parse::<u64>().unwrap();
+                .ok_or_else(|| StateError::InvalidVoterList("Missing parameres in addin".to_string()))?.parse::<u64>().unwrap();
         let expected_unlocked_amount = self.get_unlocked_amount();
 
         if unlocked_amount != expected_unlocked_amount {
@@ -456,7 +456,7 @@ impl<'a> Configuration<'a> {
         println!("  UNLOCKED: {:10}.{:09}", unlocked_amount/TOKEN_MULT, unlocked_amount%TOKEN_MULT);
         println!("     TOTAL: {:10}.{:09}", total_amount/TOKEN_MULT, total_amount%TOKEN_MULT);
 
-        println!("  {:3} {:20} {:20} {:45} {:45} {}", "NUM", "AMOUNT", "LOCKUP", "ACCOUNT CreateWithSeed(creator, 'NEON_account_#')", "OWNER", "COMMENT");
+        println!("  {:3} {:20} {:20} {:45} {:45} COMMENT", "NUM", "AMOUNT", "LOCKUP", "ACCOUNT CreateWithSeed(creator, 'NEON_account_#')", "OWNER");
         for (i, account) in self.token_distribution.iter().enumerate() {
             let seed: String = format!("{}_account_{}", REALM_NAME, i);
             let token_account = self.account_by_seed(&seed, &spl_token::id());
@@ -465,11 +465,14 @@ impl<'a> Configuration<'a> {
                 _ => format!("{:?}", account.owner),
             };
 
+            let lockup_str = format!("{:?}", account.lockup);
+            let account_str = format!("{:?}", token_account);
+            let owner_str = format!("{:?}", self.get_owner_address(&account.owner).unwrap());
             println!("  {:3} {:10}.{:09} {:20} {:45} {:45} {}", i,
                     account.amount/TOKEN_MULT, account.amount%TOKEN_MULT,
-                    format!("{:?}", account.lockup),
-                    format!("{:?}", token_account),
-                    format!("{:?}", self.get_owner_address(&account.owner).unwrap()),
+                    lockup_str,
+                    account_str,
+                    owner_str,
                     comment);
         }
         Ok(())
