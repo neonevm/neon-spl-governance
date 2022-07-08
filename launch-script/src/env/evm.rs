@@ -66,7 +66,7 @@ fn check_neon_evm(
                     &maintenance_dao.governance_address,
                     payer,
                 )],
-                &[wallet.get_creator_keypair()?],
+                &[&wallet.payer_keypair],
             )?;
             Ok(Some(transaction))
         },
