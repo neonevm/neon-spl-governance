@@ -27,7 +27,7 @@ launch-script --config testing.cfg --send-trx proposal --governance MSIG_4.1 --p
 launch-script --config testing.cfg --send-trx proposal --name 'Token Genesis Event' create-tge
 launch-script --config testing.cfg --send-trx proposal --proposal LAST sign-off
 launch-script --config testing.cfg --send-trx proposal --proposal LAST approve --voters artifacts/voters/
-sleep 180
+sleep 185
 launch-script --config testing.cfg --send-trx proposal --proposal LAST finalize-vote
-sleep 60
+sleep 65
 launch-script --config testing.cfg --send-trx proposal --proposal LAST execute
