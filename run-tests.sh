@@ -8,9 +8,6 @@ solana config set --url ${SOLANA_URL:-http://localhost:8899}
 
 # INTEGRATION TEST FOR GOVERNANCE OPERATION
 
-# Balance delegated to the user to create proposals on behalf of vesting holders
-DELEGATED_BALANCE=$(solana create-address-with-seed MSIG_5.1 TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA --from artifacts/creator.keypair)
-
 # Address for NEON realm (PDA for spl-governance with seeds:['governance',name='NEON'])
 # Can be calculated like this:
 # ```
@@ -21,10 +18,10 @@ NEON_REALM=HQ2gGKpAqFHoUWViJNHa8ARTiwBGisMDDrL2A8q4WiiC
 
 # Stage 0: Preparing Governance subsystem (all contracts already loaded in ./init-governance.sh step)
 launch-script --config testing.cfg --send-trx environment dao
-launch-script --config testing.cfg --send-trx proposal --name 'Delegate vote to payer' --governance MSIG_5.$DELEGATED_BALANCE create-delegate-vote --delegate $(solana address) --realm $NEON_REALM
-launch-script --config testing.cfg --send-trx proposal --governance MSIG_5.$DELEGATED_BALANCE --proposal LAST sign-off
-launch-script --config testing.cfg --send-trx proposal --governance MSIG_5.$DELEGATED_BALANCE --proposal LAST approve --voters artifacts/voters/
-launch-script --config testing.cfg --send-trx proposal --governance MSIG_5.$DELEGATED_BALANCE --proposal LAST execute
+launch-script --config testing.cfg --send-trx proposal --name 'Delegate vote to payer' --governance MSIG_4.1 create-delegate-vote --delegate $(solana address) --realm $NEON_REALM
+launch-script --config testing.cfg --send-trx proposal --governance MSIG_4.1 --proposal LAST sign-off
+launch-script --config testing.cfg --send-trx proposal --governance MSIG_4.1 --proposal LAST approve --voters artifacts/voters/
+launch-script --config testing.cfg --send-trx proposal --governance MSIG_4.1 --proposal LAST execute
 
 # Stage 1: Preparing Token Genesis Event and switch to vesting-addin
 launch-script --config testing.cfg --send-trx proposal --name 'Token Genesis Event' create-tge
