@@ -94,8 +94,8 @@ pub enum StateError {
     #[error("ConfigError {0:?}")]
     ConfigError(String),
 
-    #[error("Invalid voter list")]
-    InvalidVoterList,
+    #[error("Invalid voter list: {0:?}")]
+    InvalidVoterList(String),
 }
 
 /// Errors that may be returned by the neon-cli program.

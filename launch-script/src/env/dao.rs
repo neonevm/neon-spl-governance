@@ -23,7 +23,9 @@ pub fn process_environment_dao(
     let emergency_governance = realm.governance(&wallet.governance_program_id);
     let maintenance_governance = realm.governance(&wallet.neon_evm_program_id);
     let neon_multisig = cfg.neon_multisig_address();
-    let token_distribution = cfg.get_token_distribution()?;
+
+    cfg.print_token_distribution().unwrap();
+    cfg.validate_fixed_weight_addin(cfg.verbose)?;
 
     println!("Install MultiSig accounts");
     for msig in &cfg.multi_sigs {
@@ -164,23 +166,19 @@ pub fn process_environment_dao(
         },
     )?;
 
-    // -------------------- Create accounts for token_owner --------------------
-    let special_accounts = token_distribution.get_special_accounts();
-    for (i, voter_weight) in token_distribution.voter_list.iter().enumerate() {
-        let token_owner_record = realm.token_owner_record(&voter_weight.voter);
-        let seed: String = format!("{}_vesting_{}", REALM_NAME, i);
-        let vesting_token_account = cfg.account_by_seed(&seed, &spl_token::id());
-        let lockup = Lockup::default();
-
+    // -------------------- Create records for token_owner --------------------
+    for (owner, _) in cfg.get_unique_vesting_owners()? {
+        let owner_address = cfg.get_owner_address(&owner)?;
+        let token_owner_record = realm.token_owner_record(&owner_address);
         executor.check_and_create_object(
-            &format!("{} <- {}", seed, voter_weight.voter),
+            &format!("vesting owner {}: {:?}", owner_address, owner),
             token_owner_record.get_data()?,
             |_| {
                 // TODO check that all accounts needed to this owner created correctly
                 let fixed_weight_record_address =
-                    fixed_weight_addin.get_voter_weight_record_address(&realm, &voter_weight.voter);
+                    fixed_weight_addin.get_voter_weight_record_address(&realm, &owner_address);
                 let vesting_weight_record_address =
-                    vesting_addin.get_voter_weight_record_address(&voter_weight.voter, &realm);
+                    vesting_addin.get_voter_weight_record_address(&owner_address, &realm);
                 println!(
                     "VoterWeightRecords: fixed {}, vesting {}",
                     fixed_weight_record_address, vesting_weight_record_address
@@ -188,80 +186,44 @@ pub fn process_environment_dao(
                 Ok(None)
             },
             || {
-                let mut instructions = vec![
+                let instructions = vec![
                     token_owner_record.create_token_owner_record_instruction(),
-                    fixed_weight_addin
-                        .setup_voter_weight_record_instruction(&realm, &voter_weight.voter),
+                    fixed_weight_addin.setup_voter_weight_record_instruction(&realm, &owner_address),
                     system_instruction::transfer(
                         // Charge VestingAddin::VoterWeightRecord
                         &wallet.payer_keypair.pubkey(),
-                        &vesting_addin.get_voter_weight_record_address(&voter_weight.voter, &realm),
-                        Rent::default()
-                            .minimum_balance(vesting_addin.get_voter_weight_account_size()),
+                        &vesting_addin.get_voter_weight_record_address(&owner_address, &realm),
+                        Rent::default().minimum_balance(vesting_addin.get_voter_weight_account_size()),
                     ),
                 ];
-                if !special_accounts.contains(&voter_weight.voter) {
-                    instructions.extend(vec![
-                        system_instruction::create_account_with_seed(
-                            &wallet.payer_keypair.pubkey(),       // from
-                            &vesting_token_account,               // to
-                            &wallet.creator_pubkey,               // base
-                            &seed,                                // seed
-                            Rent::default().minimum_balance(165), // lamports
-                            165,                                  // space
-                            &spl_token::id(),                     // owner
-                        ),
-                        spl_token::instruction::initialize_account(
-                            &spl_token::id(),
-                            &vesting_token_account,
-                            &wallet.community_pubkey,
-                            &vesting_addin.find_vesting_account(&vesting_token_account),
-                        )
-                        .unwrap(),
-                        system_instruction::transfer(
-                            // Charge VestingRecord
-                            &wallet.payer_keypair.pubkey(),
-                            &vesting_addin.find_vesting_account(&vesting_token_account),
-                            Rent::default().minimum_balance(
-                                vesting_addin
-                                    .get_vesting_account_size(cfg.get_schedule_size(&lockup), true),
-                            ),
-                        ),
-                    ]);
-                    let transaction = client
-                        .create_transaction(&instructions, &[wallet.get_creator_keypair()?])?;
-                    Ok(Some(transaction))
-                } else {
-                    let transaction = client.create_transaction_with_payer_only(&instructions)?;
-                    Ok(Some(transaction))
-                }
-            },
+                let transaction = client.create_transaction_with_payer_only(&instructions)?;
+                Ok(Some(transaction))
+            }
         )?;
     }
 
-    // -------------------- Create extra token accounts ------------------------
-    for (i, token_account) in token_distribution.extra_token_accounts().iter().enumerate() {
+    // -------------------- Create accounts for NEON tokens ------------------------
+    for (i, account) in cfg.token_distribution.iter().enumerate() {
         let seed: String = format!("{}_account_{}", REALM_NAME, i);
         let token_account_address = cfg.account_by_seed(&seed, &spl_token::id());
-        let token_account_owner = if token_account.lockup.is_locked() {
-            vesting_addin.find_vesting_account(&token_account_address)
+        let (token_owner, owner_str) = if account.lockup.is_locked() {
+            let token_owner = vesting_addin.find_vesting_account(&token_account_address);
+            let owner_str = format!("{}: vesting for {:?}", token_owner, account.owner);
+            (token_owner, owner_str)
         } else {
-            cfg.get_owner_address(&token_account.owner)?
+            let token_owner = cfg.get_owner_address(&account.owner)?;
+            let owner_str = format!("{}: {:?}", token_owner, account.owner);
+            (token_owner, owner_str)
         };
-        println!(
-            "Extra token account '{}' {} owned by {}",
-            seed, token_account_address, token_account_owner
-        );
-
         executor.check_and_create_object(
-            &seed,
+            &format!("{} owned by {}", seed, owner_str),
             get_account_data(client, &token_account_address)?,
             |d| {
                 assert_is_valid_account_data(
                     d,
                     &token_account_address,
                     &wallet.community_pubkey,
-                    &token_account_owner,
+                    &token_owner,
                 )?;
                 Ok(None)
             },
@@ -280,23 +242,22 @@ pub fn process_environment_dao(
                         &spl_token::id(),
                         &token_account_address,
                         &wallet.community_pubkey,
-                        &token_account_owner,
+                        &token_owner,
                     )
                     .unwrap(),
                 ];
-                if token_account.lockup.is_locked() {
+                if account.lockup.is_locked() {
                     instructions.extend(vec![system_instruction::transfer(
                         // Charge VestingRecord
                         &wallet.payer_keypair.pubkey(),
                         &vesting_addin.find_vesting_account(&token_account_address),
                         Rent::default().minimum_balance(vesting_addin.get_vesting_account_size(
-                            cfg.get_schedule_size(&token_account.lockup),
+                            cfg.get_schedule_size(&account.lockup),
                             true,
                         )),
                     )]);
-                }
-                let transaction =
-                    client.create_transaction(&instructions, &[wallet.get_creator_keypair()?])?;
+                };
+                let transaction = client.create_transaction(&instructions, &[wallet.get_creator_keypair()?])?;
                 Ok(Some(transaction))
             },
         )?;
