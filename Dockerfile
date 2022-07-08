@@ -1,4 +1,4 @@
-ARG SOLANA_REVISION=v1.9.12
+ARG SOLANA_REVISION=v1.10.29
 # Install BPF SDK
 FROM solanalabs/rust:latest AS builder
 RUN rustup toolchain install stable

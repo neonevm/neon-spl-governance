@@ -37,5 +37,7 @@ launch-script --config testing.cfg --send-trx proposal --proposal LAST finalize-
 sleep 65
 launch-script --config testing.cfg --send-trx proposal --proposal LAST execute
 
+solana program write-buffer --buffer-authority artifacts/creator.keypair deploy/evm_loader.so
+
 # launch-script --config testing.cfg --send-trx environment evm
 # launch-script --config testing.cfg --send-trx proposal --proposal LAST create-start-evm --buffer 
