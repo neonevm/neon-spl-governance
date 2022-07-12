@@ -7,11 +7,7 @@ members = [
     "addin-fixed-weights/mainnet",
     "addin-vesting/program",
     "addin-vesting/cli",
-    "governance-test-scripts",
-    "governance-lib",
-    "launch-script",
     "maintenance/program",
-    "maintenance-test-scripts",
 ]
 exclude = [
     "solana-program-library",
