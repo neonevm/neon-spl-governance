@@ -1,6 +1,6 @@
 ARG SOLANA_REVISION=v1.9.12
 # Install BPF SDK
-FROM solanalabs/rust:latest AS builder
+FROM solanalabs/rust:1.61.0 AS builder
 RUN rustup toolchain install stable
 RUN rustup component add clippy --toolchain stable
 RUN cargo install spl-token-cli
