@@ -39,7 +39,7 @@ fn check_neon_evm(
         get_maintenance_record_address(maintenance_program_id, neon_evm_program_id).0;
 
     executor.check_and_create_object(
-        &format!("MaintenanceRecord for {}", scope_name),
+        &format!("MaintenanceRecord for {}: {:?}", scope_name, maintenance_record_pubkey),
         client.get_account_data_borsh::<MaintenanceRecord>(
             maintenance_program_id,
             &maintenance_record_pubkey,
@@ -59,14 +59,13 @@ fn check_neon_evm(
             }
         },
         || {
-            let transaction = client.create_transaction(
+            let transaction = client.create_transaction_with_payer_only(
                 &[create_maintenance(
                     maintenance_program_id,
                     neon_evm_program_id,
                     &maintenance_dao.governance_address,
                     payer,
                 )],
-                &[&wallet.payer_keypair],
             )?;
             Ok(Some(transaction))
         },

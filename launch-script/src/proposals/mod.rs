@@ -217,7 +217,7 @@ pub fn process_proposal_create(
         },
         "create-start-evm" => {
             let buffer_pubkey: Pubkey = pubkey_of(cmd_matches, "buffer").unwrap();
-            create_collateral_pool_accounts(wallet, &mut transaction_inserter, cfg)?;
+            create_collateral_pool_accounts(wallet, client, &mut transaction_inserter, cfg)?;
             create_upgrade_evm(wallet, client, &mut transaction_inserter, cfg, buffer_pubkey)?
         },
         _ => unreachable!(),

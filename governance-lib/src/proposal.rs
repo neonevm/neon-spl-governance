@@ -9,6 +9,7 @@ use {
         instruction::{AccountMeta, Instruction},
         signer::{Signer, keypair::Keypair},
         signature::Signature,
+        compute_budget::ComputeBudgetInstruction,
     },
     spl_governance::{
         state::{
@@ -29,6 +30,8 @@ use {
     },
     std::fmt,
 };
+
+pub const COMPUTE_BUDGET_UNITS: u32 = 1_200_000;
 
 #[derive(Debug)]
 pub struct Proposal<'a> {
@@ -168,10 +171,10 @@ impl<'a> Proposal<'a> {
         Ok(signatures)
     }
 
-    pub fn execute_transaction(&self, option_index: u8, index: u16) -> ClientResult<Signature> {
-        let proposal_transaction = self.get_proposal_transaction_data(option_index, index)?.unwrap();
-        self._execute_transaction(&proposal_transaction)
-    }
+    // pub fn execute_transaction(&self, option_index: u8, index: u16) -> ClientResult<Signature> {
+    //     let proposal_transaction = self.get_proposal_transaction_data(option_index, index)?.unwrap();
+    //     self._execute_transaction(&proposal_transaction)
+    // }
 
     fn _execute_transaction(&self, proposal_transaction: &ProposalTransactionV2) -> ClientResult<Signature> {
         //println!("Proposal transaction: {:?}", proposal_transaction);
@@ -192,6 +195,7 @@ impl<'a> Proposal<'a> {
 
         self.governance.realm.client.send_and_confirm_transaction_with_payer_only(
                 &[
+                    ComputeBudgetInstruction::set_compute_unit_limit(COMPUTE_BUDGET_UNITS),
                     execute_transaction(
                         &self.governance.realm.program_id,
                         &self.governance.governance_address,

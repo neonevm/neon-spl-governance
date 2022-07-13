@@ -116,6 +116,9 @@ pub enum StateError {
     #[error("Wrong NEON decimals")]
     WrongNeonDecimals,
 
+    #[error("Invalid treasury pool base")]
+    InvalidPoolBase,
+
     #[error("Wrong Chain Id")]
     WrongChainId,
 

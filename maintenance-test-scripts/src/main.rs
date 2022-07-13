@@ -15,6 +15,7 @@ use solana_sdk::{
         set_upgrade_authority,
         UpgradeableLoaderState,
     },
+    compute_budget::ComputeBudgetInstruction,
 };
 
 use solana_client::rpc_client::RpcClient;
@@ -40,8 +41,9 @@ const MAINTENANCE_KEY_FILE_PATH: &str = "../artifacts/maintenance.keypair";
 const MAINTAIN_AUTHORITY_KEY_FILE_PATH: &str = "../artifacts/voters/voter1.keypair";
 const NEW_MAINTAIN_AUTHORITY_KEY_FILE_PATH: &str = "../artifacts/voters/voter2.keypair";
 const ADDIN_INITIAL_AUTHORITY_KEY_FILE_PATH: &str = "../artifacts/creator.keypair";
-const ADDIN_KEY_FILE_PATH: &str = "../artifacts/addin-fixed-weights.keypair";
-const BUFFER_ADDRESS: &str = "8U2jtFxrqij5iqna99DFFpndSj5M388TB2eYbwfzmvYg";
+const ADDIN_KEY_FILE_PATH: &str = "../artifacts/neon-evm.keypair";
+const BUFFER_ADDRESS: &str = "EMMu9tbH5Sdat7ytpk1YwYVaWFeGWL4sQvg1G9pjHYT1";
+const EXTENDED_COMPUTE_BUDGET_UNITS: u32 = 1_000_000;
 
 fn main() {
 
@@ -234,6 +236,7 @@ fn main() {
     let transaction: Transaction =
         Transaction::new_signed_with_payer(
             &[
+                ComputeBudgetInstruction::set_compute_unit_limit(EXTENDED_COMPUTE_BUDGET_UNITS),
                 upgrade_instruction,
             ],
             Some(&maintain_authority_pubkey),

@@ -377,6 +377,11 @@ fn main() {
                     wallet.community_pubkey,
                     wallet.governance_program_id,
                 ),
+                "MAINTENANCE" => (
+                    REALM_NAME,
+                    wallet.community_pubkey,
+                    wallet.neon_evm_program_id,
+                ),
                 name if name.starts_with("MSIG_") => {
                     if name.contains('.') {
                         let (msig_name, governed) = name.split_once('.').unwrap();

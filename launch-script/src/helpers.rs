@@ -244,8 +244,14 @@ impl<'a> ProposalTransactionInserter<'a> {
     pub fn insert_transaction_checked(&mut self, name: &str, instructions: Vec<InstructionData>) -> Result<(), ScriptError> {
         use borsh::BorshSerialize;
         let mut extra_signers = vec!();
-        for instruction in &instructions {
-            extra_signers.extend(instruction.accounts.iter().filter(|a| a.is_signer && a.pubkey != self.proposal.governance.governance_address));
+        for (idx,instruction) in instructions.iter().enumerate() {
+            println!("Instruction {}", idx);
+            extra_signers.extend(
+                instruction.accounts.iter().filter(|a| {
+                    if a.is_signer { println!("Instruction signer {:?}", a.pubkey) };
+                    a.is_signer && a.pubkey != self.proposal.governance.governance_address
+                })
+            );
         }
         if !extra_signers.is_empty() {
             let error = StateError::RequireAdditionalSigner(extra_signers[0].pubkey);
