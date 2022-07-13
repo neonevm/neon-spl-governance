@@ -1,13 +1,11 @@
-ARG SOLANA_REVISION=v1.9.12
+ARG SOLANA_REVISION=v1.10.29
 # Install BPF SDK
-FROM solanalabs/rust:1.61.0 AS builder
-RUN rustup toolchain install stable
-RUN rustup component add clippy --toolchain stable
-RUN cargo install spl-token-cli
-WORKDIR /opt
-RUN sh -c "$(curl -sSfL https://release.solana.com/stable/install)" && \
+FROM solanalabs/rust:1.62.0 AS builder
+# Use hardcoded solana revision for install SDK to prevent long rebuild when use other SOLANA_REVISION
+RUN sh -c "$(curl -sSfL https://release.solana.com/v1.10.29/install)" && \
     /root/.local/share/solana/install/active_release/bin/sdk/bpf/scripts/install.sh
 ENV PATH=/root/.local/share/solana/install/active_release/bin:/usr/local/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+RUN cargo install spl-token-cli
 
 # Build governance
 # Note: create stub Cargo.toml to speedup build
