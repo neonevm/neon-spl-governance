@@ -35,7 +35,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=solana /usr/bin/solana /usr/bin/solana-keygen /opt/solana/bin/
-COPY --from=evm-loader /opt/evm_loader.so /opt/deploy/
+COPY --from=evm-loader /opt/evm_loader-govertest.so /opt/deploy/
 COPY --from=governance-builder /usr/local/cargo/bin/spl-token /opt/solana/bin/
 COPY --from=governance-builder /opt/neon-governance/solana-program-library/target/deploy/*.so /opt/deploy/
 COPY --from=governance-builder /opt/neon-governance/target/deploy/*.so /opt/deploy/
