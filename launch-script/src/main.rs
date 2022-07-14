@@ -323,6 +323,13 @@ fn main() {
             )
             .subcommand(SubCommand::with_name("execute")
                 .about("Execute proposal (after approve)")
+                .arg(
+                    Arg::with_name("compute-units")
+                        .long("compute-units")
+                        .takes_value(true)
+                        .value_name("COMPUTE_UNITS")
+                        .help("Compute Budget Units")
+                )
             )
         ).get_matches();
 
@@ -463,7 +470,10 @@ fn main() {
                             finalize_vote_proposal(&wallet, &client, &proposal, verbose).unwrap()
                         }
                         "execute" => {
-                            execute_proposal(&wallet, &client, &proposal, verbose).unwrap()
+                            let compute_budget_opt: Option<u32> = cmd_matches
+                                .value_of("compute-units")
+                                .and_then(|v| v.parse::<u32>().ok() );
+                            execute_proposal(&wallet, &client, &proposal, compute_budget_opt, verbose).unwrap()
                         }
                         _ => unreachable!(),
                     }

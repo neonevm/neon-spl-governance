@@ -30,18 +30,18 @@ launch-script --config testing.cfg --send-trx proposal --governance MSIG_5.$DELE
 sleep 5
 launch-script --config testing.cfg --send-trx proposal --governance MSIG_5.$DELEGATED_BALANCE --proposal LAST execute
 
-# # Stage 1: Preparing Token Genesis Event and switch to vesting-addin
-# launch-script --config testing.cfg --send-trx proposal --name 'Token Genesis Event' create-tge
-# launch-script --config testing.cfg --send-trx proposal --proposal LAST sign-off
-# launch-script --config testing.cfg --send-trx proposal --proposal LAST approve --voters artifacts/voters/
-# sleep 185
-# launch-script --config testing.cfg --send-trx proposal --proposal LAST finalize-vote
-# sleep 65
-# launch-script --config testing.cfg --send-trx proposal --proposal LAST execute
+# Stage 1: Preparing Token Genesis Event and switch to vesting-addin
+launch-script --config testing.cfg --send-trx proposal --name 'Token Genesis Event' create-tge
+launch-script --config testing.cfg --send-trx proposal --proposal LAST sign-off
+launch-script --config testing.cfg --send-trx proposal --proposal LAST approve --voters artifacts/voters/
+sleep 185
+launch-script --config testing.cfg --send-trx proposal --proposal LAST finalize-vote
+sleep 65
+launch-script --config testing.cfg --send-trx proposal --proposal LAST execute
 
-solana program deploy -v --keypair artifacts/payer.keypair --upgrade-authority artifacts/creator.keypair --program-id artifacts/neon-evm.keypair deploy/evm_loader.so
+solana program deploy -v --keypair artifacts/payer.keypair --upgrade-authority artifacts/creator.keypair --program-id artifacts/neon-evm.keypair deploy/evm_loader-govertest.so
 
-solana program write-buffer -v --keypair artifacts/payer.keypair --buffer artifacts/buffer.keypair deploy/evm_loader.so
+solana program write-buffer -v --keypair artifacts/payer.keypair --buffer artifacts/buffer.keypair deploy/evm_loader-govertest.so
 solana program set-buffer-authority -v --buffer-authority artifacts/payer.keypair artifacts/buffer.keypair --new-buffer-authority $MAINTENANCE_RECORD_ADDRESS
 
 launch-script --config testing.cfg --send-trx environment evm
@@ -52,4 +52,4 @@ launch-script --config testing.cfg --send-trx proposal --governance MAINTENANCE 
 sleep 185
 launch-script --config testing.cfg --send-trx proposal --governance MAINTENANCE --proposal LAST finalize-vote
 sleep 65
-launch-script --config testing.cfg --send-trx proposal --governance MAINTENANCE --proposal LAST execute
+launch-script --config testing.cfg --send-trx proposal --governance MAINTENANCE --proposal LAST execute --compute-units 1200000

@@ -52,20 +52,6 @@ pub fn create_upgrade_evm(wallet: &Wallet, client: &Client,
         verbose: transaction_inserter.verbose,
     };
 
-    // executor.check_and_create_object(
-    //     "EVM loader",
-    //     client.get_account(&wallet.neon_evm_program_id)?,
-    //     |evm_loader_account| {
-    //         let (maintenance_record_pubkey,_): (Pubkey,u8) =
-                // println!("Address: {:?}", get_maintenance_record_address(&wallet.maintenance_program_id, &wallet.neon_evm_program_id));
-    //         if evm_loader_account.owner != maintenance_record_pubkey {
-    //             return Err( StateError::WrongEvmLoaderAccountOwner(evm_loader_account.owner).into() );
-    //         }
-    //         Ok(None)
-    //     },
-    //     || Err( StateError::MissingEvmLoader(wallet.neon_evm_program_id).into() ),
-    // )?;
-
     let upgrade_authority_opt = client.get_program_upgrade_authority(&wallet.neon_evm_program_id)?;
     executor.check_and_create_object(
         &format!("EVM loader upgrade authority: {:?}", upgrade_authority_opt),
@@ -86,28 +72,28 @@ pub fn create_upgrade_evm(wallet: &Wallet, client: &Client,
             let elf = Elf::parse(program_data).expect("Can't parse Elf data");
             let elf_params = parse_elf_params(elf, program_data);
 
-            println!("elf_params: {:?}", elf_params);
-            // if elf_params.get("NEON_TOKEN_MINT")
-            //         .and_then(|value| Pubkey::from_str(value.as_str()).ok() )
-            //         .map(|neon_mint| {
-            //             println!("neon_mint: {:?}", neon_mint);
-            //             neon_mint != wallet.community_pubkey 
-            //         })
-            //         .unwrap_or(true) {
-            //     return Err( StateError::InvalidNeonMint.into() );
-            // }
+            // println!("elf_params: {:?}", elf_params);
+            if elf_params.get("NEON_TOKEN_MINT")
+                    .and_then(|value| Pubkey::from_str(value.as_str()).ok() )
+                    .map(|neon_mint| {
+                        println!("neon_mint: {:?}", neon_mint);
+                        neon_mint != wallet.community_pubkey 
+                    })
+                    .unwrap_or(true) {
+                return Err( StateError::InvalidNeonMint.into() );
+            }
             if elf_params.get("NEON_TOKEN_MINT_DECIMALS")
                     .and_then(|value| value.parse().ok() )
                     .map(|decimals: u32| decimals != 9 )
                     .unwrap_or(true) {
                 return Err( StateError::WrongNeonDecimals.into() );
             }
-            // if elf_params.get("NEON_POOL_BASE")
-            //         .and_then(|value| Pubkey::from_str(value.as_str()).ok() )
-            //         .map(|neon_pool_base| neon_pool_base != wallet.maintenance_program_id )
-            //         .unwrap_or(true) {
-            //     return Err( StateError::InvalidPoolBase.into() );
-            // }
+            if elf_params.get("NEON_POOL_BASE")
+                    .and_then(|value| Pubkey::from_str(value.as_str()).ok() )
+                    .map(|neon_pool_base| neon_pool_base != wallet.maintenance_program_id )
+                    .unwrap_or(true) {
+                return Err( StateError::InvalidPoolBase.into() );
+            }
             if elf_params.get("NEON_CHAIN_ID")
                     .and_then(|value| value.parse().ok() )
                     .map(|chain_id: u64| chain_id != cfg.chain_id )

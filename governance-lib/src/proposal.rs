@@ -31,8 +31,6 @@ use {
     std::fmt,
 };
 
-pub const COMPUTE_BUDGET_UNITS: u32 = 1_200_000;
-
 #[derive(Debug)]
 pub struct Proposal<'a> {
     pub governance: &'a Governance<'a>,
@@ -157,14 +155,14 @@ impl<'a> Proposal<'a> {
             )
     }
 
-    pub fn execute_transactions(&self, option_index: u8) -> ClientResult<Vec<Signature>> {
+    pub fn execute_transactions(&self, option_index: u8, compute_budget_opt: Option<u32>) -> ClientResult<Vec<Signature>> {
         let mut signatures = vec!();
         let mut index = 0;
 
         while let Some(proposal_transaction) = self.get_proposal_transaction_data(option_index, index)? {
             if proposal_transaction.execution_status == TransactionExecutionStatus::None {
                 //println!("Execute proposal transaction: {} {} =====================", option_index, index);
-                signatures.push(self._execute_transaction(&proposal_transaction)?);
+                signatures.push(self._execute_transaction(&proposal_transaction,compute_budget_opt)?);
             }
             index += 1;
         }
@@ -176,7 +174,7 @@ impl<'a> Proposal<'a> {
     //     self._execute_transaction(&proposal_transaction)
     // }
 
-    fn _execute_transaction(&self, proposal_transaction: &ProposalTransactionV2) -> ClientResult<Signature> {
+    fn _execute_transaction(&self, proposal_transaction: &ProposalTransactionV2, compute_budget_opt: Option<u32>) -> ClientResult<Signature> {
         //println!("Proposal transaction: {:?}", proposal_transaction);
         let mut accounts = vec!();
         for instruction in &proposal_transaction.instructions {
@@ -193,21 +191,23 @@ impl<'a> Proposal<'a> {
         //println!("Proposal: {}", self.proposal_address);
         //println!("Execute transaction with accounts {:?}", accounts);
 
-        self.governance.realm.client.send_and_confirm_transaction_with_payer_only(
-                &[
-                    ComputeBudgetInstruction::set_compute_unit_limit(COMPUTE_BUDGET_UNITS),
-                    execute_transaction(
-                        &self.governance.realm.program_id,
-                        &self.governance.governance_address,
-                        &self.proposal_address,
-                        &self.get_proposal_transaction_address(
-                                proposal_transaction.option_index,
-                                proposal_transaction.transaction_index),
-                        &self.governance.governance_address,   // Dummy account to call execute_transaction (bug in instruction.rs implementation)
-                        &accounts,
-                    ),
-                ]
+        let mut instructions: Vec<Instruction> = Vec::new();
+        if let Some(compute_budget) = compute_budget_opt {
+            instructions.push(ComputeBudgetInstruction::set_compute_unit_limit(compute_budget));
+        };
+        instructions.push(
+            execute_transaction(
+                &self.governance.realm.program_id,
+                &self.governance.governance_address,
+                &self.proposal_address,
+                &self.get_proposal_transaction_address(
+                        proposal_transaction.option_index,
+                        proposal_transaction.transaction_index),
+                &self.governance.governance_address,   // Dummy account to call execute_transaction (bug in instruction.rs implementation)
+                &accounts,
             )
+        );
+        self.governance.realm.client.send_and_confirm_transaction_with_payer_only(&instructions)
     }
 
     pub fn finalize_vote(&self, proposal_owner_record: &Pubkey) -> ClientResult<Signature> {

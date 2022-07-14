@@ -315,9 +315,10 @@ pub fn execute_proposal(
     _wallet: &Wallet,
     _client: &Client,
     proposal: &Proposal,
+    compute_budget_opt: Option<u32>,
     _verbose: bool,
 ) -> Result<(), ScriptError> {
-    let result = proposal.execute_transactions(0)?;
+    let result = proposal.execute_transactions(0,compute_budget_opt)?;
     println!("Execute transactions from proposal option 0: {:?}", result);
 
     Ok(())
