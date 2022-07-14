@@ -19,8 +19,10 @@ pub fn setup_proposal_tge(
     let vesting_addin = AddinVesting::new(client, wallet.vesting_addin_id);
     let governance = realm.governance(&wallet.community_pubkey);
     let emergency_governance = realm.governance(&wallet.governance_program_id);
-    let token_distribution = cfg.get_token_distribution()?;
     let neon_multisig = cfg.neon_multisig_address();
+
+    cfg.print_token_distribution().unwrap();
+    cfg.validate_fixed_weight_addin(cfg.verbose)?;
 
     let governance_token_account =
         spl_associated_token_account::get_associated_token_address_with_program_id(
@@ -39,43 +41,12 @@ pub fn setup_proposal_tge(
             &governance_token_account,
             &neon_multisig,
             &[&governance.governance_address],
-            token_distribution.info.total_amount,
+            cfg.get_total_amount(),
         )?
         .into()],
     )?;
 
-    let special_accounts = token_distribution.get_special_accounts();
-    println!("Special accounts: {:?}", special_accounts);
-    for (i, voter) in token_distribution.voter_list.iter().enumerate() {
-        if special_accounts.contains(&voter.voter) {
-            continue;
-        }
-
-        let seed: String = format!("{}_vesting_{}", REALM_NAME, i);
-        let vesting_token_account = cfg.account_by_seed(&seed, &spl_token::id());
-        let lockup = Lockup::default();
-        let schedule = cfg.get_schedule(&lockup, voter.weight);
-
-        transaction_inserter.insert_transaction_checked(
-            &format!(
-                "Deposit {} to {} on token account {}",
-                voter.weight, voter.voter, vesting_token_account
-            ),
-            vec![vesting_addin
-                .deposit_with_realm_instruction(
-                    &governance.governance_address,      // source_token_authority
-                    &governance_token_account,           // source_token_account
-                    &voter.voter,                        // vesting_owner
-                    &vesting_token_account,              // vesting_token_account
-                    schedule,                            // schedule
-                    &realm,                              // realm
-                    Some(governance.governance_address), // payer
-                )?
-                .into()],
-        )?;
-    }
-
-    for (i, token_account) in token_distribution.extra_token_accounts().iter().enumerate() {
+    for (i, token_account) in cfg.token_distribution.iter().enumerate() {
         let seed: String = format!("{}_account_{}", REALM_NAME, i);
         let token_account_address = cfg.account_by_seed(&seed, &spl_token::id());
 

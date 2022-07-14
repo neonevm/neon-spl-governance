@@ -10,7 +10,6 @@ mod env;
 mod lockup;
 mod msig;
 mod proposals;
-mod token_distribution;
 
 pub mod prelude {
     pub use crate::{
@@ -23,7 +22,6 @@ pub mod prelude {
         lockup::{Lockup, VestingSchedule},
         msig::{setup_msig, MultiSig},
         proposals::prelude::*,
-        token_distribution::TokenDistribution,
         tokens::{
             assert_is_valid_account_data, get_account_data, get_mint_data, get_multisig_data,
         },
@@ -60,10 +58,11 @@ pub enum AccountOwner {
     MainGovernance,
     EmergencyGovernance,
     BothGovernance,
-    MultiSig(&'static str, Option<Pubkey>),
-    Key(Pubkey),
+    MultiSig(&'static str),
+    Key(&'static str),
 }
 
+#[derive(Debug, Copy, Clone)]
 pub struct ExtraTokenAccount {
     pub owner: AccountOwner,
     pub amount: u64,
@@ -391,9 +390,10 @@ fn main() {
                 ),
                 name if name.starts_with("MSIG_") => {
                     if name.contains('.') {
-                        let (msig_name, governed) = name.split_once('.').unwrap();
+                        let (msig_name, _) = name.split_once('.').unwrap();
                         let msig_mint = cfg.account_by_seed(msig_name, &spl_token::id());
-                        (msig_name, msig_mint, Pubkey::try_from(governed).unwrap())
+                        let governed = cfg.account_by_seed(name, &spl_token::id());
+                        (msig_name, msig_mint, governed)
                     } else {
                         let msig_mint = cfg.account_by_seed(name, &spl_token::id());
                         (name, msig_mint, msig_mint)
