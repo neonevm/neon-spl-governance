@@ -75,10 +75,7 @@ pub fn create_upgrade_evm(wallet: &Wallet, client: &Client,
             // println!("elf_params: {:?}", elf_params);
             if elf_params.get("NEON_TOKEN_MINT")
                     .and_then(|value| Pubkey::from_str(value.as_str()).ok() )
-                    .map(|neon_mint| {
-                        println!("neon_mint: {:?}", neon_mint);
-                        neon_mint != wallet.community_pubkey 
-                    })
+                    .map(|neon_mint| neon_mint != wallet.community_pubkey )
                     .unwrap_or(true) {
                 return Err( StateError::InvalidNeonMint.into() );
             }

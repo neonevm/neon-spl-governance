@@ -9,7 +9,7 @@ const TREASURY_POOL_ACCOUNT_COUNT: u32 = 10;
 pub fn create_collateral_pool_accounts(wallet: &Wallet, client: &Client, transaction_inserter: &mut ProposalTransactionInserter, cfg: &Configuration) -> Result<(), ScriptError> {
 
     let realm = Realm::new(
-        &cfg.client,
+        cfg.client,
         &wallet.governance_program_id,
         REALM_NAME,
         &wallet.community_pubkey,
@@ -49,7 +49,7 @@ pub fn create_collateral_pool_accounts(wallet: &Wallet, client: &Client, transac
                     &[
                         system_instruction::transfer(
                             &client.payer.pubkey(),             // from
-                            &&collateral_pool_account,          // to
+                            &collateral_pool_account,          // to
                             minimum_balance_for_rent_exemption, // lamports
                         ),
                     ],
