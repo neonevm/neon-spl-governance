@@ -356,7 +356,6 @@ impl<'a> Configuration<'a> {
     }
 
     pub fn get_owner_address(&self, account_owner: &AccountOwner) -> Result<Pubkey, ScriptError> {
-        use std::str::FromStr;
         match account_owner {
             AccountOwner::MainGovernance => {
                 let realm = Realm::new(

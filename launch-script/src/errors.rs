@@ -95,8 +95,8 @@ pub enum StateError {
     #[error("ConfigError {0:?}")]
     ConfigError(String),
 
-    #[error("Invalid voter list")]
-    InvalidVoterList,
+    #[error("Invalid voter list: {0:?}")]
+    InvalidVoterList(String),
 
     #[error("Missing EVM loader at address {0:?}")]
     MissingEvmLoader(Pubkey),
@@ -127,9 +127,6 @@ pub enum StateError {
 
     #[error("Wrong EVM loader buffer code hash")]
     WrongCodeHash,
-
-    #[error("Invalid voter list: {0:?}")]
-    InvalidVoterList(String),
 }
 
 /// Errors that may be returned by the neon-cli program.
