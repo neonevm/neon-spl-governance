@@ -33,7 +33,7 @@ pub fn create_collateral_pool_accounts(wallet: &Wallet, client: &Client, transac
     };
 
     for index in 0u32..TREASURY_POOL_ACCOUNT_COUNT {
-        let seed: String = format!("collateral_seed_{}", index.to_string().as_str());
+        let seed: String = format!("collateral_seed_{}", index);
         println!("\nCollateral Poool Seed: {}", seed);
 
         let collateral_pool_account: Pubkey =  Pubkey::create_with_seed(&maintenance_governance_pubkey, &seed, &cfg.wallet.neon_evm_program_id).unwrap();

@@ -9,7 +9,7 @@ use solana_sdk::{
 use goblin::elf::{ Elf };
 use crate::prelude::*;
 
-fn parse_elf_params(elf: Elf, program_data: &Vec<u8>) -> HashMap<String,String> {
+fn parse_elf_params(elf: Elf, program_data: &[u8]) -> HashMap<String,String> {
     let mut elf_params: HashMap::<String,String> = HashMap::new();
 
     elf.dynsyms.iter().for_each(|sym| {

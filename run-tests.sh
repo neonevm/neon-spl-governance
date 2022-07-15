@@ -17,7 +17,6 @@ solana -v airdrop 100
 # ```
 NEON_REALM=HQ2gGKpAqFHoUWViJNHa8ARTiwBGisMDDrL2A8q4WiiC
 MAINTENANCE_RECORD_ADDRESS=3CKMRZhKsjJvn99JHhrBDaEdmPYDYpeg5mSGmen8dz7Q
-# MAINTENANCE_RECORD_ADDRESS=$(solana address -k artifacts/maintnance.keypair)
 
 # Stage 0: Preparing Governance subsystem (all contracts already loaded in ./init-governance.sh step)
 launch-script --config testing.cfg --send-trx environment dao
