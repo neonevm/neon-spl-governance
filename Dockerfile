@@ -10,7 +10,7 @@ RUN sh -c "$(curl -sSfL https://release.solana.com/stable/install)" && \
 ENV PATH=/root/.local/share/solana/install/active_release/bin:/usr/local/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 #FROM neonlabsorg/evm_loader:v0.8.1 AS evm-loader
-FROM neonlabsorg/evm_loader:d17c0fe6ee1f8f72269e7f707c6fda3362863b6b AS evm-loader
+FROM neonlabsorg/evm_loader:8116fa7c4ea738b0b97922db91a7b8a53fe9e4c2 AS evm-loader
 
 # Build governance
 # Note: create stub Cargo.toml to speedup build
