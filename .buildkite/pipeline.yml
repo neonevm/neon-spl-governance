@@ -7,15 +7,6 @@ steps:
 
   - wait
 
-  - label: ":cop::skin-tone-2: deploy check"
-    command:
-      - ".buildkite/steps/deploy-tests.sh"
-    timeout: 60
-    agents:
-      queue: "testing"
-
-  - wait
-
   - label: ":floppy_disk: publish image"
     command: ".buildkite/steps/publish-image.sh"
     branches: "main ci-* v*.*.*"
