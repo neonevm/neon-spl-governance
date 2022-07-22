@@ -29,15 +29,11 @@ spl-governance = { path = "../../solana-program-library/governance/program", ver
 thiserror = "1.0"
 cfg-if = { version = "1.0" }
 
-
-#[dev-dependencies]
-#assert_matches = "1.5.0"
-#base64 = "0.13"
-#proptest = "1.0"
-#solana-program-test = "1.9.9"
-#solana-sdk = "1.9.9"
-#spl-governance-test-sdk = { version = "0.1.2" }
-
+[dev-dependencies]
+solana-sdk = "1.10.16"
+solana-program-test = "1.10.16"
+tokio = { version = "1.0", features = ["macros"]}
+hex = "0.4"
 
 [lib]
 crate-type = ["cdylib", "lib"]

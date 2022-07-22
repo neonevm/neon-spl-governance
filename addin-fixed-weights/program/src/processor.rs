@@ -123,6 +123,10 @@ pub fn process_set_vote_percentage_with_realm(
 
     let mut voter_weight_record = get_account_data::<VoterWeightRecord>(program_id, voter_weight_record_info)?;
 
+    if vote_percentage > 10000 {
+        return Err(VoterWeightAddinError::InvalidPercentage.into());
+    }
+
     if *realm_info.key != voter_weight_record.realm
         || *governing_token_mint_info.key != voter_weight_record.governing_token_mint
         || *governing_token_owner_info.key != voter_weight_record.governing_token_owner
