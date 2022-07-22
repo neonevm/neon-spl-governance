@@ -3692,16 +3692,20 @@ dependencies = [
  "borsh",
  "cfg-if",
  "const_format",
+ "hex",
  "num-derive",
  "num-traits",
  "serde",
  "serde_derive",
  "solana-program",
+ "solana-program-test",
+ "solana-sdk",
  "spl-governance",
  "spl-governance-addin-api",
  "spl-governance-tools",
  "spl-token 3.3.0",
  "thiserror",
+ "tokio",
 ]
 
 [[package]]
