@@ -23,6 +23,9 @@ pub enum VoterWeightAddinError {
     /// Overflow Voter Weight
     #[error("Overflow Voter Weight")]
     OverflowVoterWeight,
+    /// Invalid Percentage Value
+    #[error("Invalid Precentage")]
+    InvalidPercentage,
 }
 
 impl PrintProgramError for VoterWeightAddinError {
