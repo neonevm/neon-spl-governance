@@ -123,21 +123,22 @@ async fn test_fixed_weights() {
     create_realm_transaction.partial_sign(&[&payer], recent_blockhash);
     banks_client.process_transaction(create_realm_transaction).await.unwrap();
 
+    // Create TokenOwnerRecord and VoterWeightRecord for accounts in VOTER_LIST
     for (owner,_) in VOTER_LIST.iter() {
         let mut transaction = Transaction::new_with_payer(
             &[
-                setup_voter_weight_record(
-                    &program_id,
-                    &realm_address,
-                    &mint.pubkey(),
-                    &owner,
-                    &payer.pubkey(),
-                ),
                 create_token_owner_record(
                     &governance_id,
                     &realm_address,
                     &owner,
                     &mint.pubkey(),
+                    &payer.pubkey(),
+                ),
+                setup_voter_weight_record(
+                    &program_id,
+                    &realm_address,
+                    &mint.pubkey(),
+                    &owner,
                     &payer.pubkey(),
                 ),
             ],
@@ -175,6 +176,7 @@ async fn test_fixed_weights() {
         );
     }
 
+    // Check SetVotePercentage on different values
     let owner = read_keypair_file("../../artifacts/tst18qx7Kd3ELAsM3Qxn4nKNRZeg26Zi7GKGHaeWFm6.keypair").unwrap();
     let weight = VOTER_LIST.iter().filter_map(|(o,w)| if o == &owner.pubkey() {Some(w)} else {None}).next().unwrap();
     let set_vote_percentage_transaction = |authority: &Keypair, percentage: u16| {
@@ -196,7 +198,6 @@ async fn test_fixed_weights() {
         transaction
     };
 
-    // Check SetVotePercentage on different values
     {
         for percentage in [0u16, 3000u16, 10000u16, 10001u16] {
             let transaction = set_vote_percentage_transaction(&owner, percentage);
