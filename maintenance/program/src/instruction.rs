@@ -14,7 +14,7 @@ use crate::{
     processor::get_maintenance_record_seeds,
 };
 
-/// Instructions supported by the VoterWeight addin program
+/// Instructions supported by the Maintenance program
 /// This program is a mock program used by spl-governance for testing and not real addin
 #[derive(Clone, Debug, PartialEq, BorshDeserialize, BorshSerialize, BorshSchema)]
 #[allow(clippy::large_enum_variant)]
