@@ -62,6 +62,12 @@ pub enum VestingError {
 
     #[error("Invalid TokenOwnerRecord")]
     InvalidTokenOwnerRecord,
+
+    #[error("Vesting not empty")]
+    VestingNotEmpty,
+
+    #[error("Voter Weight Record not empty")]
+    VoterWeightRecordNotEmpty,
 }
 
 impl From<VestingError> for ProgramError {

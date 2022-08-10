@@ -12,10 +12,19 @@ use solana_program::{
 };
 
 use borsh::BorshSerialize;
-use spl_token::{instruction::transfer, state::Account};
+use spl_token::{
+    instruction::{
+        close_account,
+        set_authority,
+        transfer,
+        AuthorityType,
+    },
+    state::Account,
+};
 use spl_governance_tools::account::{
     get_account_data,
     create_and_serialize_account_signed,
+    dispose_account,
 };
 use spl_governance::state::{
     realm::get_realm_data,
@@ -473,6 +482,116 @@ impl Processor {
         Ok(())
     }
 
+    pub fn process_close(
+        program_id: &Pubkey,
+        accounts: &[AccountInfo],
+    ) -> ProgramResult {
+        let accounts_iter = &mut accounts.iter();
+
+        let spl_token_account = next_account_info(accounts_iter)?;
+        let vesting_account = next_account_info(accounts_iter)?;
+        let vesting_token_account = next_account_info(accounts_iter)?;
+        let vesting_owner_account = next_account_info(accounts_iter)?;
+        let spill_account = next_account_info(accounts_iter)?;
+
+        let (vesting_account_key, vesting_account_seed) = Pubkey::find_program_address(&[vesting_token_account.key.as_ref()], program_id);
+        if vesting_account_key != *vesting_account.key {
+            return Err(VestingError::InvalidVestingAccount.into());
+        }
+
+        let mut vesting_record = get_account_data::<VestingRecord>(program_id, vesting_account)?;
+        if !vesting_owner_account.is_signer {
+            return Err(VestingError::MissingRequiredSigner.into());
+        }
+
+        if vesting_record.owner != *vesting_owner_account.key {
+            return Err(VestingError::InvalidOwnerForVestingAccount.into());
+        }
+
+        if vesting_record.token != *vesting_token_account.key {
+            return Err(VestingError::InvalidVestingTokenAccount.into());
+        }
+
+        let vesting_token_account_data = Account::unpack(&vesting_token_account.data.borrow())?;
+        if vesting_token_account_data.owner != vesting_account_key {
+            return Err(VestingError::InvalidVestingTokenAccount.into());
+        }
+
+        let mut total_amount = 0u64;
+        for s in vesting_record.schedule.iter_mut() {
+            total_amount = total_amount.checked_add(s.amount).ok_or(VestingError::OverflowAmount)?;
+        }
+        if total_amount != 0 {
+            return Err(VestingError::VestingNotEmpty.into());
+        }
+
+        let release_token_account_instruction = if vesting_token_account_data.amount == 0 {
+            close_account(
+                spl_token_account.key,
+                vesting_token_account.key,
+                spill_account.key,
+                vesting_account.key,
+                &[],
+            )?
+        } else {
+            set_authority(
+                spl_token_account.key,
+                vesting_token_account.key,
+                Some(vesting_owner_account.key),
+                AuthorityType::AccountOwner,
+                vesting_account.key,
+                &[],
+            )?
+        };
+
+        invoke_signed(
+            &release_token_account_instruction,
+            &[
+                spl_token_account.clone(),
+                vesting_token_account.clone(),
+                spill_account.clone(),
+                vesting_account.clone(),
+            ],
+            &[&[vesting_token_account.key.as_ref(), &[vesting_account_seed]]],
+        )?;
+
+        dispose_account(vesting_account, spill_account);
+
+        Ok(())
+    }
+
+    pub fn process_close_voter_weight_record(
+        program_id: &Pubkey,
+        accounts: &[AccountInfo],
+    ) -> ProgramResult {
+        let accounts_iter = &mut accounts.iter();
+
+        let owner_account = next_account_info(accounts_iter)?;
+        let realm_account = next_account_info(accounts_iter)?;
+        let mint_account = next_account_info(accounts_iter)?;
+        let voter_weight_record_account = next_account_info(accounts_iter)?;
+        let spill_account = next_account_info(accounts_iter)?;
+
+        if !owner_account.is_signer {
+            return Err(VestingError::MissingRequiredSigner.into());
+        }
+
+        let voter_weight_record = get_voter_weight_record_data_checked(
+                program_id,
+                voter_weight_record_account,
+                realm_account.key,
+                mint_account.key,
+                owner_account.key)?;
+
+        if voter_weight_record.total_amount != 0 {
+            return Err(VestingError::VoterWeightRecordNotEmpty.into());
+        }
+
+        dispose_account(voter_weight_record_account, spill_account);
+
+        Ok(())
+    }
+
     pub fn process_instruction(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
@@ -498,6 +617,12 @@ impl Processor {
             }
             VestingInstruction::SetVotePercentage {vote_percentage} => {
                 Self::process_set_vote_percentage(program_id, accounts, vote_percentage)
+            }
+            VestingInstruction::Close => {
+                Self::process_close(program_id, accounts)
+            }
+            VestingInstruction::CloseVoterWeightRecord => {
+                Self::process_close_voter_weight_record(program_id, accounts)
             }
         }
     }

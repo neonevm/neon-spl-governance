@@ -112,6 +112,28 @@ pub enum VestingInstruction {
     ///   4. `[]` The Mint account
     ///   5. `[writable]` The VoterWeightRecord. PDA seeds: ['voter_weight', realm, token_mint, token_owner]
     CreateVoterWeightRecord,
+
+
+    /// Close vesting account
+    ///
+    /// Accounts expected by this instruction:
+    ///   0. `[]` The spl-token program account
+    ///   1. `[writable]` The Vesting account. PDA seeds: [vesting spl-token account]
+    ///   2. `[writable]` The vesting spl-token account
+    ///   3. `[signer]` The vesting Owner account
+    ///   4. `[writable]` Spill account
+    Close,
+
+
+    /// Close Voter Weight Record account
+    ///
+    /// Accounts expected by this instruction:
+    ///   0. `[signer]` The Record Owner account
+    ///   1. `[]` The Realm account
+    ///   2. `[]` The Mint account
+    ///   3. `[writable]` The VoterWeightRecord. PDA seeds: ['voter_weight', realm, token_mint, token_owner]
+    ///   4. `[writable]` Spill account
+    CloseVoterWeightRecord,
 }
 
 /// Creates a `Deposit` instruction to create and initialize the vesting token account
@@ -373,6 +395,59 @@ pub fn set_vote_percentage_with_realm(
     })
 }
 
+
+/// Creates a `Close` instruction
+pub fn close(
+    program_id: &Pubkey,
+    token_program_id: &Pubkey,
+    vesting_token_account: &Pubkey,
+    vesting_owner: &Pubkey,
+    spill: &Pubkey,
+) -> Result<Instruction, ProgramError> {
+    let (vesting_account, _) = Pubkey::find_program_address(&[vesting_token_account.as_ref()], program_id);
+    let accounts = vec![
+        AccountMeta::new_readonly(*token_program_id, false),
+        AccountMeta::new(vesting_account, false),
+        AccountMeta::new(*vesting_token_account, false),
+        AccountMeta::new_readonly(*vesting_owner, true),
+        AccountMeta::new(*spill, false),
+    ];
+
+    let instruction = VestingInstruction::Close;
+
+    Ok(Instruction {
+        program_id: *program_id,
+        accounts,
+        data: instruction.try_to_vec().unwrap(),
+    })
+}
+
+
+/// Creates a `CloseVoterWeightRecord` account
+pub fn close_voter_weight_record(
+    program_id: &Pubkey,
+    owner: &Pubkey,
+    realm: &Pubkey,
+    mint: &Pubkey,
+    spill: &Pubkey,
+) -> Result<Instruction, ProgramError> {
+    let voter_weight_record = get_voter_weight_record_address(program_id, realm, mint, owner);
+    let accounts = vec![
+        AccountMeta::new_readonly(*owner, true),
+        AccountMeta::new_readonly(*realm, false),
+        AccountMeta::new_readonly(*mint, false),
+        AccountMeta::new(voter_weight_record, false),
+        AccountMeta::new(*spill, false),
+    ];
+
+    let instruction = VestingInstruction::CloseVoterWeightRecord;
+
+    Ok(Instruction {
+        program_id: *program_id,
+        accounts,
+        data: instruction.try_to_vec().unwrap(),
+    })
+}
 
 
 #[cfg(test)]
