@@ -62,11 +62,10 @@ impl Processor {
         let vesting_owner_account = next_account_info(accounts_iter)?;
         let payer_account = next_account_info(accounts_iter)?;
 
-        let realm_info = if let Some(governance) = accounts_iter.next() {
-            let realm = next_account_info(accounts_iter)?;
+        let realm_info = if let Some(realm) = accounts_iter.next() {
             let voter_weight = next_account_info(accounts_iter)?;
             let max_voter_weight = next_account_info(accounts_iter)?;
-            Some((governance, realm, voter_weight, max_voter_weight,))
+            Some((realm, voter_weight, max_voter_weight,))
         } else {
             None
         };
@@ -96,7 +95,7 @@ impl Processor {
             owner: *vesting_owner_account.key,
             mint: vesting_token_account_data.mint,
             token: *vesting_token_account.key,
-            realm: realm_info.map(|v| *v.1.key),
+            realm: realm_info.map(|v| *v.0.key),
             schedule: schedules
         };
         create_and_serialize_account_signed::<VestingRecord>(
@@ -132,7 +131,7 @@ impl Processor {
             ],
         )?;
 
-        if let Some((_governance, realm_account, voter_weight_record_account, max_voter_weight_record_account)) = realm_info {
+        if let Some((realm_account, voter_weight_record_account, max_voter_weight_record_account)) = realm_info {
             if voter_weight_record_account.data_is_empty() {
                 create_voter_weight_record(
                     program_id,
@@ -414,7 +413,6 @@ impl Processor {
         let system_program_account = next_account_info(accounts_iter)?;
         let record_owner_account = next_account_info(accounts_iter)?;
         let payer_account = next_account_info(accounts_iter)?;
-        let _governance_program_account = next_account_info(accounts_iter)?;
         let realm_account = next_account_info(accounts_iter)?;
         let mint_account = next_account_info(accounts_iter)?;
         let voter_weight_record_account = next_account_info(accounts_iter)?;
