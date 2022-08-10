@@ -157,7 +157,6 @@ fn command_deposit_with_realm_svc(
             &vesting_owner_pubkey,
             &payer.pubkey(),
             schedules,
-            &governance_program_id,
             &realm_pubkey,
             &mint_pubkey,
         )
@@ -303,7 +302,6 @@ fn command_change_owner_with_realm(
             &vesting_addin_program_id,
             &new_vesting_owner_pubkey,
             &payer.pubkey(),
-            &governance_program_id,
             &realm_pubkey,
             &mint_pubkey,
         )
@@ -336,7 +334,6 @@ fn command_change_owner_with_realm(
 
 fn command_create_voter_weight_record(
     rpc_client: RpcClient,
-    governance_program_id: Pubkey,
     vesting_addin_program_id: Pubkey,
     payer: Keypair,
     record_owner_pubkey: Pubkey,
@@ -348,7 +345,6 @@ fn command_create_voter_weight_record(
         &vesting_addin_program_id,
         &record_owner_pubkey,
         &payer.pubkey(),
-        &governance_program_id,
         &realm_pubkey,
         &mint_pubkey,
     )
@@ -1098,7 +1094,6 @@ fn main() {
 
             command_create_voter_weight_record(
                 rpc_client,
-                governance_program_id,
                 vesting_addin_program_id,
                 payer_keypair,
                 record_owner_pubkey,

@@ -33,10 +33,9 @@ pub enum VestingInstruction {
     ///   7. `[signer]` Payer
     ///
     ///  Optional part (vesting for Realm)
-    ///   8. `[]` The Governance program account
-    ///   9. `[]` The Realm account
-    ///  10. `[writable]` The VoterWeightRecord. PDA seeds: ['voter_weight', realm, token_mint, token_owner]
-    ///  11. `[writable]` The MaxVoterWeightRecord. PDA seeds: ['max_voter_weight', realm, token_mint]
+    ///   8. `[]` The Realm account
+    ///   9. `[writable]` The VoterWeightRecord. PDA seeds: ['voter_weight', realm, token_mint, token_owner]
+    ///  10. `[writable]` The MaxVoterWeightRecord. PDA seeds: ['max_voter_weight', realm, token_mint]
     ///
     Deposit {
         #[allow(dead_code)]
@@ -109,10 +108,9 @@ pub enum VestingInstruction {
     ///   0. `[]` The system program account
     ///   1. `[]` The Record Owner account
     ///   2. `[signer]` Payer
-    ///   3. `[]` The Governance program account
-    ///   4. `[]` The Realm account
-    ///   5. `[]` The Mint account
-    ///   6. `[writable]` The VoterWeightRecord. PDA seeds: ['voter_weight', realm, token_mint, token_owner]
+    ///   3. `[]` The Realm account
+    ///   4. `[]` The Mint account
+    ///   5. `[writable]` The VoterWeightRecord. PDA seeds: ['voter_weight', realm, token_mint, token_owner]
     CreateVoterWeightRecord,
 }
 
@@ -161,7 +159,6 @@ pub fn deposit_with_realm(
     vesting_owner: &Pubkey,
     payer: &Pubkey,
     schedules: Vec<VestingSchedule>,
-    governance_id: &Pubkey,
     realm: &Pubkey,
     mint: &Pubkey,
 ) -> Result<Instruction, ProgramError> {
@@ -178,7 +175,6 @@ pub fn deposit_with_realm(
         AccountMeta::new_readonly(*vesting_owner, false),
         AccountMeta::new(*payer, true),
 
-        AccountMeta::new_readonly(*governance_id, false),
         AccountMeta::new_readonly(*realm, false),
         AccountMeta::new(voting_weight_record_account, false),
         AccountMeta::new(max_voting_weight_record_account, false),
@@ -322,7 +318,6 @@ pub fn create_voter_weight_record(
     program_id: &Pubkey,
     record_owner: &Pubkey,
     payer: &Pubkey,
-    governance_id: &Pubkey,
     realm: &Pubkey,
     mint: &Pubkey,
 ) -> Result<Instruction, ProgramError> {
@@ -332,7 +327,6 @@ pub fn create_voter_weight_record(
         AccountMeta::new_readonly(*record_owner, false),
         AccountMeta::new_readonly(*payer, true),
 
-        AccountMeta::new_readonly(*governance_id, false),
         AccountMeta::new_readonly(*realm, false),
         AccountMeta::new_readonly(*mint, false),
         AccountMeta::new(voting_weight_record_account, false),
