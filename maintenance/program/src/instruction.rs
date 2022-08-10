@@ -14,18 +14,21 @@ use crate::{
     processor::get_maintenance_record_seeds,
 };
 
-/// Instructions supported by the VoterWeight addin program
+/// Instructions supported by the Maintenance program
 /// This program is a mock program used by spl-governance for testing and not real addin
 #[derive(Clone, Debug, PartialEq, BorshDeserialize, BorshSerialize, BorshSchema)]
 #[allow(clippy::large_enum_variant)]
 pub enum MaintenanceInstruction {
     /// Creates MaintenanceRecord owned by the program
     ///
-    /// 0. `[]` Maintained program account
-    /// 1. `[writable]` MaintenanceRecord
-    /// 2. `[]` Authority
-    /// 3. `[signer]` Payer
-    /// 4. `[]` System
+    /// 0. `[]` Bpf Loader Upgradeable Program Id
+    /// 1. `[]` Maintained program account
+    /// 2. `[writable]` Maintained program data account
+    /// 3. `[writable]` MaintenanceRecord
+    /// 4. `[signer]` Authority (current program upgrade-authority)
+    /// 5. `[signer]` Payer
+    /// 6. `[]` System
+    /// 7. `[]` Maintenance record authority
     CreateMaintenance { },
 
     /// Sets Delegates into MaintenanceRecord
@@ -67,7 +70,7 @@ pub enum MaintenanceInstruction {
     /// 3. `[]` MaintenanceRecord
     /// 4. `[signer]` Authority
     /// 5. `[]` New Authority
-    SetAuthority { },
+    SetProgramAuthority { },
 
     /// Closes MaintenanceRecord owned by the program
     ///
@@ -78,6 +81,13 @@ pub enum MaintenanceInstruction {
     /// 4. `[signer]` Authority
     /// 5. `[writable]` Spill destination
     CloseMaintenance { },
+
+    /// Change MaintenanceRecord Authority
+    ///
+    /// 0. `[writable]` MaintenanceRecord
+    /// 1. `[signer]` Current authority
+    /// 2. `[]` New authority
+    SetAuthority { },
 }
 
 
@@ -91,19 +101,24 @@ pub fn get_maintenance_record_address(program_id: &Pubkey, maintenance: &Pubkey)
 pub fn create_maintenance(
     program_id: &Pubkey,
     // Accounts
-    address: &Pubkey,
-    authority: &Pubkey,
+    program_address: &Pubkey,
+    program_authority: &Pubkey,
+    new_authority: &Pubkey,
     payer: &Pubkey,
 ) -> Instruction {
 
-    let (maintenance_record, _): (Pubkey, u8) = get_maintenance_record_address(program_id, address);
+    let (programdata_address, _) = Pubkey::find_program_address(&[program_address.as_ref()], &bpf_loader_upgradeable::id());
+    let (maintenance_record, _): (Pubkey, u8) = get_maintenance_record_address(program_id, program_address);
 
     let accounts = vec![
-        AccountMeta::new_readonly(*address, false),
+        AccountMeta::new_readonly(bpf_loader_upgradeable::id(), false),
+        AccountMeta::new_readonly(*program_address, false),
+        AccountMeta::new(programdata_address, false),
         AccountMeta::new(maintenance_record, false),
-        AccountMeta::new_readonly(*authority, false),
+        AccountMeta::new_readonly(*program_authority, true),
         AccountMeta::new_readonly(*payer, true),
         AccountMeta::new_readonly(system_program::id(), false),
+        AccountMeta::new_readonly(*new_authority, false),
     ];
 
     let instruction = MaintenanceInstruction::CreateMaintenance { };
@@ -199,8 +214,8 @@ pub fn upgrade(
     }
 }
 
-/// Creates 'Set Authority' instruction
-pub fn set_authority(
+/// Creates 'Set Program Authority' instruction
+pub fn set_program_authority(
     program_id: &Pubkey,
     // Accounts
     program_address: &Pubkey,
@@ -220,7 +235,7 @@ pub fn set_authority(
         AccountMeta::new_readonly(*new_authority, false),
     ];
 
-    let instruction = MaintenanceInstruction::SetAuthority { };
+    let instruction = MaintenanceInstruction::SetProgramAuthority { };
 
     Instruction {
         program_id: *program_id,
@@ -251,6 +266,32 @@ pub fn close_maintenance(
     ];
 
     let instruction = MaintenanceInstruction::CloseMaintenance { };
+
+    Instruction {
+        program_id: *program_id,
+        accounts,
+        data: instruction.try_to_vec().unwrap(),
+    }
+}
+
+/// Creates 'Set Authority' instruction
+pub fn set_authority(
+    program_id: &Pubkey,
+    // Accounts
+    program_address: &Pubkey,
+    authority: &Pubkey,
+    new_authority: &Pubkey,
+) -> Instruction {
+
+    let (maintenance_record, _): (Pubkey, u8) = get_maintenance_record_address(program_id, program_address);
+
+    let accounts = vec![
+        AccountMeta::new(maintenance_record, false),
+        AccountMeta::new_readonly(*authority, true),
+        AccountMeta::new_readonly(*new_authority, false),
+    ];
+
+    let instruction = MaintenanceInstruction::SetAuthority { };
 
     Instruction {
         program_id: *program_id,

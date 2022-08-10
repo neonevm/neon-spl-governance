@@ -13,7 +13,7 @@ use solana_program::{
     hash::{ hash, Hash, },
     entrypoint::ProgramResult,
     msg,
-    program::{ invoke_signed },
+    program::{ invoke, invoke_signed },
     program_error::ProgramError,
     pubkey::{ Pubkey },
     rent::Rent,
@@ -62,11 +62,15 @@ pub fn process_instruction(
             program_id,
             accounts,
         ),
-        MaintenanceInstruction::SetAuthority { } => process_set_authority(
+        MaintenanceInstruction::SetProgramAuthority { } => process_set_program_authority(
             program_id,
             accounts,
         ),
         MaintenanceInstruction::CloseMaintenance { } => process_close_maintenance(
+            program_id,
+            accounts,
+        ),
+        MaintenanceInstruction::SetAuthority { } => process_set_authority(
             program_id,
             accounts,
         ),
@@ -85,21 +89,64 @@ pub fn process_create_maintenance(
 ) -> ProgramResult {
     let account_info_iter = &mut accounts.iter();
 
-    let address_info = next_account_info(account_info_iter)?; // 0
-    let maintenance_record_info = next_account_info(account_info_iter)?; // 1
-    let authority_info = next_account_info(account_info_iter)?; // 2
-    let payer_info = next_account_info(account_info_iter)?; // 3
-    let system_info = next_account_info(account_info_iter)?; // 4
+    let bpf_loader_program_info = next_account_info(account_info_iter)?;       // 0
+    let maintained_program_info = next_account_info(account_info_iter)?;       // 1
+    let maintained_program_data_info = next_account_info(account_info_iter)?;  // 2
+    let maintenance_record_info = next_account_info(account_info_iter)?;       // 3
+    let authority_info = next_account_info(account_info_iter)?;                // 4
+    let payer_info = next_account_info(account_info_iter)?;                    // 5
+    let system_info = next_account_info(account_info_iter)?;                   // 6
+    let new_authority_info = next_account_info(account_info_iter)?;            // 7
+
+    if !bpf_loader_upgradeable::check_id(bpf_loader_program_info.key) {
+        return Err(MaintenanceError::IncorrectBpfLoaderProgramId.into());
+    }
+
+    let (maintained_program_data_address, _) = Pubkey::find_program_address(&[maintained_program_info.key.as_ref()], bpf_loader_program_info.key);
+    if *maintained_program_data_info.key != maintained_program_data_address {
+        return Err(MaintenanceError::WrongProgramDataForMaintenanceRecord.into());
+    }
+
+    let upgradeable_loader_state: UpgradeableLoaderState =
+        bincode::deserialize(&maintained_program_data_info.data.borrow())
+        .map_err(|_| ProgramError::from(MaintenanceError::AuthorityDeserializationError) )?;
+    
+    let program_authority: Pubkey = 
+        match upgradeable_loader_state {
+            UpgradeableLoaderState::ProgramData { slot: _, upgrade_authority_address } => 
+                upgrade_authority_address.ok_or_else(|| ProgramError::from(MaintenanceError::AuthorityDeserializationError) )?,
+            _ => 
+                return Err(ProgramError::from(MaintenanceError::AuthorityDeserializationError)),
+        };
+
+    if *authority_info.key != program_authority {
+        return Err(MaintenanceError::WrongAuthority.into());
+    }
 
     let maintenance_record_data = MaintenanceRecord {
         account_type: MaintenanceAccountType::MaintenanceRecord,
-        maintained_address: *address_info.key,
-        authority: *authority_info.key,
+        maintained_address: *maintained_program_info.key,
+        authority: *new_authority_info.key,
         delegate: Vec::new(),
         hashes: Vec::new(),
     };
 
-    let seeds: &[&[u8]] = &get_maintenance_record_seeds(address_info.key);
+    invoke(
+        &set_upgrade_authority(
+            maintained_program_info.key,
+            authority_info.key,
+            Some(maintenance_record_info.key),
+        ),
+        &[
+            bpf_loader_program_info.clone(),
+            maintained_program_info.clone(),
+            maintained_program_data_info.clone(),
+            maintenance_record_info.clone(),
+            authority_info.clone(),
+        ],
+    )?;
+
+    let seeds: &[&[u8]] = &get_maintenance_record_seeds(maintained_program_info.key);
     let rent = Rent::get()?;
 
     create_and_serialize_account_signed(
@@ -253,7 +300,7 @@ pub fn process_upgrade(
 }
 
 /// Processes Set Authority instruction
-pub fn process_set_authority(
+pub fn process_set_program_authority(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
 ) -> ProgramResult {
@@ -362,3 +409,32 @@ pub fn process_close_maintenance(
 
     Ok(())
 }
+
+/// Processes Set Authority instruction
+pub fn process_set_authority(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+) -> ProgramResult {
+    let account_info_iter = &mut accounts.iter();
+
+    let maintenance_record_info = next_account_info(account_info_iter)?; // 0
+    let authority_info = next_account_info(account_info_iter)?;          // 1
+    let new_authority_info = next_account_info(account_info_iter)?;      // 2
+
+    if !authority_info.is_signer {
+        return Err(MaintenanceError::MissingRequiredSigner.into());
+    }
+
+    let mut maintenance_record = get_account_data::<MaintenanceRecord>(program_id, maintenance_record_info)?;
+
+    if *authority_info.key != maintenance_record.authority {
+        return Err(MaintenanceError::WrongAuthority.into());
+    }
+
+    maintenance_record.authority = *new_authority_info.key;
+    
+    maintenance_record.serialize(&mut *maintenance_record_info.data.borrow_mut())?;
+
+    Ok(())
+}
+
