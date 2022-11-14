@@ -68,6 +68,9 @@ pub enum VestingError {
 
     #[error("Voter Weight Record not empty")]
     VoterWeightRecordNotEmpty,
+
+    #[error("Invalid schedule")]
+    InvalidSchedule,
 }
 
 impl From<VestingError> for ProgramError {

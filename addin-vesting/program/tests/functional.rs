@@ -21,27 +21,11 @@ use spl_governance_addin_vesting::{
     state::{VestingSchedule, VestingRecord},
     voter_weight::{ExtendedVoterWeightRecord, get_voter_weight_record_address},
     max_voter_weight::{MaxVoterWeightRecord, get_max_voter_weight_record_address},
-    instruction::{
-        deposit,
-        withdraw,
-        change_owner,
-        close,
-
-        deposit_with_realm,
-        withdraw_with_realm,
-        change_owner_with_realm,
-        create_voter_weight_record,
-        close_voter_weight_record,
-        set_vote_percentage_with_realm,
-    },
+    instruction as vesting_instruction,
 };
-use spl_token::{self, instruction::{initialize_mint, initialize_account, mint_to, transfer}, state::Account as TokenAccount};
+use spl_token::{self, instruction as token_instruction, state::Account as TokenAccount};
 use spl_governance::{
-    instruction::{
-        create_realm,
-        create_token_owner_record,
-        set_governance_delegate,
-    },
+    instruction as governance_instruction,
     state::{
         enums::MintMaxVoteWeightSource,
         realm::get_realm_address,
@@ -102,31 +86,28 @@ async fn test_token_vesting_without_realm() {
         recent_blockhash
     )).await.unwrap();
 
-    banks_client.process_transaction(
-        create_token_account(&payer, &mint, recent_blockhash, &source_token_account, &source_account.pubkey())
-    ).await.unwrap();
-    banks_client.process_transaction(
-        create_token_account(&payer, &mint, recent_blockhash, &vesting_token_account, &vesting_account_key)
-    ).await.unwrap();
-    banks_client.process_transaction(
-        create_token_account(&payer, &mint, recent_blockhash, &destination_token_account, &destination_account.pubkey())
-    ).await.unwrap();
-    banks_client.process_transaction(
-        create_token_account(&payer, &mint, recent_blockhash, &new_destination_token_account, &new_destination_account.pubkey())
-    ).await.unwrap();
-
+    for (account, owner) in [
+        (&source_token_account, &source_account.pubkey()),
+        (&vesting_token_account, &vesting_account_key),
+        (&destination_token_account, &destination_account.pubkey()),
+        (&new_destination_token_account, &new_destination_account.pubkey()),
+    ] {
+        banks_client.process_transaction(
+            create_token_account(&payer, &mint, recent_blockhash, account, owner)
+        ).await.unwrap()
+    }
 
     // Create and process the vesting transactions
     let setup_instructions = [
-        mint_to(
+        token_instruction::mint_to(
             &spl_token::id(), 
             &mint.pubkey(), 
             &source_token_account.pubkey(), 
             &mint_authority.pubkey(), 
             &[], 
-            61,
+            101,
         ).unwrap(),
-        transfer(
+        token_instruction::transfer(
             &spl_token::id(),
             &source_token_account.pubkey(),
             &vesting_token_account.pubkey(),
@@ -145,13 +126,15 @@ async fn test_token_vesting_without_realm() {
     banks_client.process_transaction(setup_transaction).await.unwrap();
 
     let schedules = vec![
-        VestingSchedule {amount: 20, release_time: 0},
-        VestingSchedule {amount: 20, release_time: 2},
-        VestingSchedule {amount: 20, release_time: 5}
+        VestingSchedule {amount: 20, release_time:  0},
+        VestingSchedule {amount: 20, release_time: 10},
+        VestingSchedule {amount: 20, release_time: 20},
+        VestingSchedule {amount: 20, release_time: 30},
+        VestingSchedule {amount: 20, release_time: 40},
     ];
 
     let deposit_instructions = [
-        deposit(
+        vesting_instruction::deposit(
             &program_id,
             &spl_token::id(),
             &vesting_token_account.pubkey(),
@@ -170,9 +153,8 @@ async fn test_token_vesting_without_realm() {
     deposit_transaction.partial_sign(&[&payer, &source_account], recent_blockhash);
     banks_client.process_transaction(deposit_transaction).await.unwrap();
 
-
     let change_owner_instructions = [
-        change_owner(
+        vesting_instruction::change_owner(
             &program_id,
             &vesting_token_account.pubkey(),
             &destination_account.pubkey(),
@@ -189,7 +171,7 @@ async fn test_token_vesting_without_realm() {
 
     let mut close_transaction = Transaction::new_with_payer(
         &[
-            close(
+            vesting_instruction::close(
                 &program_id,
                 &spl_token::id(),
                 &vesting_token_account.pubkey(),
@@ -208,7 +190,7 @@ async fn test_token_vesting_without_realm() {
 
     let mut close_transaction = Transaction::new_with_payer(
         &[
-            close(
+            vesting_instruction::close(
                 &program_id,
                 &spl_token::id(),
                 &vesting_token_account.pubkey(),
@@ -225,11 +207,89 @@ async fn test_token_vesting_without_realm() {
     );
 
 
+    // Checks that we can split some amount of vesting into separate accounts
+    for (expected_result, splitted_schedule) in [
+    //            0  10  20  30  40                 (Amount, Time)
+        (Err(VestingError::InvalidSchedule),   vec![( 1, 10), ( 1,  0)]),
+        (Err(VestingError::InvalidSchedule),   vec![( 1, 10), ( 1,  20), ( 1, 19)]),
+        (Err(VestingError::InsufficientFunds), vec![(21,  0)]),
+        (Ok(vec![20, 19, 20, 19, 20]),         vec![( 1, 13), ( 1, 39)]),
+        (Ok(vec![20, 10,  0, 19, 20]),         vec![(29, 25)]),
+        (Ok(vec![19,  8,  0, 18, 17]),         vec![( 1,  1), ( 1, 11), ( 1, 21), ( 1, 31), ( 1, 41), ( 1, 51), ( 1, 61)]),
+        (Err(VestingError::InsufficientFunds), vec![(28, 29)]),
+        (Ok(vec![19,  8,  0,  7,  0]),         vec![( 1, 30), (27, 1000)]),
+        (Err(VestingError::InsufficientFunds), vec![(16+19, 30)]),
+        (Ok(vec![18,  0,  0,  0,  0]),         vec![(16, 30)]),
+    ] {
+        println!("Splitted schedule: {:?}", splitted_schedule);
+        let splitted_schedule : Vec<VestingSchedule> = splitted_schedule.into_iter().map(|(amount,release_time)| VestingSchedule {amount, release_time}).collect();
+        fn make_schedule_from_amount(amounts:&Vec<u64>) -> Vec<VestingSchedule> {
+            amounts.iter().enumerate().map(
+                |(index, amount)| VestingSchedule {
+                    amount: *amount,
+                    release_time: index as u64 * 10
+                }
+            ).collect()
+        }
+
+        let splitted_vesting_owner = Keypair::new();
+        let splitted_vesting_token_account = Keypair::new();
+        let (splitted_vesting_account_key,_) = Pubkey::find_program_address(&[&splitted_vesting_token_account.pubkey().as_ref()], &program_id);
+
+        banks_client.process_transaction(
+            create_token_account(&payer, &mint, recent_blockhash, &splitted_vesting_token_account, &splitted_vesting_account_key)
+        ).await.unwrap();
+
+        let mut split_transaction = Transaction::new_with_payer(
+            &[
+                vesting_instruction::split(
+                    &program_id,
+                    &spl_token::id(),
+                    &vesting_token_account.pubkey(),
+                    &new_destination_account.pubkey(),
+                    &splitted_vesting_token_account.pubkey(),
+                    &splitted_vesting_owner.pubkey(),
+                    &payer.pubkey(),
+                    splitted_schedule.clone(),
+                ).unwrap(),
+            ],
+            Some(&payer.pubkey()),
+        );
+        split_transaction.partial_sign(&[&payer, &new_destination_account], recent_blockhash);
+        let result = banks_client.process_transaction(split_transaction).await;
+        let acc = banks_client.get_account(vesting_account_key).await.unwrap();
+        let splitted_acc = banks_client.get_account(splitted_vesting_account_key).await.unwrap();
+        let splitted_token = banks_client.get_packed_account_data::<TokenAccount>(splitted_vesting_token_account.pubkey()).await.unwrap();
+
+        match expected_result {
+            Ok(expected_amounts) => {
+                result.unwrap();
+                assert_eq!(
+                    try_from_slice_unchecked::<VestingRecord>(&acc.as_ref().unwrap().data).unwrap().schedule,
+                    make_schedule_from_amount(&expected_amounts)
+                );
+                let splitted_record = try_from_slice_unchecked::<VestingRecord>(&splitted_acc.as_ref().unwrap().data).unwrap();
+                assert_eq!(splitted_record.owner, splitted_vesting_owner.pubkey());
+                assert_eq!(splitted_record.realm, None);
+                assert_eq!(splitted_record.token, splitted_vesting_token_account.pubkey());
+                assert_eq!(splitted_record.schedule, splitted_schedule);
+                assert_eq!(splitted_token.amount, splitted_schedule.iter().map(|v| v.amount).sum::<u64>());
+                assert_eq!(splitted_token.owner, splitted_vesting_account_key);
+                assert_eq!(splitted_token.mint, mint.pubkey());
+            }
+            Err(err) => {
+                assert_eq!(result.unwrap_err().unwrap(), trx_instruction_error(0, err));
+                assert_eq!(splitted_acc.is_none(), true);
+                assert_eq!(splitted_token.amount, 0);
+            }
+        }
+    }
+
+
     let recent_blockhash = banks_client.get_new_latest_blockhash(&recent_blockhash).await.unwrap();
 
-
     let withdraw_instrictions = [
-        withdraw(
+        vesting_instruction::withdraw(
             &program_id,
             &spl_token::id(),
             &vesting_token_account.pubkey(),
@@ -245,19 +305,20 @@ async fn test_token_vesting_without_realm() {
     withdraw_transaction.partial_sign(&[&payer, &new_destination_account], recent_blockhash);
     banks_client.process_transaction(withdraw_transaction).await.unwrap();
 
+    let destination_token_data = banks_client.get_packed_account_data::<TokenAccount>(destination_token_account.pubkey()).await.unwrap();
+    assert_eq!(destination_token_data.amount, 18);
+
+    let vesting_token_data = banks_client.get_packed_account_data::<TokenAccount>(vesting_token_account.pubkey()).await.unwrap();
+    assert_eq!(vesting_token_data.amount, 1);   // contains only 1 token transferred on start
 
     let acc = banks_client.get_account(vesting_account_key).await.unwrap();
     println!("Vesting: {:?}", acc);
-
-    if let Some(a) = acc {
-        let acc_record: VestingRecord = try_from_slice_unchecked(&a.data).unwrap();
-        println!("         {:?}", acc_record);
-    }
+    println!("    {:?}", try_from_slice_unchecked::<VestingRecord>(&acc.as_ref().unwrap().data).unwrap());
 
 
     let mut close_transaction = Transaction::new_with_payer(
         &[
-            close(
+            vesting_instruction::close(
                 &program_id,
                 &spl_token::id(),
                 &vesting_token_account.pubkey(),
@@ -269,7 +330,6 @@ async fn test_token_vesting_without_realm() {
     );
     close_transaction.partial_sign(&[&payer, &new_destination_account], recent_blockhash);
     banks_client.process_transaction(close_transaction).await.unwrap();
-
 
     assert_eq!(banks_client.get_account(vesting_account_key).await.unwrap(), None);
 
@@ -349,7 +409,7 @@ async fn test_token_vesting_with_realm() {
 
     // Create and process the vesting transactions
     let setup_instructions = [
-        mint_to(
+        token_instruction::mint_to(
             &spl_token::id(), 
             &mint.pubkey(), 
             &source_token_account.pubkey(), 
@@ -371,7 +431,7 @@ async fn test_token_vesting_with_realm() {
     let realm_name = "testing realm".to_string();
     let realm_address = get_realm_address(&governance_id, &realm_name);
     let create_realm_instructions = [
-        create_realm(
+        governance_instruction::create_realm(
             &governance_id,
             &mint_authority.pubkey(),
             &mint.pubkey(),
@@ -381,7 +441,7 @@ async fn test_token_vesting_with_realm() {
             1,
             MintMaxVoteWeightSource::SupplyFraction(10_000_000_000)
         ),
-        create_token_owner_record(
+        governance_instruction::create_token_owner_record(
             &governance_id,
             &realm_address,
             &destination_account.pubkey(),
@@ -404,7 +464,7 @@ async fn test_token_vesting_with_realm() {
     ];
 
     let deposit_instructions = [
-        deposit_with_realm(
+        vesting_instruction::deposit_with_realm(
             &program_id,
             &spl_token::id(),
             &vesting_token_account.pubkey(),
@@ -426,7 +486,7 @@ async fn test_token_vesting_with_realm() {
 
 
     let set_governance_delegate_instructions = [
-        set_governance_delegate(
+        governance_instruction::set_governance_delegate(
             &governance_id,
             &destination_account.pubkey(),
             &realm_address,
@@ -444,7 +504,7 @@ async fn test_token_vesting_with_realm() {
 
 
     let set_vote_percentage_instructions = [
-        set_vote_percentage_with_realm(
+        vesting_instruction::set_vote_percentage_with_realm(
             &program_id,
             &destination_account.pubkey(),
             &destination_delegate.pubkey(),
@@ -463,7 +523,7 @@ async fn test_token_vesting_with_realm() {
 
 
     let init_new_destination_instructions = [
-        create_voter_weight_record(
+        vesting_instruction::create_voter_weight_record(
             &program_id,
             &new_destination_account.pubkey(),
             &payer.pubkey(),
@@ -480,7 +540,7 @@ async fn test_token_vesting_with_realm() {
 
 
     let change_owner_instructions = [
-        change_owner_with_realm(
+        vesting_instruction::change_owner_with_realm(
             &program_id,
             &vesting_token_account.pubkey(),
             &destination_account.pubkey(),
@@ -523,7 +583,7 @@ async fn test_token_vesting_with_realm() {
 
     let mut close_record1_transaction = Transaction::new_with_payer(
         &[
-            close_voter_weight_record(
+            vesting_instruction::close_voter_weight_record(
                 &program_id,
                 &destination_account.pubkey(),
                 &realm_address,
@@ -535,11 +595,11 @@ async fn test_token_vesting_with_realm() {
     );
     close_record1_transaction.partial_sign(&[&payer, &destination_account], recent_blockhash);
     banks_client.process_transaction(close_record1_transaction).await.unwrap();
-
+    assert_eq!(banks_client.get_account(voter_weight_record_address1).await.unwrap(), None);
     
     let mut close_record2_transaction = Transaction::new_with_payer(
         &[
-            close_voter_weight_record(
+            vesting_instruction::close_voter_weight_record(
                 &program_id,
                 &new_destination_account.pubkey(),
                 &realm_address,
@@ -556,8 +616,71 @@ async fn test_token_vesting_with_realm() {
     );
 
 
+    {
+        let splitted_schedule = vec![VestingSchedule {amount: 28, release_time: 3}];
+        let splitted_vesting_owner = Keypair::new();
+        let splitted_vesting_token_account = Keypair::new();
+        let (splitted_vesting_account_key,_) = Pubkey::find_program_address(&[&splitted_vesting_token_account.pubkey().as_ref()], &program_id);
+        let splitted_voter_weight_record_address = get_voter_weight_record_address(
+            &program_id,
+            &realm_address,
+            &mint.pubkey(),
+            &splitted_vesting_owner.pubkey()
+        );
+    
+
+        banks_client.process_transaction(
+            create_token_account(&payer, &mint, recent_blockhash, &splitted_vesting_token_account, &splitted_vesting_account_key)
+        ).await.unwrap();
+
+        let mut split_transaction = Transaction::new_with_payer(
+            &[
+                vesting_instruction::split_with_realm(
+                    &program_id,
+                    &spl_token::id(),
+                    &vesting_token_account.pubkey(),
+                    &new_destination_account.pubkey(),
+                    &splitted_vesting_token_account.pubkey(),
+                    &splitted_vesting_owner.pubkey(),
+                    &payer.pubkey(),
+                    splitted_schedule.clone(),
+                    &governance_id,
+                    &realm_address,
+                    &mint.pubkey(),
+                ).unwrap(),
+            ],
+            Some(&payer.pubkey()),
+        );
+        split_transaction.partial_sign(&[&payer, &new_destination_account], recent_blockhash);
+        banks_client.process_transaction(split_transaction).await.unwrap();
+        let acc = banks_client.get_account(vesting_account_key).await.unwrap();
+        assert_eq!(
+            try_from_slice_unchecked::<VestingRecord>(&acc.as_ref().unwrap().data).unwrap().schedule,
+            vec![
+                VestingSchedule {amount: 12, release_time: 0},
+                VestingSchedule {amount:  0, release_time: 2},
+                VestingSchedule {amount: 20, release_time: 5}
+            ]
+        );
+        let splitted_acc = banks_client.get_account(splitted_vesting_account_key).await.unwrap();
+        let splitted_record = try_from_slice_unchecked::<VestingRecord>(&splitted_acc.as_ref().unwrap().data).unwrap();
+        assert_eq!(splitted_record.owner, splitted_vesting_owner.pubkey());
+        assert_eq!(splitted_record.realm, Some(realm_address));
+        assert_eq!(splitted_record.token, splitted_vesting_token_account.pubkey());
+        assert_eq!(splitted_record.schedule, splitted_schedule);
+
+        let splitted_token = banks_client.get_packed_account_data::<TokenAccount>(splitted_vesting_token_account.pubkey()).await.unwrap();
+        assert_eq!(splitted_token.amount, splitted_schedule.iter().map(|v| v.amount).sum::<u64>());
+        assert_eq!(splitted_token.owner, splitted_vesting_account_key);
+        assert_eq!(splitted_token.mint, mint.pubkey());
+
+        let splitted_voter_weight_record = banks_client.get_account_data_with_borsh::<ExtendedVoterWeightRecord>(splitted_voter_weight_record_address).await.unwrap();
+        assert_eq!(splitted_voter_weight_record.total_amount, 28);
+    }
+
+
     let withdraw_instrictions = [
-        withdraw_with_realm(
+        vesting_instruction::withdraw_with_realm(
             &program_id,
             &spl_token::id(),
             &vesting_token_account.pubkey(),
@@ -577,16 +700,24 @@ async fn test_token_vesting_with_realm() {
     banks_client.process_transaction(withdraw_transaction).await.unwrap();
 
 
+    let vesting_token_data = banks_client.get_packed_account_data::<TokenAccount>(vesting_token_account.pubkey()).await.unwrap();
+    assert_eq!(vesting_token_data.amount, 0);
+
+    let destination_token_data = banks_client.get_packed_account_data::<TokenAccount>(destination_token_account.pubkey()).await.unwrap();
+    assert_eq!(destination_token_data.amount, 32);
+
+
     let vesting_record = banks_client.get_account_data_with_borsh::<VestingRecord>(vesting_account_key).await.unwrap();
     println!("VestingRecord: {:?}", vesting_record);
-
-    assert_eq!(banks_client.get_account(voter_weight_record_address1).await.unwrap(), None);
+    assert_eq!(vesting_record.schedule.iter().map(|v| v.amount).sum::<u64>(), 0u64);
 
     let voter_weight_record2 = banks_client.get_account_data_with_borsh::<ExtendedVoterWeightRecord>(voter_weight_record_address2).await.unwrap();
     println!("VoterWeightRecord: {:?}", voter_weight_record2);
+    assert_eq!(voter_weight_record2.total_amount, 0);
 
     let max_voter_weight_record = banks_client.get_account_data_with_borsh::<MaxVoterWeightRecord>(max_voter_weight_record_address).await.unwrap();
     println!("MaxVoterWeightRecord: {:?}", max_voter_weight_record);
+    assert_eq!(max_voter_weight_record.max_voter_weight, 28);
 
 
     let recent_blockhash = banks_client.get_new_latest_blockhash(&recent_blockhash).await.unwrap();
@@ -594,7 +725,7 @@ async fn test_token_vesting_with_realm() {
 
     let mut close_record2_transaction = Transaction::new_with_payer(
         &[
-            close_voter_weight_record(
+            vesting_instruction::close_voter_weight_record(
                 &program_id,
                 &new_destination_account.pubkey(),
                 &realm_address,
@@ -611,7 +742,7 @@ async fn test_token_vesting_with_realm() {
 
     let mut close_transaction = Transaction::new_with_payer(
         &[
-            close(
+            vesting_instruction::close(
                 &program_id,
                 &spl_token::id(),
                 &vesting_token_account.pubkey(),
@@ -640,7 +771,7 @@ fn mint_init_transaction(
             &spl_token::id()
     
         ),
-        initialize_mint(
+        token_instruction::initialize_mint(
             &spl_token::id(), 
             &mint.pubkey(), 
             &mint_authority.pubkey(),
@@ -677,7 +808,7 @@ fn create_token_account(
             165,
             &spl_token::id()
         ),
-        initialize_account(
+        token_instruction::initialize_account(
             &spl_token::id(), 
             &token_account.pubkey(), 
             &mint.pubkey(), 
