@@ -1,6 +1,6 @@
 [package]
 name = "spl-governance-addin-vesting"
-version = "0.1.1"
+version = "0.2.0"
 description = "Solana Program Library Governance Addin For Vesting"
 authors = ["NeonLabs Maintainers <maintainers@neonlabs.org>"]
 repository = "https://github.com/neonlabsorg/neon-spl-governance/addin-vesting/program"
