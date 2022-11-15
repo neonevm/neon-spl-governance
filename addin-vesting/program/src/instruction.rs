@@ -134,6 +134,36 @@ pub enum VestingInstruction {
     ///   3. `[writable]` The VoterWeightRecord. PDA seeds: ['voter_weight', realm, token_mint, token_owner]
     ///   4. `[writable]` Spill account
     CloseVoterWeightRecord,
+
+
+    /// Split Vesting into two parts
+    /// The schedule of splitted vesting can be equal or stronger then the schedule of source vesting.
+    ///
+    /// Accounts expected by this instruction:
+    ///
+    ///   * Single owner
+    ///   0. `[]` The system program account
+    ///   1. `[]` The spl-token program account
+    ///   2. `[writable]` The vesting account. PDA seeds: [vesting spl-token account]
+    ///   3. `[writable]` The vesting spl-token account
+    ///   4. `[signer]` The vesting Owner account
+    ///   5. `[writable]` The new vesting account. PDA seeds: [new vesting spl-token account]
+    ///   6. `[]` The new vesting spl-token account
+    ///   7. `[]` The new Vesting Owner account
+    ///   8. `[signer]` Payer
+    ///
+    ///  Optional part (vesting for Realm)
+    ///   9. `[]` The Governance program account
+    ///  10. `[]` The Realm account
+    ///  11. `[]` Governing Owner Record. PDA seed (governance program): ['governance', realm, token_mint, vesting_owner]
+    ///  12. `[writable]` The VoterWeightRecord. PDA seeds: ['voter_weight', realm, token_mint, token_owner]
+    ///  13. `[writable]` The new VoterWeightRecord. PDA seeds: ['voter_weight', realm, token_mint, new_token_owner]
+    ///
+    Split {
+        #[allow(dead_code)]
+        schedules: Vec<VestingSchedule>,
+    },
+
 }
 
 /// Creates a `Deposit` instruction to create and initialize the vesting token account
@@ -448,6 +478,92 @@ pub fn close_voter_weight_record(
         data: instruction.try_to_vec().unwrap(),
     })
 }
+
+
+/// Creates a `Split` instruction to split and initialize the new vesting token account
+#[allow(clippy::too_many_arguments)]
+pub fn split(
+    program_id: &Pubkey,
+    token_program_id: &Pubkey,
+    vesting_token_account: &Pubkey,
+    vesting_owner: &Pubkey,
+    new_vesting_token_account: &Pubkey,
+    new_vesting_owner: &Pubkey,
+    payer: &Pubkey,
+    schedules: Vec<VestingSchedule>,
+) -> Result<Instruction, ProgramError> {
+    let (vesting_account, _) = Pubkey::find_program_address(&[vesting_token_account.as_ref()], program_id);
+    let (new_vesting_account, _) = Pubkey::find_program_address(&[new_vesting_token_account.as_ref()], program_id);
+    let accounts = vec![
+        AccountMeta::new_readonly(system_program::id(), false),
+        AccountMeta::new_readonly(*token_program_id, false),
+        AccountMeta::new(vesting_account, false),
+        AccountMeta::new(*vesting_token_account, false),
+        AccountMeta::new_readonly(*vesting_owner, true),
+        AccountMeta::new(new_vesting_account, false),
+        AccountMeta::new(*new_vesting_token_account, false),
+        AccountMeta::new_readonly(*new_vesting_owner, false),
+        AccountMeta::new_readonly(*payer, true),
+    ];
+
+    let instruction = VestingInstruction::Split { schedules };
+
+    Ok(Instruction {
+        program_id: *program_id,
+        accounts,
+        data: instruction.try_to_vec().unwrap(),
+    })
+}
+
+/// Creates a `Split` instruction to split and initialize the new vesting token account
+/// inside the Realm
+#[allow(clippy::too_many_arguments)]
+pub fn split_with_realm(
+    program_id: &Pubkey,
+    token_program_id: &Pubkey,
+    vesting_token_account: &Pubkey,
+    vesting_owner: &Pubkey,
+    new_vesting_token_account: &Pubkey,
+    new_vesting_owner: &Pubkey,
+    payer: &Pubkey,
+    schedules: Vec<VestingSchedule>,
+    governance_id: &Pubkey,
+    realm: &Pubkey,
+    mint: &Pubkey,
+) -> Result<Instruction, ProgramError> {
+    let (vesting_account, _) = Pubkey::find_program_address(&[vesting_token_account.as_ref()], program_id);
+    let owner_record_account = get_token_owner_record_address(governance_id, realm, mint, vesting_owner);
+    let voting_weight_record_account = get_voter_weight_record_address(program_id, realm, mint, vesting_owner);
+
+    let (new_vesting_account, _) = Pubkey::find_program_address(&[new_vesting_token_account.as_ref()], program_id);
+    let new_voting_weight_record_account = get_voter_weight_record_address(program_id, realm, mint, new_vesting_owner);
+    let accounts = vec![
+        AccountMeta::new_readonly(system_program::id(), false),
+        AccountMeta::new_readonly(*token_program_id, false),
+        AccountMeta::new(vesting_account, false),
+        AccountMeta::new(*vesting_token_account, false),
+        AccountMeta::new_readonly(*vesting_owner, true),
+        AccountMeta::new(new_vesting_account, false),
+        AccountMeta::new(*new_vesting_token_account, false),
+        AccountMeta::new_readonly(*new_vesting_owner, false),
+        AccountMeta::new_readonly(*payer, true),
+
+        AccountMeta::new_readonly(*governance_id, false),
+        AccountMeta::new_readonly(*realm, false),
+        AccountMeta::new_readonly(owner_record_account, false),
+        AccountMeta::new(voting_weight_record_account, false),
+        AccountMeta::new(new_voting_weight_record_account, false),
+    ];
+
+    let instruction = VestingInstruction::Split { schedules };
+
+    Ok(Instruction {
+        program_id: *program_id,
+        accounts,
+        data: instruction.try_to_vec().unwrap(),
+    })
+}
+
 
 
 #[cfg(test)]
