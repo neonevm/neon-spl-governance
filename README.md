@@ -1,4 +1,8 @@
 # neon-spl-governance
+
+A set of programs to customize the standard behavior of an spl-governance program. Also, it 
+provides additional functionality like updating the program to previously approved images and 
+a schedule for withdrawing vestings.
  
 ## External weights for spl-governance
 
@@ -86,3 +90,17 @@ This instruction can also be used by the delegate of a vesting recipient.
 
 When withdrawing tokens, it is checked that the moment for their release has come,
 as well as the absence of active proposals and votes from the recipient of a vesting.
+
+
+## The Maintenance program
+
+The maintenance program is intended to control the update process of other programs. The
+main idea is to allow special groups of engineers to switch between preapproved code images
+of the program. The program owner is able to update the program to any code, and also choose
+and approve allowed code images and groups of engineers.
+
+Then these engineers can switch to one of these images in case of emergency without involving
+the owner of the program. The maintenance program creates a special `MaintenanceRecord` as PDA 
+account for each program under control. The program owner should set the program upgrade
+authority to this account to use the maintenance program functionality. At any time he can get
+authority back using special instruction.
