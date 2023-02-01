@@ -1138,6 +1138,7 @@ fn main() {
                     RpcProgramAccountsConfig {
                         filters: Some(vec![
                             rpc_filter::RpcFilterType::Memcmp(
+                                #[allow(deprecated)]
                                 rpc_filter::Memcmp {
                                     offset: 0,
                                     bytes: rpc_filter::MemcmpEncodedBytes::Bytes({

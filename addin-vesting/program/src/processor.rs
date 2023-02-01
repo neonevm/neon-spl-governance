@@ -124,7 +124,7 @@ impl Processor {
 
         if let Some((realm_account, voter_weight_record_account, max_voter_weight_record_account)) = realm_info {
             create_or_increase_voter_weight_record(
-                &realm_account.key,
+                realm_account.key,
                 &vesting_token_account_data.mint,
                 vesting_owner_account.key,
                 voter_weight_record_account,
@@ -135,7 +135,7 @@ impl Processor {
             )?;
             
             create_or_increase_max_voter_weight_record(
-                &realm_account.key,
+                realm_account.key,
                 &vesting_token_account_data.mint,
                 max_voter_weight_record_account,
                 total_amount,
@@ -553,7 +553,7 @@ impl Processor {
         let mut total_amount_to_transfer = 0u64;
         let mut source_schedule_iterator = vesting_record.schedule.iter_mut().rev();
         let mut source_schedule = source_schedule_iterator.next().ok_or(VestingError::InsufficientFunds)?;
-        for item in (&schedules).into_iter().rev() {
+        for item in schedules.iter().rev() {
             let mut rest_amount = item.amount;
             total_amount_to_transfer = total_amount_to_transfer.checked_add(item.amount)
                     .ok_or(VestingError::OverflowAmount)?;
@@ -634,7 +634,7 @@ impl Processor {
             voter_weight_record.serialize(&mut *voter_weight_record_account.data.borrow_mut())?;
 
             create_or_increase_voter_weight_record(
-                &realm_account.key,
+                realm_account.key,
                 &vesting_record.mint,
                 new_vesting_owner_account.key,
                 new_voter_weight_record_account,
@@ -715,6 +715,7 @@ fn invoke_transfer_signed<'a>(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn create_or_increase_voter_weight_record<'a>(
         realm: &Pubkey, mint: &Pubkey, vesting_owner: &Pubkey,
         voter_weight_record_account: &AccountInfo<'a>,
@@ -817,7 +818,7 @@ fn verify_schedule(schedule: &[VestingSchedule]) -> Result<(), ProgramError> {
     let mut iterator = schedule.iter();
     if let Some(item) = iterator.next() {
         let mut release_time = item.release_time;
-        while let Some(item) = iterator.next() {
+        for item in iterator {
             if item.release_time <= release_time {
                 return Err(VestingError::InvalidSchedule.into());
             }
