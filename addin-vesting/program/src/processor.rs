@@ -815,12 +815,14 @@ fn verify_vesting_owner(vesting_record: &VestingRecord, vesting_owner_account: &
 }
 
 fn verify_schedule(schedule: &[VestingSchedule]) -> Result<(), ProgramError> {
-    let mut release_time = None;
-    for item in schedule.iter() {
-        match release_time {
-            Some(release_time) if item.release_time <= release_time =>
-                return Err(VestingError::InvalidSchedule.into()),
-            _ => release_time = Some(item.release_time),
+    let mut iterator = schedule.iter();
+    if let Some(item) = iterator.next() {
+        let mut release_time = item.release_time;
+        for item in iterator {
+            if item.release_time <= release_time {
+                return Err(VestingError::InvalidSchedule.into());
+            }
+            release_time = item.release_time;
         }
     }
     Ok(())
