@@ -5,14 +5,15 @@ authors = ["NeonLabs Maintainers <maintainers@neonlabs.org>"]
 edition = "2018"
 
 [dependencies]
-solana-program = "1.10.16"
-solana-client = "1.10.16"
-solana-sdk = "1.10.16"
+chrono = "0.4.19"
+clap = "2.33.3"
+const_format = "0.2.30"
+iso8601-duration = { git = "https://github.com/rrichardson/iso8601-duration.git", rev = "9e01f51ea253e95e0fba5e4d7ad0c537922931e7"}
 solana-account-decoder = "1.10"
 solana-clap-utils = "1.10.16"
-spl-token = {version = "3.2.0", features = ["no-entrypoint"]}
+solana-client = "1.10.16"
+solana-program = "1.10.16"
+solana-sdk = "1.10.16"
 spl-associated-token-account = {version = "1.0.2", features = ["no-entrypoint"]}
 spl-governance-addin-vesting = { version = "0.2", path = "../program" }
-clap = "2.33.3"
-chrono = "0.4.19"
-iso8601-duration = { git = "https://github.com/rrichardson/iso8601-duration.git", rev = "9e01f51ea253e95e0fba5e4d7ad0c537922931e7"}
+spl-token = {version = "3.2.0", features = ["no-entrypoint"]}
