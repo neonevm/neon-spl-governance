@@ -256,7 +256,7 @@ pub fn process_upgrade(
     }
 
     let buffer_hash: Hash = {
-        let buffer_data_offset = UpgradeableLoaderState::size_of_buffer_metadata();
+        let buffer_data_offset: usize = UpgradeableLoaderState::buffer_data_offset().map_err(|_| MaintenanceError::BufferDataOffsetError )?;
         let program_buffer: &[u8] = &upgrade_buffer_info.data.borrow();
         let program_buffer_data: &[u8] = program_buffer.get(buffer_data_offset..).ok_or(MaintenanceError::BufferDataOffsetError)?;
         hash(program_buffer_data)
